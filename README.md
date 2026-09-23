@@ -62,9 +62,12 @@ Press `Alt+Space` and choose **Always on Top**, then drag with the left mouse
 button to draw.
 
 A toolbar sits in the top-left of the overlay while you are in draw mode: the
-seven tools, undo, redo, clear, and the two ways out. It disappears in
-pass-through, because there the surface takes no pointer input and a button you
-cannot click should not be on screen. The keys below do the same things.
+tools, delete, undo, redo, clear, and the two ways out. Rest the pointer on a
+button for a tooltip naming it and its key. It disappears in pass-through,
+because there the surface takes no pointer input and a button you cannot click
+should not be on screen — which also means **in pass-through the only way back
+is `yappyink toggle-draw`**, since the application underneath has the keyboard
+too.
 
 **Drag the ridged grip** at the left of the toolbar to move the overlay, and
 **drag the bottom-right corner** to resize it. Both ask the compositor to run

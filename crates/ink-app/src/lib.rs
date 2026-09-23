@@ -512,6 +512,8 @@ pub struct Controller {
     /// hundred thousand samples costs four numbers here.
     scene: Vec<(ObjectId, LogicalRect)>,
     selection: Vec<ObjectId>,
+    /// The button the pointer is resting on, for the tooltip.
+    hovered: Option<crate::toolbar::Icon>,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -544,6 +546,7 @@ impl Controller {
             surface: None,
             scene: Vec::new(),
             selection: Vec::new(),
+            hovered: None,
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -690,6 +693,18 @@ impl Controller {
                 y: size.height(),
             },
         })
+    }
+
+    /// The button the pointer is resting on, if any.
+    ///
+    /// Only while the toolbar is offered: a tooltip for a control that is not
+    /// on screen would be a tooltip for nothing.
+    pub fn hovered_button(&self) -> Option<&Button> {
+        let icon = self.hovered?;
+        self.toolbar
+            .buttons()
+            .iter()
+            .find(|button| button.icon == icon)
     }
 
     /// The toolbar, for drawing it and for tests.
@@ -1129,6 +1144,14 @@ impl Controller {
     }
 
     fn pointer_moved(&mut self, at: LogicalPoint) -> Vec<Effect> {
+        // Hover is tracked whatever else the pointer is doing, except during a
+        // gesture, where a tooltip appearing under a stroke would be noise.
+        self.hovered = if self.toolbar_visible() && !self.is_gesturing() {
+            self.toolbar.hit(at).map(|button| button.icon)
+        } else {
+            None
+        };
+
         if let Gesture::Dragging { to, .. } = &mut self.gesture {
             *to = at;
             return Vec::new();

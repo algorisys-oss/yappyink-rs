@@ -25,8 +25,20 @@ const APP_ID = 'dev.yappyink.Overlay';
 /// moment after a window is created.
 const TITLE_PREFIX = 'yappyink';
 
+/// Everything this extension logs is prefixed, so it can be told apart from
+/// GNOME Shell's own considerable output:
+///
+///     journalctl --user -f -o cat /usr/bin/gnome-shell | grep yappyink
+///
+/// It logs on enable, on disable, and on every window it takes charge of.
+/// Silence would be ambiguous: an extension that did nothing and one that was
+/// never loaded look identical in a log.
+const LOG = '[yappyink]';
+
 export default class YappyinkOverlaySupport extends Extension {
     enable() {
+        console.log(`${LOG} enabled, watching for windows with app id ${APP_ID}`);
+
         // Windows we have changed, so disable() can put them back. A Set of
         // Meta.Window; entries are dropped when the window is unmanaged.
         this._managed = new Set();
@@ -54,6 +66,7 @@ export default class YappyinkOverlaySupport extends Extension {
 
         // Put back what we changed. An extension that leaves windows altered
         // after being disabled is indistinguishable from a bug.
+        const count = this._managed.size;
         for (const window of this._managed) {
             try {
                 window.unmake_above();
@@ -62,6 +75,7 @@ export default class YappyinkOverlaySupport extends Extension {
                 // The window is already gone. Nothing to restore.
             }
         }
+        console.log(`${LOG} disabled, ${count} window(s) put back`);
         this._managed.clear();
     }
 
@@ -124,6 +138,11 @@ export default class YappyinkOverlaySupport extends Extension {
         );
 
         this._managed.add(window);
+        console.log(
+            `${LOG} took charge of "${window.get_title()}" (wm_class ${window.get_wm_class()}): ` +
+            `above, sticky, and sized to monitor ${monitor} at ` +
+            `${geometry.width}x${geometry.height}+${geometry.x}+${geometry.y}`
+        );
 
         const unmanagedId = window.connect('unmanaged', () => {
             window.disconnect(unmanagedId);

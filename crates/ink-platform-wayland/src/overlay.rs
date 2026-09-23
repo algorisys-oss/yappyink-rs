@@ -23,7 +23,8 @@
 //! limits; nothing in this file can.
 
 use ink_app::{
-    Action, Controller, Effect, Icon, Mode, PlatformEvent, Preview, Tool, Toolbar, TransitionId,
+    Action, Button, Controller, Effect, Icon, Mode, PlatformEvent, Preview, Tool, Toolbar,
+    TransitionId,
 };
 use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session, Shape, Style};
 use ink_platform::PlatformError;
@@ -603,6 +604,14 @@ impl Overlay {
             if let Some(corner) = self.controller.resize_corner() {
                 paint_resize_corner(&mut canvas, corner, self.scale);
             }
+            if let Some(button) = self.controller.hovered_button() {
+                paint_tooltip(
+                    &mut canvas,
+                    button,
+                    self.controller.toolbar().bounds(),
+                    self.scale,
+                );
+            }
         }
 
         let surface = window.wl_surface();
@@ -986,6 +995,48 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
             }
         }
     }
+}
+
+/// Draws a tooltip under the hovered button.
+///
+/// Chrome. The label font is a 5x7 bitmap with no lowercase, which is why the
+/// text is capitals: it exists so the toolbar can have words without a font
+/// stack, and the real one arrives with the text tool.
+fn paint_tooltip(
+    canvas: &mut Canvas,
+    button: &Button,
+    toolbar: ink_core::LogicalRect,
+    scale: Scale,
+) {
+    let background = [0x14, 0x10, 0x0E, 0xE8];
+    let border = [0x50, 0x48, 0x44, 0xE0];
+    let text = [0xF0, 0xF0, 0xF0, 0xFF];
+
+    let label = button.label();
+    let pixel = ((scale.get() * 1.0).round() as usize).max(1);
+    let padding = (6.0 * scale.get()).round() as i64;
+    let text_width = ink_render::font::text_width(label, pixel) as i64;
+    let text_height = ink_render::font::text_height(pixel) as i64;
+
+    let width = text_width + padding * 2;
+    let height = text_height + padding * 2;
+
+    // Under the toolbar, aligned to the button, and nudged back inside the
+    // surface if the rightmost buttons would push it off the edge.
+    let mut x = (button.bounds.min.x * scale.get()).round() as i64;
+    let y = (toolbar.max.y * scale.get()).round() as i64 + 6;
+    let limit = i64::from(canvas.width()) - width - 4;
+    if x > limit {
+        x = limit.max(4);
+    }
+
+    canvas.fill_rect(x, y, width, height, background);
+    canvas.fill_rect(x, y, width, 1, border);
+    canvas.fill_rect(x, y + height - 1, width, 1, border);
+    canvas.fill_rect(x, y, 1, height, border);
+    canvas.fill_rect(x + width - 1, y, 1, height, border);
+
+    canvas.draw_text(label, (x + padding, y + padding), pixel, text);
 }
 
 /// Draws the resize grab area as a corner of diagonal ridges.

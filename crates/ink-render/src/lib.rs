@@ -16,6 +16,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod font;
+
 use ink_core::{Document, LogicalPoint, Object, Shape, Style};
 
 /// A mutable rectangle of premultiplied ARGB8888 pixels.
@@ -115,6 +117,34 @@ impl<'a> Canvas<'a> {
             for dx in -limit..=limit {
                 if (dx * dx + dy * dy) as f64 <= radius_squared {
                     self.blend(cx + dx, cy + dy, colour);
+                }
+            }
+        }
+    }
+
+    /// Draws a short label with the built-in bitmap font.
+    ///
+    /// For chrome only. `pixel` is how many canvas pixels one font pixel
+    /// occupies, so the label scales with the display without needing a
+    /// separate size.
+    pub fn draw_text(&mut self, text: &str, at: (i64, i64), pixel: usize, colour: [u8; 4]) {
+        let step = (font::GLYPH_WIDTH + font::GLYPH_SPACING) * pixel;
+        for (index, character) in text.chars().enumerate() {
+            let rows = font::glyph(character);
+            let origin_x = at.0 + (index * step) as i64;
+            for (row, bits) in rows.iter().enumerate() {
+                for column in 0..font::GLYPH_WIDTH {
+                    // Most significant of the low five bits is the leftmost.
+                    if bits & (1 << (font::GLYPH_WIDTH - 1 - column)) == 0 {
+                        continue;
+                    }
+                    self.fill_rect(
+                        origin_x + (column * pixel) as i64,
+                        at.1 + (row * pixel) as i64,
+                        pixel as i64,
+                        pixel as i64,
+                        colour,
+                    );
                 }
             }
         }

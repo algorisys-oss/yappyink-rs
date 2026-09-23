@@ -65,6 +65,30 @@ pub struct Button {
 }
 
 impl Button {
+    /// The tooltip, naming the action and its key.
+    ///
+    /// Uppercase because the built-in label font has no lowercase: it exists
+    /// so chrome can have words without a font stack, and a real one arrives
+    /// with the text tool (T028).
+    pub fn label(&self) -> &'static str {
+        match self.icon {
+            Icon::Select => "SELECT (S)",
+            Icon::Pen => "PEN (1)",
+            Icon::Highlighter => "HIGHLIGHTER (2)",
+            Icon::Line => "LINE (3)",
+            Icon::Arrow => "ARROW (4)",
+            Icon::Rectangle => "RECTANGLE (5)",
+            Icon::Ellipse => "ELLIPSE (6)",
+            Icon::Eraser => "ERASER (E)",
+            Icon::Delete => "DELETE SELECTED (DEL)",
+            Icon::Undo => "UNDO (U)",
+            Icon::Redo => "REDO (R)",
+            Icon::Clear => "CLEAR ALL (X)",
+            Icon::PassThrough => "PASS THROUGH (P)",
+            Icon::Hide => "HIDE (H)",
+        }
+    }
+
     /// Whether this button represents the tool currently in use.
     ///
     /// Drawn with a mark as well as a colour change: NFR-006 requires a

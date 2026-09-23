@@ -427,3 +427,61 @@ fn neither_handle_is_offered_where_the_surface_takes_no_input() {
     assert_eq!(controller.resize_corner(), Some(corner));
     assert_eq!(controller.toolbar().grip().min, grip.min);
 }
+
+// --- Tooltips --------------------------------------------------------------
+
+#[test]
+fn resting_on_a_button_offers_its_tooltip() {
+    let mut controller = drawing();
+    let at = button_centre(&controller, 0);
+
+    controller.handle(PlatformEvent::PointerMoved { at });
+
+    let hovered = controller.hovered_button().expect("a hovered button");
+    assert_eq!(hovered.icon, controller.toolbar().buttons()[0].icon);
+    assert!(!hovered.label().is_empty());
+}
+
+#[test]
+fn moving_onto_the_canvas_drops_the_tooltip() {
+    let mut controller = drawing();
+    controller.handle(PlatformEvent::PointerMoved {
+        at: button_centre(&controller, 0),
+    });
+    assert!(controller.hovered_button().is_some());
+
+    controller.handle(PlatformEvent::PointerMoved { at: on_canvas() });
+
+    assert!(controller.hovered_button().is_none());
+}
+
+#[test]
+fn no_tooltip_appears_while_a_stroke_is_being_drawn() {
+    // A drag that passes under the toolbar should not raise a tooltip over
+    // the ink being drawn.
+    let mut controller = drawing();
+    controller.handle(PlatformEvent::PointerDown { at: on_canvas() });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: button_centre(&controller, 0),
+    });
+
+    assert!(controller.is_gesturing());
+    assert!(controller.hovered_button().is_none());
+}
+
+#[test]
+fn every_button_has_a_label_naming_its_key() {
+    let controller = Controller::new();
+
+    for button in controller.toolbar().buttons() {
+        let label = button.label();
+        assert!(!label.is_empty(), "{:?} has no label", button.icon);
+        assert!(
+            label.contains('(') && label.contains(')'),
+            "{label:?} does not name a key"
+        );
+        // The label font has no lowercase, so a lowercase label would render
+        // as capitals anyway and the two would silently disagree.
+        assert_eq!(label, label.to_uppercase(), "{label:?} is not uppercase");
+    }
+}
