@@ -40,6 +40,8 @@ const GRIP: f64 = 16.0;
 /// code can change without this meaning anything different.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Icon {
+    /// Opens the compositor's own window menu, where "Always on Top" lives.
+    WindowMenu,
     Select,
     Pen,
     Highlighter,
@@ -72,6 +74,7 @@ impl Button {
     /// with the text tool (T028).
     pub fn label(&self) -> &'static str {
         match self.icon {
+            Icon::WindowMenu => "ALWAYS ON TOP (T)",
             Icon::Select => "SELECT (S)",
             Icon::Pen => "PEN (1)",
             Icon::Highlighter => "HIGHLIGHTER (2)",
@@ -128,6 +131,7 @@ impl Toolbar {
             (Icon::Undo, Action::Undo),
             (Icon::Redo, Action::Redo),
             (Icon::Clear, Action::Clear),
+            (Icon::WindowMenu, Action::ShowWindowMenu),
             (Icon::PassThrough, Action::ToggleDraw),
             (Icon::Hide, Action::ToggleVisibility),
         ];

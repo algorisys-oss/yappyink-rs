@@ -485,3 +485,48 @@ fn every_button_has_a_label_naming_its_key() {
         assert_eq!(label, label.to_uppercase(), "{label:?} is not uppercase");
     }
 }
+
+#[test]
+fn the_window_menu_button_asks_for_the_compositors_menu() {
+    // Mutter gives a client no way to set Always on Top. Asking for the menu
+    // where the user can is the only honest route from inside the app.
+    let mut controller = drawing();
+    let index = controller
+        .toolbar()
+        .buttons()
+        .iter()
+        .position(|b| b.action == Action::ShowWindowMenu)
+        .expect("a window-menu button");
+    let at = button_centre(&controller, index);
+
+    controller.handle(PlatformEvent::PointerDown { at });
+    let effects = controller.handle(PlatformEvent::PointerUp { at });
+
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, Effect::ShowWindowMenu { .. })),
+        "the button produced {effects:?}"
+    );
+}
+
+#[test]
+fn the_window_menu_opens_under_the_button_that_asked_for_it() {
+    let mut controller = drawing();
+    let button = *controller
+        .toolbar()
+        .buttons()
+        .iter()
+        .find(|b| b.action == Action::ShowWindowMenu)
+        .expect("a window-menu button");
+
+    let effects = controller.act(Action::ShowWindowMenu);
+
+    match effects.first() {
+        Some(Effect::ShowWindowMenu { at }) => {
+            assert_eq!(at.x, button.bounds.min.x);
+            assert_eq!(at.y, button.bounds.max.y, "below the button, not over it");
+        }
+        other => panic!("expected a menu request, got {other:?}"),
+    }
+}

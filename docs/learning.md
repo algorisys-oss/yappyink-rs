@@ -156,6 +156,25 @@ letting a green suite stand in for evidence. `tasks.md` and `traceability.json`
 both distinguish "implemented" from "verified", and the distinction is load
 bearing.
 
+## 10. Installed, and invisible: a snap redirecting XDG_DATA_HOME
+
+**What happened.** The GNOME extension's installer honoured
+`${XDG_DATA_HOME:-$HOME/.local/share}`, which is the conventional thing to do.
+Run from the VS Code snap's terminal, `XDG_DATA_HOME` points at
+`~/snap/code/264/.local/share`, so the extension was copied somewhere GNOME
+Shell cannot read. The files existed, the copy succeeded, and
+`gnome-extensions info` reported that the extension did not exist.
+
+**Why.** The convention answers "where should this user's data go?" The actual
+question was "where does GNOME Shell look?", and the Shell runs outside the
+snap with its own environment. Two different questions that usually have the
+same answer.
+
+**What changed.** The installer uses `$HOME/.local/share` deliberately and says
+so, and prints a note when it detects a snap. It is worth noticing that the
+symptom was silence again, as in section 8: a successful copy into the wrong
+place looks exactly like a successful install.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

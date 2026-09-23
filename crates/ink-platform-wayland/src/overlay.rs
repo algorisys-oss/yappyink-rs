@@ -409,6 +409,7 @@ impl Overlay {
                     }
                     Err(error) => eprintln!("[rejected] {error}"),
                 },
+                Effect::ShowWindowMenu { at } => self.show_window_menu(at),
                 Effect::BeginWindowDrag => self.begin_interactive(InteractiveGrab::Move),
                 Effect::BeginWindowResize => self.begin_interactive(InteractiveGrab::Resize),
                 Effect::Faulted { error } => {
@@ -663,6 +664,33 @@ impl Overlay {
                 app_id: Some("dev.yappyink.Overlay".to_owned()),
                 udata: (),
             },
+        );
+    }
+
+    /// Opens the compositor's own window menu.
+    ///
+    /// This is how "Always on Top" is reachable from inside the application.
+    /// Mutter gives a client no way to set that property, and E002 measured
+    /// that without it the ink is covered by the first click elsewhere. What a
+    /// client may do is ask for the menu where the user can set it, which is
+    /// one click instead of remembering Alt+Space.
+    ///
+    /// It is the compositor's menu. Nothing here draws or imitates it, and if
+    /// the compositor declines there is no menu rather than a fake one.
+    fn show_window_menu(&mut self, at: ink_core::LogicalPoint) {
+        let (Some(window), Some(seat), Some(serial)) =
+            (&self.window, &self.seat, self.last_press_serial)
+        else {
+            eprintln!("[window] no recent press to open the window menu from");
+            return;
+        };
+        window.show_window_menu(
+            seat,
+            serial,
+            (
+                (at.x * self.scale.get()).round() as i32,
+                (at.y * self.scale.get()).round() as i32,
+            ),
         );
     }
 
@@ -932,6 +960,18 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
         };
 
         match button.icon {
+            // A window with a pin through it.
+            Icon::WindowMenu => {
+                draw(&[
+                    (0.0, 0.25),
+                    (1.0, 0.25),
+                    (1.0, 1.0),
+                    (0.0, 1.0),
+                    (0.0, 0.25),
+                ]);
+                draw(&[(0.5, 0.0), (0.5, 0.45)]);
+                draw(&[(0.3, 0.12), (0.7, 0.12)]);
+            }
             // An arrow cursor.
             Icon::Select => {
                 draw(&[(0.1, 0.0), (0.1, 0.9), (0.38, 0.62), (0.62, 1.0)]);
@@ -1175,6 +1215,7 @@ impl KeyboardHandler for Overlay {
             // Single keys rather than Ctrl chords, because modifier tracking
             // is not wired up yet. Local editing shortcuts with the platform's
             // proper modifier belong with the toolbar (T013).
+            Keysym::t | Keysym::T => Some(Action::ShowWindowMenu),
             Keysym::_8 | Keysym::s | Keysym::S => Some(Action::SelectTool(Tool::Select)),
             Keysym::Delete | Keysym::BackSpace => Some(Action::DeleteSelection),
             Keysym::u | Keysym::U => Some(Action::Undo),

@@ -7,7 +7,19 @@ set -euo pipefail
 
 UUID="yappyink@algorisys-oss.github.io"
 SOURCE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$UUID"
-TARGET="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/$UUID"
+
+# Deliberately $HOME rather than $XDG_DATA_HOME. What matters is where GNOME
+# Shell looks, not where this script's caller happens to point, and the Shell
+# runs with the session's own environment. Inside a confined terminal such as
+# the VS Code snap, XDG_DATA_HOME points at a private directory the Shell
+# cannot see, and installing there fails silently: the files appear, and the
+# extension does not exist.
+TARGET="$HOME/.local/share/gnome-shell/extensions/$UUID"
+
+if [ -n "${SNAP_NAME:-}" ]; then
+    echo "note: running inside the '$SNAP_NAME' snap. Installing to $TARGET,"
+    echo "      not to XDG_DATA_HOME (${XDG_DATA_HOME:-unset}), which the Shell cannot read."
+fi
 
 if [ ! -d "$SOURCE" ]; then
     echo "error: $SOURCE is missing" >&2

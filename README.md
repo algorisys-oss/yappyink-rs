@@ -58,8 +58,13 @@ is the overlay; it is transparent everywhere else, so the outline is the only
 way to find it. The corner square is cyan in draw mode and amber in
 pass-through.
 
-Press `Alt+Space` and choose **Always on Top**, then drag with the left mouse
-button to draw.
+Press **`t`**, or the pinned-window button on the toolbar, and choose **Always
+on Top**. (`Alt+Space` does the same thing; the button just saves remembering
+it.) Then drag with the left mouse button to draw.
+
+That is the compositor's own menu. Mutter gives an application no way to set
+Always on Top for itself, so asking for the menu is as close as a Wayland client
+can get. The [GNOME extension](integrations/gnome/) removes the step entirely.
 
 A toolbar sits in the top-left of the overlay while you are in draw mode: the
 tools, delete, undo, redo, clear, and the two ways out. Rest the pointer on a
@@ -87,6 +92,7 @@ Keys, while the overlay has focus:
 | `3` – `6` | line / arrow / rectangle / ellipse |
 | `7` or `e` | eraser |
 | `8` or `s` | select |
+| `t` | window menu, where *Always on Top* lives |
 | `Del` | delete what is selected |
 | `u` / `r` | undo / redo |
 | `x` | clear everything |

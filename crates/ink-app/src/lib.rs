@@ -276,6 +276,13 @@ pub enum Action {
     Clear,
     /// Remove whatever is selected.
     DeleteSelection,
+    /// Open the compositor's own window menu.
+    ///
+    /// The only honest route to "Always on Top" from inside the application:
+    /// Mutter offers a client no way to set it, but xdg-shell does let a
+    /// client ask for the menu where the user can. It is the compositor's
+    /// menu, not an imitation of one.
+    ShowWindowMenu,
 }
 
 /// Something that happened outside the controller.
@@ -361,6 +368,8 @@ pub enum Effect {
     },
     /// Delete the selected objects, as one undoable edit.
     DeleteSelection { ids: Vec<ObjectId> },
+    /// Ask the compositor to show its own window menu at this point.
+    ShowWindowMenu { at: LogicalPoint },
     /// Ask the compositor to move the overlay, following the pointer.
     ///
     /// The compositor runs the drag; a Wayland client cannot place its own
@@ -880,6 +889,21 @@ impl Controller {
                 }
                 let ids = std::mem::take(&mut self.selection);
                 self.with_gesture_cancelled(Effect::DeleteSelection { ids })
+            }
+            Action::ShowWindowMenu => {
+                // Under the button that asked for it, so the menu appears
+                // where the user is looking.
+                let at = self
+                    .toolbar
+                    .buttons()
+                    .iter()
+                    .find(|button| button.action == Action::ShowWindowMenu)
+                    .map(|button| LogicalPoint {
+                        x: button.bounds.min.x,
+                        y: button.bounds.max.y,
+                    })
+                    .unwrap_or(LogicalPoint { x: 0.0, y: 0.0 });
+                vec![Effect::ShowWindowMenu { at }]
             }
             Action::Undo => self.with_gesture_cancelled(Effect::Undo),
             Action::Redo => self.with_gesture_cancelled(Effect::Redo),
