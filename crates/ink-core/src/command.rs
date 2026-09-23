@@ -24,6 +24,14 @@ pub enum Command {
     Add { object: Object },
     /// Remove objects by id. Ids that are not present are ignored.
     Remove { ids: Vec<ObjectId> },
+    /// Replace objects in place, keeping their positions.
+    ///
+    /// Covers moving, resizing, and later style editing: all of them are the
+    /// same operation, an object swapped for a changed version of itself. Its
+    /// inverse is the same command carrying what was there before, which is
+    /// why undoing a transform restores geometry exactly rather than applying
+    /// an approximate reverse.
+    Replace { objects: Vec<(usize, Object)> },
     /// Put objects back at the positions they came from.
     ///
     /// Positions are ascending, which is what makes the restoration exact:
@@ -48,6 +56,10 @@ impl Command {
                 document.insert_at(objects)?;
                 Ok(Self::Remove { ids })
             }
+            Self::Replace { objects } => {
+                let previous = document.replace_at(objects)?;
+                Ok(Self::Replace { objects: previous })
+            }
         }
     }
 
@@ -57,7 +69,7 @@ impl Command {
         match self {
             Self::Add { .. } => false,
             Self::Remove { ids } => !ids.iter().any(|id| document.get(*id).is_some()),
-            Self::Insert { objects } => objects.is_empty(),
+            Self::Insert { objects } | Self::Replace { objects } => objects.is_empty(),
         }
     }
 
@@ -66,7 +78,7 @@ impl Command {
         match self {
             Self::Add { .. } => 1,
             Self::Remove { ids } => ids.len(),
-            Self::Insert { objects } => objects.len(),
+            Self::Insert { objects } | Self::Replace { objects } => objects.len(),
         }
     }
 }

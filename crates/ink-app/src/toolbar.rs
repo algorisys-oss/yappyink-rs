@@ -40,6 +40,7 @@ const GRIP: f64 = 16.0;
 /// code can change without this meaning anything different.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Icon {
+    Select,
     Pen,
     Highlighter,
     Line,
@@ -47,6 +48,7 @@ pub enum Icon {
     Rectangle,
     Ellipse,
     Eraser,
+    Delete,
     Undo,
     Redo,
     Clear,
@@ -90,6 +92,7 @@ impl Toolbar {
         // Tools first, then history, then the two ways out. Grouped by what
         // the user is thinking about rather than by how often each is pressed.
         let entries = [
+            (Icon::Select, Action::SelectTool(Tool::Select)),
             (Icon::Pen, Action::SelectTool(Tool::Pen)),
             (Icon::Highlighter, Action::SelectTool(Tool::Highlighter)),
             (Icon::Line, Action::SelectTool(Tool::Line)),
@@ -97,6 +100,7 @@ impl Toolbar {
             (Icon::Rectangle, Action::SelectTool(Tool::Rectangle)),
             (Icon::Ellipse, Action::SelectTool(Tool::Ellipse)),
             (Icon::Eraser, Action::SelectTool(Tool::Eraser)),
+            (Icon::Delete, Action::DeleteSelection),
             (Icon::Undo, Action::Undo),
             (Icon::Redo, Action::Redo),
             (Icon::Clear, Action::Clear),

@@ -240,6 +240,10 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         }
 
         if overlay.needs_redraw {
+            // The scene summary is cheap and the document may have changed in
+            // any of a dozen ways this iteration. Recomputing it here once is
+            // less fragile than remembering to do it at each of them.
+            overlay.publish_scene();
             overlay.draw();
             conn.flush().ok();
         }
@@ -265,6 +269,8 @@ fn print_controls() {
          \x20 1 / 2  pen / highlighter\n\
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 7 or e eraser: removes whole objects its sweep touches\n\
+         \x20 8 or s select: click an object, drag to move, corners to resize\n\
+         \x20 Del    delete what is selected\n\
          \x20 u / r  undo / redo\n\
          \x20 x      clear everything, undoably\n\
          \x20 c      next colour\n\
@@ -362,6 +368,31 @@ impl Overlay {
                     eprintln!("[cancelled] a gesture of {points} sample(s) was discarded");
                     self.needs_redraw = true;
                 }
+                Effect::MoveSelection { ids, dx, dy } => {
+                    match self.session.move_objects(&ids, dx, dy) {
+                        Ok(0) => {}
+                        Ok(_) => self.needs_redraw = true,
+                        Err(error) => eprintln!("[rejected] {error}"),
+                    }
+                }
+                Effect::ScaleSelection {
+                    ids,
+                    anchor,
+                    sx,
+                    sy,
+                } => match self.session.scale_objects(&ids, anchor, sx, sy) {
+                    Ok(0) => {}
+                    Ok(_) => self.needs_redraw = true,
+                    Err(error) => eprintln!("[rejected] {error}"),
+                },
+                Effect::DeleteSelection { ids } => match self.session.delete(&ids) {
+                    Ok(0) => {}
+                    Ok(count) => {
+                        eprintln!("[delete] removed {count} object(s); undo brings them back");
+                        self.needs_redraw = true;
+                    }
+                    Err(error) => eprintln!("[rejected] {error}"),
+                },
                 Effect::BeginWindowDrag => self.begin_interactive(InteractiveGrab::Move),
                 Effect::BeginWindowResize => self.begin_interactive(InteractiveGrab::Resize),
                 Effect::Faulted { error } => {
@@ -422,6 +453,20 @@ impl Overlay {
         // transition complete is after the commit has been flushed, which the
         // next roundtrip does.
         self.pending_confirmations.push(transition);
+    }
+
+    /// Tells the controller what is in the document now.
+    ///
+    /// Called after every change, including undo, so the selection and its
+    /// handles never refer to something that has gone.
+    fn publish_scene(&mut self) {
+        let scene = self
+            .session
+            .document()
+            .objects()
+            .map(|object| (object.id(), object.bounds()))
+            .collect();
+        self.controller.set_scene(scene);
     }
 
     fn commit(&mut self, shape: Shape, style: Style) {
@@ -540,6 +585,14 @@ impl Overlay {
             self.controller.style(),
             self.controller.tool(),
         );
+        paint_selection(
+            &mut canvas,
+            &self.controller,
+            self.session.document(),
+            &mut self.painter,
+            self.scale,
+        );
+
         if self.controller.toolbar_visible() {
             paint_toolbar(
                 &mut canvas,
@@ -690,6 +743,7 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
         Tool::Rectangle => 4,
         Tool::Ellipse => 5,
         Tool::Eraser => 6,
+        Tool::Select => 7,
     };
     for pip in 0..pips {
         canvas.fill_rect(80 + i64::from(pip) * 12, 14, 8, 8, ink);
@@ -704,6 +758,82 @@ impl ActivationHandler for Overlay {
             return;
         };
         activation.activate::<Overlay>(window.wl_surface(), token);
+    }
+}
+
+/// Draws the selection: a dashed rectangle, corner handles, and a live preview
+/// of whatever drag is in flight.
+///
+/// The preview is drawn from the real objects transformed on the fly, so what
+/// the user sees during a drag is what the edit will produce. Nothing here
+/// touches the document.
+fn paint_selection(
+    canvas: &mut Canvas,
+    controller: &Controller,
+    document: &ink_core::Document,
+    painter: &mut ink_render::Painter,
+    scale: Scale,
+) {
+    if controller.selection().is_empty() || !controller.toolbar_visible() {
+        return;
+    }
+    let marker = [0xFF, 0xC0, 0x40, 0xE0];
+
+    // The moved or scaled objects, drawn where they are going.
+    if let Some(drag) = controller.selection_drag() {
+        for object in document
+            .objects()
+            .filter(|o| controller.selection().contains(&o.id()))
+        {
+            let moved = match drag {
+                ink_app::SelectionDrag::Move { dx, dy } => object.shape().translated(dx, dy),
+                ink_app::SelectionDrag::Scale { anchor, sx, sy } => {
+                    object.shape().scaled(anchor, sx, sy)
+                }
+            };
+            if let Some(shape) = moved {
+                painter.paint_object(&object.with_shape(shape), canvas, scale);
+            }
+        }
+    }
+
+    let Some(bounds) = controller.selection_bounds() else {
+        return;
+    };
+    let to_px = |value: f64| value * scale.get();
+    let (x0, y0) = (to_px(bounds.min.x), to_px(bounds.min.y));
+    let (x1, y1) = (to_px(bounds.max.x), to_px(bounds.max.y));
+
+    // A dashed rectangle, so it reads as a selection rather than as ink the
+    // user drew.
+    let dash = 6.0;
+    let mut dashes = |from: (f64, f64), to: (f64, f64)| {
+        let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+        let length = (dx * dx + dy * dy).sqrt().max(1.0);
+        let steps = (length / dash).ceil() as i64;
+        for step in (0..steps).step_by(2) {
+            let t0 = f64::from(step as i32) * dash / length;
+            let t1 = ((f64::from(step as i32) + 1.0) * dash / length).min(1.0);
+            canvas.stroke_path(
+                &[
+                    (from.0 + dx * t0, from.1 + dy * t0),
+                    (from.0 + dx * t1, from.1 + dy * t1),
+                ],
+                1.5,
+                marker,
+            );
+        }
+    };
+    dashes((x0, y0), (x1, y0));
+    dashes((x1, y0), (x1, y1));
+    dashes((x1, y1), (x0, y1));
+    dashes((x0, y1), (x0, y0));
+
+    for (_, handle) in controller.selection_handles() {
+        let hx = to_px(handle.min.x).round() as i64;
+        let hy = to_px(handle.min.y).round() as i64;
+        let size = (to_px(handle.max.x) - to_px(handle.min.x)).round() as i64;
+        canvas.fill_rect(hx, hy, size, size, marker);
     }
 }
 
@@ -774,6 +904,17 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
         };
 
         match button.icon {
+            // An arrow cursor.
+            Icon::Select => {
+                draw(&[(0.1, 0.0), (0.1, 0.9), (0.38, 0.62), (0.62, 1.0)]);
+                draw(&[(0.1, 0.0), (0.72, 0.52), (0.38, 0.62)]);
+            }
+            // A bin.
+            Icon::Delete => {
+                draw(&[(0.1, 0.2), (0.9, 0.2)]);
+                draw(&[(0.38, 0.2), (0.42, 0.05), (0.58, 0.05), (0.62, 0.2)]);
+                draw(&[(0.2, 0.2), (0.28, 1.0), (0.72, 1.0), (0.8, 0.2)]);
+            }
             // A nib: a stroke with a tail.
             Icon::Pen => draw(&[(0.0, 1.0), (0.35, 0.55), (1.0, 0.0)]),
             // The same line, deliberately blunter.
@@ -964,6 +1105,8 @@ impl KeyboardHandler for Overlay {
             // Single keys rather than Ctrl chords, because modifier tracking
             // is not wired up yet. Local editing shortcuts with the platform's
             // proper modifier belong with the toolbar (T013).
+            Keysym::_8 | Keysym::s | Keysym::S => Some(Action::SelectTool(Tool::Select)),
+            Keysym::Delete | Keysym::BackSpace => Some(Action::DeleteSelection),
             Keysym::u | Keysym::U => Some(Action::Undo),
             Keysym::r | Keysym::R => Some(Action::Redo),
             Keysym::x | Keysym::X => Some(Action::Clear),

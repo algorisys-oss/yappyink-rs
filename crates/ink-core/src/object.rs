@@ -134,6 +134,61 @@ impl Shape {
         }
     }
 
+    /// The same geometry moved by a delta.
+    ///
+    /// Returns `None` if the result would contain a non-finite coordinate,
+    /// which is the only way translation can fail.
+    pub fn translated(&self, dx: f64, dy: f64) -> Option<Self> {
+        self.mapped(|p| LogicalPoint::new(p.x + dx, p.y + dy))
+    }
+
+    /// The same geometry scaled about an anchor.
+    ///
+    /// Returns `None` if the result would be non-finite or, for a two-point
+    /// shape, too small to see. A transform must not be able to produce an
+    /// object that FR-008 would have refused to create.
+    pub fn scaled(&self, anchor: LogicalPoint, sx: f64, sy: f64) -> Option<Self> {
+        let scaled = self.mapped(|p| {
+            LogicalPoint::new(
+                anchor.x + (p.x - anchor.x) * sx,
+                anchor.y + (p.y - anchor.y) * sy,
+            )
+        })?;
+        match &scaled {
+            Self::Stroke { .. } => Some(scaled),
+            Self::Line { from, to } => Self::line(*from, *to).ok(),
+            Self::Arrow { from, to } => Self::arrow(*from, *to).ok(),
+            Self::Rectangle { a, b } => Self::rectangle(*a, *b).ok(),
+            Self::Ellipse { a, b } => Self::ellipse(*a, *b).ok(),
+        }
+    }
+
+    /// Applies a point mapping to every coordinate, keeping the shape's kind.
+    fn mapped(&self, map: impl Fn(LogicalPoint) -> Option<LogicalPoint>) -> Option<Self> {
+        Some(match self {
+            Self::Stroke { kind, points } => Self::Stroke {
+                kind: *kind,
+                points: points.iter().map(|p| map(*p)).collect::<Option<Vec<_>>>()?,
+            },
+            Self::Line { from, to } => Self::Line {
+                from: map(*from)?,
+                to: map(*to)?,
+            },
+            Self::Arrow { from, to } => Self::Arrow {
+                from: map(*from)?,
+                to: map(*to)?,
+            },
+            Self::Rectangle { a, b } => Self::Rectangle {
+                a: map(*a)?,
+                b: map(*b)?,
+            },
+            Self::Ellipse { a, b } => Self::Ellipse {
+                a: map(*a)?,
+                b: map(*b)?,
+            },
+        })
+    }
+
     /// The normalised bounding rectangle of the geometry.
     ///
     /// Stroke width is not included: that is a rendering concern, and hit
@@ -202,6 +257,22 @@ impl Object {
 
     pub fn bounds(&self) -> LogicalRect {
         self.shape.bounds()
+    }
+
+    /// The same object with different geometry.
+    pub fn with_shape(&self, shape: Shape) -> Self {
+        Self {
+            shape,
+            ..self.clone()
+        }
+    }
+
+    /// Whether a point is on this object, within a tolerance.
+    ///
+    /// The same test the eraser uses, with a one-point sweep: selecting and
+    /// erasing should agree about what the user is pointing at.
+    pub fn contains_point(&self, at: LogicalPoint, tolerance: f64) -> bool {
+        self.intersects_sweep(&[at], tolerance)
     }
 
     /// Whether an eraser sweep along `path` with the given radius touches this

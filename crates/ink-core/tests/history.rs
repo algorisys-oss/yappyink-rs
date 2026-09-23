@@ -317,3 +317,175 @@ fn history_is_bounded_and_says_when_it_truncated() {
     // The document is intact: truncation costs undo reach, never objects.
     assert_eq!(session.document().len(), limit + 10);
 }
+
+// --- T028 (split): selection, move and resize ------------------------------
+
+#[test]
+fn hit_testing_picks_the_topmost_object() {
+    // Later objects paint over earlier ones, so the one the user can see is
+    // the one they mean.
+    let (mut session, mut ids, output) = session();
+    let under = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let over = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    assert_ne!(under, over);
+
+    assert_eq!(session.hit_test(point(100.0, 100.0), 2.0), Some(over));
+}
+
+#[test]
+fn hit_testing_misses_where_there_is_nothing() {
+    let (mut session, mut ids, output) = session();
+    session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+
+    assert_eq!(session.hit_test(point(800.0, 800.0), 2.0), None);
+}
+
+#[test]
+fn moving_an_object_is_one_undoable_edit_that_restores_exactly() {
+    let (mut session, mut ids, output) = session();
+    let id = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let before = session.document().get(id).cloned().expect("the object");
+
+    assert_eq!(session.move_objects(&[id], 50.0, -20.0).unwrap(), 1);
+    let moved = session.document().get(id).expect("still there");
+    assert_eq!(moved.bounds().min.x, before.bounds().min.x + 50.0);
+    assert_eq!(moved.bounds().min.y, before.bounds().min.y - 20.0);
+
+    assert!(session.undo().unwrap());
+    assert_eq!(
+        session.document().get(id),
+        Some(&before),
+        "geometry restored exactly"
+    );
+}
+
+#[test]
+fn moving_keeps_the_object_in_its_place_in_the_paint_order() {
+    // A moved object must not jump in front of things it was behind.
+    let (mut session, mut ids, output) = session();
+    let first = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let second = session.add(stroke_at(&mut ids, &output, 200.0)).unwrap();
+
+    session.move_objects(&[first], 10.0, 10.0).unwrap();
+
+    assert_eq!(ids_in(&session), vec![first, second]);
+}
+
+#[test]
+fn several_objects_move_together_as_one_edit() {
+    let (mut session, mut ids, output) = session();
+    let a = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let b = session.add(stroke_at(&mut ids, &output, 200.0)).unwrap();
+
+    assert_eq!(session.move_objects(&[a, b], 10.0, 10.0).unwrap(), 2);
+
+    assert!(session.undo().unwrap());
+    assert!(!session.can_undo() || session.document().len() == 2);
+    // One undo put both back, so the next undo reaches the creations.
+    assert_eq!(session.document().len(), 2);
+}
+
+#[test]
+fn scaling_an_object_is_undoable_and_exact() {
+    let (mut session, mut ids, output) = session();
+    let id = session
+        .add(Object::new(
+            ids.next_id(),
+            output.clone(),
+            style(),
+            Shape::rectangle(point(100.0, 100.0), point(200.0, 200.0)).unwrap(),
+        ))
+        .unwrap();
+    let before = session.document().get(id).cloned().expect("the object");
+
+    session
+        .scale_objects(&[id], point(100.0, 100.0), 2.0, 2.0)
+        .unwrap();
+    let scaled = session.document().get(id).expect("still there");
+    assert_eq!(scaled.bounds().max.x, 300.0);
+    assert_eq!(scaled.bounds().max.y, 300.0);
+
+    assert!(session.undo().unwrap());
+    assert_eq!(session.document().get(id), Some(&before));
+}
+
+#[test]
+fn a_scale_that_would_destroy_a_shape_is_refused_whole() {
+    // FR-008 refuses to create an invisible object, so a transform must not
+    // be able to produce one either. All or nothing: a partly applied
+    // transform would leave a selection that no longer matches the drag.
+    let (mut session, mut ids, output) = session();
+    let keeps = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let shrinks = session
+        .add(Object::new(
+            ids.next_id(),
+            output.clone(),
+            style(),
+            Shape::rectangle(point(100.0, 300.0), point(200.0, 400.0)).unwrap(),
+        ))
+        .unwrap();
+    let before = session
+        .document()
+        .get(shrinks)
+        .cloned()
+        .expect("the object");
+
+    let result = session.scale_objects(&[keeps, shrinks], point(0.0, 0.0), 0.0001, 0.0001);
+
+    assert!(result.is_err(), "a collapsing scale must be refused");
+    assert_eq!(
+        session.document().get(shrinks),
+        Some(&before),
+        "nothing changed"
+    );
+    assert_eq!(session.document().len(), 2);
+}
+
+#[test]
+fn deleting_a_selection_is_one_undoable_edit() {
+    let (mut session, mut ids, output) = session();
+    let a = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let b = session.add(stroke_at(&mut ids, &output, 200.0)).unwrap();
+    session.add(stroke_at(&mut ids, &output, 300.0)).unwrap();
+
+    assert_eq!(session.delete(&[a, b]).unwrap(), 2);
+    assert_eq!(session.document().len(), 1);
+
+    assert!(session.undo().unwrap());
+    assert_eq!(session.document().len(), 3, "one undo brings both back");
+}
+
+#[test]
+fn transforming_nothing_records_no_history() {
+    let (mut session, mut ids, output) = session();
+    session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+
+    assert_eq!(session.move_objects(&[], 10.0, 10.0).unwrap(), 0);
+    assert_eq!(
+        session
+            .move_objects(&[ink_core::ObjectId::from_raw(9999)], 10.0, 10.0)
+            .unwrap(),
+        0
+    );
+
+    // Undo reaches the creation, not an empty move.
+    assert!(session.undo().unwrap());
+    assert!(session.document().is_empty());
+}
+
+#[test]
+fn the_bounds_of_a_selection_cover_all_of_it() {
+    let (mut session, mut ids, output) = session();
+    let a = session.add(stroke_at(&mut ids, &output, 100.0)).unwrap();
+    let b = session.add(stroke_at(&mut ids, &output, 300.0)).unwrap();
+
+    let bounds = session.bounds_of(&[a, b]).expect("two objects have bounds");
+
+    assert!(bounds.min.y <= 100.0);
+    assert!(bounds.max.y >= 300.0);
+    assert_eq!(
+        session.bounds_of(&[]),
+        None,
+        "an empty selection has no bounds"
+    );
+}

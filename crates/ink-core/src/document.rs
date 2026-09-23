@@ -117,6 +117,46 @@ impl Document {
         Ok(())
     }
 
+    /// Swaps objects at the given positions, returning what was there.
+    ///
+    /// Positions and ids must both match what is present. A mismatch is an
+    /// error rather than a silent insert, because it would mean the caller and
+    /// the document disagree about what exists.
+    pub fn replace_at(
+        &mut self,
+        objects: Vec<(usize, Object)>,
+    ) -> Result<Vec<(usize, Object)>, DocumentError> {
+        for (index, object) in &objects {
+            match self.objects.get(*index) {
+                Some(existing) if existing.id() == object.id() => {}
+                Some(_) | None => {
+                    return Err(DocumentError::InvalidPosition {
+                        index: *index,
+                        length: self.objects.len(),
+                    });
+                }
+            }
+            if object.output() != &self.output {
+                return Err(DocumentError::OutputMismatch {
+                    object: object.id(),
+                    expected: self.output.clone(),
+                    found: object.output().clone(),
+                });
+            }
+        }
+
+        let mut previous = Vec::with_capacity(objects.len());
+        for (index, object) in objects {
+            previous.push((index, std::mem::replace(&mut self.objects[index], object)));
+        }
+        Ok(previous)
+    }
+
+    /// The position of an object, if it is present.
+    pub fn position_of(&self, id: ObjectId) -> Option<usize> {
+        self.objects.iter().position(|object| object.id() == id)
+    }
+
     /// Removes the named objects and returns them in document order.
     ///
     /// Ids that are not present are ignored. The returned objects are what an
@@ -143,7 +183,7 @@ impl Document {
         std::mem::take(&mut self.objects)
     }
 
-    pub fn objects(&self) -> impl Iterator<Item = &Object> {
+    pub fn objects(&self) -> impl DoubleEndedIterator<Item = &Object> {
         self.objects.iter()
     }
 

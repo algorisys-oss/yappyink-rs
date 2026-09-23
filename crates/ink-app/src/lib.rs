@@ -24,10 +24,69 @@ pub mod toolbar;
 pub use toolbar::{Button, Icon, Toolbar};
 
 use ink_core::{
-    DocumentError, LogicalPoint, LogicalRect, LogicalSize, Opacity, Rgb, Shape, StrokeKind, Style,
-    Width, limits,
+    DocumentError, LogicalPoint, LogicalRect, LogicalSize, ObjectId, Opacity, Rgb, Shape,
+    StrokeKind, Style, Width, limits,
 };
 use ink_platform::PlatformError;
+
+/// Which corner of the selection is being dragged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl Corner {
+    /// The corner diagonally opposite, which stays put during a resize.
+    fn opposite(self) -> Self {
+        match self {
+            Self::TopLeft => Self::BottomRight,
+            Self::TopRight => Self::BottomLeft,
+            Self::BottomLeft => Self::TopRight,
+            Self::BottomRight => Self::TopLeft,
+        }
+    }
+
+    fn of(self, rect: LogicalRect) -> LogicalPoint {
+        match self {
+            Self::TopLeft => rect.min,
+            Self::TopRight => LogicalPoint {
+                x: rect.max.x,
+                y: rect.min.y,
+            },
+            Self::BottomLeft => LogicalPoint {
+                x: rect.min.x,
+                y: rect.max.y,
+            },
+            Self::BottomRight => rect.max,
+        }
+    }
+
+    pub fn all() -> [Self; 4] {
+        [
+            Self::TopLeft,
+            Self::TopRight,
+            Self::BottomLeft,
+            Self::BottomRight,
+        ]
+    }
+}
+
+/// How a selection is being dragged right now, for previewing it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum SelectionDrag {
+    Move {
+        dx: f64,
+        dy: f64,
+    },
+    Scale {
+        anchor: LogicalPoint,
+        sx: f64,
+        sy: f64,
+    },
+}
 
 /// The gesture in flight, ready to be drawn as a preview.
 ///
@@ -67,6 +126,8 @@ pub enum Tool {
     Ellipse,
     /// Removes whole objects its sweep touches (FR-009).
     Eraser,
+    /// Picks an object up to move, resize or delete it (FR-023).
+    Select,
 }
 
 impl Tool {
@@ -74,6 +135,11 @@ impl Tool {
     /// where a drag started and ended.
     pub fn is_freehand(self) -> bool {
         matches!(self, Self::Pen | Self::Highlighter | Self::Eraser)
+    }
+
+    /// Whether this tool edits existing objects rather than creating them.
+    pub fn is_select(self) -> bool {
+        matches!(self, Self::Select)
     }
 
     /// How a stroke drawn with this tool is stored, for the freehand tools.
@@ -96,8 +162,10 @@ impl Tool {
             Self::Arrow => Shape::arrow(from, to),
             Self::Rectangle => Shape::rectangle(from, to),
             Self::Ellipse => Shape::ellipse(from, to),
-            // A freehand tool is not defined by its endpoints.
-            Self::Pen | Self::Highlighter | Self::Eraser => Err(DocumentError::EmptyStroke),
+            // These are not defined by their endpoints.
+            Self::Pen | Self::Highlighter | Self::Eraser | Self::Select => {
+                Err(DocumentError::EmptyStroke)
+            }
         }
     }
 }
@@ -206,6 +274,8 @@ pub enum Action {
     Redo,
     /// Remove every object on the active output, as one undoable edit.
     Clear,
+    /// Remove whatever is selected.
+    DeleteSelection,
 }
 
 /// Something that happened outside the controller.
@@ -276,6 +346,21 @@ pub enum Effect {
     Redo,
     /// Remove everything, as one undoable edit.
     Clear,
+    /// Move the selected objects by a delta, as one undoable edit.
+    MoveSelection {
+        ids: Vec<ObjectId>,
+        dx: f64,
+        dy: f64,
+    },
+    /// Scale the selected objects about an anchor, as one undoable edit.
+    ScaleSelection {
+        ids: Vec<ObjectId>,
+        anchor: LogicalPoint,
+        sx: f64,
+        sy: f64,
+    },
+    /// Delete the selected objects, as one undoable edit.
+    DeleteSelection { ids: Vec<ObjectId> },
     /// Ask the compositor to move the overlay, following the pointer.
     ///
     /// The compositor runs the drag; a Wayland client cannot place its own
@@ -292,6 +377,9 @@ pub enum Effect {
     Faulted { error: PlatformError },
 }
 
+/// Edge length of a selection's corner grab squares, in logical units.
+const HANDLE: f64 = 12.0;
+
 /// Edge length of the resize grab area in the bottom-right corner, in logical
 /// units.
 const RESIZE_CORNER: f64 = 22.0;
@@ -303,6 +391,40 @@ const RESIZE_CORNER: f64 = 22.0;
 /// a pixel apart. Storing them costs memory and rendering time and changes
 /// nothing a person can see (NFR-003).
 const MIN_SAMPLE_DISTANCE: f64 = 0.5;
+
+/// The scale a drag implies, from the rectangle it started with to where the
+/// pointer is now.
+///
+/// A zero or flipped factor is clamped to a small positive number: an object
+/// dragged through its own anchor should stop, not invert or vanish.
+fn scale_factors(start: LogicalRect, anchor: LogicalPoint, to: LogicalPoint) -> (f64, f64) {
+    const MIN: f64 = 0.02;
+    let width = start.max.x - start.min.x;
+    let height = start.max.y - start.min.y;
+    let sx = if width.abs() < f64::EPSILON {
+        1.0
+    } else {
+        ((to.x - anchor.x)
+            / (if anchor.x == start.min.x {
+                width
+            } else {
+                -width
+            }))
+        .max(MIN)
+    };
+    let sy = if height.abs() < f64::EPSILON {
+        1.0
+    } else {
+        ((to.y - anchor.y)
+            / (if anchor.y == start.min.y {
+                height
+            } else {
+                -height
+            }))
+        .max(MIN)
+    };
+    (sx, sy)
+}
 
 fn rect_contains(rect: LogicalRect, at: LogicalPoint) -> bool {
     at.x >= rect.min.x && at.x <= rect.max.x && at.y >= rect.min.y && at.y <= rect.max.y
@@ -319,6 +441,19 @@ enum Gesture {
         points: Vec<LogicalPoint>,
         kind: StrokeKind,
         style: Style,
+    },
+    /// The selection is being dragged to a new position.
+    MovingSelection {
+        from: LogicalPoint,
+        to: LogicalPoint,
+    },
+    /// The selection is being resized from one of its corners.
+    ScalingSelection {
+        corner: Corner,
+        /// The selection's bounds when the drag started. Scaling against a
+        /// live rectangle would compound every frame.
+        start: LogicalRect,
+        to: LogicalPoint,
     },
     /// An eraser sweep. The path is kept so that the segments between samples
     /// can be tested, not only the samples themselves.
@@ -369,6 +504,14 @@ pub struct Controller {
     /// The surface's size in logical units, once the compositor has said.
     /// Needed to know where the resize corner is.
     surface: Option<LogicalSize>,
+    /// What is in the document, as ids and bounds.
+    ///
+    /// The controller does not own the document, so the adapter pushes a
+    /// summary whenever it changes. Bounds are enough for picking and for the
+    /// selection rectangle, and keeping it to bounds means a stroke of a
+    /// hundred thousand samples costs four numbers here.
+    scene: Vec<(ObjectId, LogicalRect)>,
+    selection: Vec<ObjectId>,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -399,6 +542,8 @@ impl Controller {
             faulted: false,
             toolbar: Toolbar::new(),
             surface: None,
+            scene: Vec::new(),
+            selection: Vec::new(),
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -422,6 +567,104 @@ impl Controller {
                 opacity: OPACITIES.len() - 1,
             },
         }
+    }
+
+    /// Tells the controller what is in the document.
+    ///
+    /// Called after every change, including undo. Any selected object that has
+    /// gone is dropped from the selection, so undoing a creation cannot leave
+    /// handles floating around something that no longer exists.
+    pub fn set_scene(&mut self, scene: Vec<(ObjectId, LogicalRect)>) {
+        self.selection
+            .retain(|id| scene.iter().any(|(present, _)| present == id));
+        self.scene = scene;
+    }
+
+    /// The selected objects.
+    pub fn selection(&self) -> &[ObjectId] {
+        &self.selection
+    }
+
+    /// The rectangle around the selection, if anything is selected.
+    pub fn selection_bounds(&self) -> Option<LogicalRect> {
+        let mut found: Option<LogicalRect> = None;
+        for (_, bounds) in self
+            .scene
+            .iter()
+            .filter(|(id, _)| self.selection.contains(id))
+        {
+            found = Some(match found {
+                None => *bounds,
+                Some(so_far) => LogicalRect {
+                    min: LogicalPoint {
+                        x: so_far.min.x.min(bounds.min.x),
+                        y: so_far.min.y.min(bounds.min.y),
+                    },
+                    max: LogicalPoint {
+                        x: so_far.max.x.max(bounds.max.x),
+                        y: so_far.max.y.max(bounds.max.y),
+                    },
+                },
+            });
+        }
+        found
+    }
+
+    /// How the selection is being dragged, for previewing it.
+    pub fn selection_drag(&self) -> Option<SelectionDrag> {
+        match &self.gesture {
+            Gesture::MovingSelection { from, to } => Some(SelectionDrag::Move {
+                dx: to.x - from.x,
+                dy: to.y - from.y,
+            }),
+            Gesture::ScalingSelection { corner, start, to } => {
+                let anchor = corner.opposite().of(*start);
+                let (sx, sy) = scale_factors(*start, anchor, *to);
+                Some(SelectionDrag::Scale { anchor, sx, sy })
+            }
+            _ => None,
+        }
+    }
+
+    /// The grab squares at the selection's corners.
+    pub fn selection_handles(&self) -> Vec<(Corner, LogicalRect)> {
+        let Some(bounds) = self.selection_bounds() else {
+            return Vec::new();
+        };
+        Corner::all()
+            .into_iter()
+            .map(|corner| {
+                let at = corner.of(bounds);
+                (
+                    corner,
+                    LogicalRect {
+                        min: LogicalPoint {
+                            x: at.x - HANDLE / 2.0,
+                            y: at.y - HANDLE / 2.0,
+                        },
+                        max: LogicalPoint {
+                            x: at.x + HANDLE / 2.0,
+                            y: at.y + HANDLE / 2.0,
+                        },
+                    },
+                )
+            })
+            .collect()
+    }
+
+    /// The topmost object whose bounds contain a point.
+    ///
+    /// Bounds rather than exact geometry, which is a deliberate simplification:
+    /// picking a thin diagonal line by its bounding box means the empty
+    /// corners of that box are also live. It is predictable and it keeps the
+    /// controller free of object geometry. Exact picking would mean the
+    /// session resolving the hit, and is worth doing when it starts to annoy.
+    fn pick(&self, at: LogicalPoint) -> Option<ObjectId> {
+        self.scene
+            .iter()
+            .rev()
+            .find(|(_, bounds)| rect_contains(*bounds, at))
+            .map(|(id, _)| *id)
     }
 
     /// Tells the controller how big the surface is.
@@ -516,10 +759,17 @@ impl Controller {
 
     /// Whether any gesture is in flight, freehand or shape.
     pub fn is_gesturing(&self) -> bool {
-        matches!(
-            self.gesture,
-            Gesture::Drawing { .. } | Gesture::Dragging { .. }
-        )
+        // Every in-flight gesture, not just the drawing ones. The adapter uses
+        // this to decide whether to repaint, so anything missing here is
+        // invisible on screen until something else forces a frame.
+        match self.gesture {
+            Gesture::Drawing { .. }
+            | Gesture::Dragging { .. }
+            | Gesture::Sweeping { .. }
+            | Gesture::MovingSelection { .. }
+            | Gesture::ScalingSelection { .. } => true,
+            Gesture::Idle | Gesture::IgnoringHeldButton | Gesture::OnToolbar { .. } => false,
+        }
     }
 
     /// The gesture in flight, ready to draw.
@@ -609,6 +859,13 @@ impl Controller {
             // History actions cancel a gesture in flight first. Undoing while
             // half-way through a stroke would otherwise leave a preview on
             // screen belonging to a document state that no longer exists.
+            Action::DeleteSelection => {
+                if self.selection.is_empty() {
+                    return Vec::new();
+                }
+                let ids = std::mem::take(&mut self.selection);
+                self.with_gesture_cancelled(Effect::DeleteSelection { ids })
+            }
             Action::Undo => self.with_gesture_cancelled(Effect::Undo),
             Action::Redo => self.with_gesture_cancelled(Effect::Redo),
             Action::Clear => self.with_gesture_cancelled(Effect::Clear),
@@ -669,8 +926,22 @@ impl Controller {
             // would be indistinguishable from stealing a keystroke.
             return Vec::new();
         }
+        // Escape undoes one thing at a time, smallest first: a gesture in
+        // flight, then a selection, then Draw mode itself. Doing two at once
+        // would make it impossible to cancel a drag without also losing what
+        // was selected.
+        let was_gesturing = self.is_gesturing();
         if let Some(cancelled) = self.cancel_gesture() {
             return vec![cancelled];
+        }
+        if was_gesturing {
+            // A selection drag was cancelled. It reports nothing, because
+            // nothing was being drawn, but it still used up this Escape.
+            return Vec::new();
+        }
+        if !self.selection.is_empty() {
+            self.selection.clear();
+            return Vec::new();
         }
         self.request(Mode::PassThrough)
     }
@@ -794,6 +1065,42 @@ impl Controller {
             return vec![Effect::BeginWindowResize];
         }
 
+        if self.tool.is_select() {
+            // A corner handle wins over the object under it, or a selection
+            // could never be shrunk: its own handles sit on top of it.
+            if let Some((corner, _)) = self
+                .selection_handles()
+                .into_iter()
+                .find(|(_, rect)| rect_contains(*rect, at))
+                && let Some(start) = self.selection_bounds()
+            {
+                self.gesture = Gesture::ScalingSelection {
+                    corner,
+                    start,
+                    to: at,
+                };
+                return Vec::new();
+            }
+            match self.pick(at) {
+                Some(id) => {
+                    // Pressing an object that is not selected selects it, so a
+                    // press and drag moves what is under the pointer without
+                    // needing a separate click first.
+                    if !self.selection.contains(&id) {
+                        self.selection = vec![id];
+                    }
+                    self.gesture = Gesture::MovingSelection { from: at, to: at };
+                }
+                // Pressing empty space drops the selection, which is how every
+                // editor behaves and how a user cancels one.
+                None => {
+                    self.selection.clear();
+                    self.gesture = Gesture::Idle;
+                }
+            }
+            return Vec::new();
+        }
+
         let style = self.style();
         self.gesture = match self.tool {
             // The eraser's width is the diameter of what it takes, so the
@@ -823,6 +1130,12 @@ impl Controller {
 
     fn pointer_moved(&mut self, at: LogicalPoint) -> Vec<Effect> {
         if let Gesture::Dragging { to, .. } = &mut self.gesture {
+            *to = at;
+            return Vec::new();
+        }
+        if let Gesture::MovingSelection { to, .. } | Gesture::ScalingSelection { to, .. } =
+            &mut self.gesture
+        {
             *to = at;
             return Vec::new();
         }
@@ -897,6 +1210,32 @@ impl Controller {
                     Err(reason) => vec![Effect::GestureDiscarded { reason }],
                 }
             }
+            Gesture::MovingSelection { from, .. } => {
+                let (dx, dy) = (at.x - from.x, at.y - from.y);
+                // A click that did not move is a selection, not an edit, and
+                // must not become an undo entry.
+                if dx.abs() < MIN_SAMPLE_DISTANCE && dy.abs() < MIN_SAMPLE_DISTANCE {
+                    return Vec::new();
+                }
+                vec![Effect::MoveSelection {
+                    ids: self.selection.clone(),
+                    dx,
+                    dy,
+                }]
+            }
+            Gesture::ScalingSelection { corner, start, .. } => {
+                let anchor = corner.opposite().of(start);
+                let (sx, sy) = scale_factors(start, anchor, at);
+                if (sx - 1.0).abs() < f64::EPSILON && (sy - 1.0).abs() < f64::EPSILON {
+                    return Vec::new();
+                }
+                vec![Effect::ScaleSelection {
+                    ids: self.selection.clone(),
+                    anchor,
+                    sx,
+                    sy,
+                }]
+            }
             Gesture::Sweeping { mut path, radius } => {
                 if path.last().is_none_or(|last| {
                     (at.x - last.x).abs() >= MIN_SAMPLE_DISTANCE
@@ -933,8 +1272,12 @@ impl Controller {
             }),
             Gesture::Dragging { .. } => Some(Effect::GestureCancelled { points: 2 }),
             Gesture::Sweeping { path, .. } => Some(Effect::GestureCancelled { points: path.len() }),
-            // Nothing was being drawn, so there is nothing to report.
-            Gesture::OnToolbar { .. } => None,
+            // Nothing was being drawn, so there is nothing to report. The
+            // selection itself survives: cancelling a drag should put the
+            // objects back, not deselect them.
+            Gesture::OnToolbar { .. }
+            | Gesture::MovingSelection { .. }
+            | Gesture::ScalingSelection { .. } => None,
             Gesture::IgnoringHeldButton | Gesture::Idle => None,
         }
     }

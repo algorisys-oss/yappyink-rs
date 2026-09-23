@@ -505,7 +505,8 @@
       "phase": "MVP",
       "tasks": [
         "T017",
-        "T025"
+        "T025",
+        "T036"
       ],
       "scenarios": [
         "AC-FR-010"
@@ -698,13 +699,15 @@
       "requirement": "FR-023",
       "phase": "V1",
       "tasks": [
-        "T028"
+        "T028",
+        "T036"
       ],
       "scenarios": [
         "AC-FR-023"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "Split on 2026-09-23: T036 covers selection, move, resize and delete, which are implemented; T028 keeps Unicode text and IME, which are not started."
     },
     {
       "requirement": "FR-024",
@@ -819,7 +822,8 @@
       "tasks": [
         "T001",
         "T009",
-        "T025"
+        "T025",
+        "T036"
       ],
       "scenarios": [
         "AC-NFR-004"

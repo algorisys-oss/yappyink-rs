@@ -80,6 +80,8 @@ Keys, while the overlay has focus:
 | `1` / `2` | pen / highlighter |
 | `3` – `6` | line / arrow / rectangle / ellipse |
 | `7` or `e` | eraser |
+| `8` or `s` | select |
+| `Del` | delete what is selected |
 | `u` / `r` | undo / redo |
 | `x` | clear everything |
 | `c` | next colour |
@@ -96,6 +98,12 @@ Shapes are dragged from one corner to the other, and a drag that goes nowhere
 creates nothing rather than an invisible object you could never select or
 erase. Rectangles and ellipses are outlines, not fills, because an annotation
 frames what is underneath rather than hiding it.
+
+With the **select** tool, click an object to pick it up, drag it to move it,
+drag a corner handle to resize it, and press Delete to remove it. Each is one
+undoable edit, and undo restores the exact geometry rather than an approximate
+reverse. Clicking empty space deselects; Escape cancels a drag first, then the
+selection, then draw mode.
 
 The eraser removes whole objects its sweep touches, never parts of them, and
 one sweep is one undoable action however many objects it took. It tests the
@@ -128,7 +136,9 @@ other route and is not implemented yet.
 
 ## Not built yet
 
-Saving to a file, image export, text, and multiple monitors at once.
+Saving to a file, image export, text, and multiple monitors at once. Selection
+picks objects by their bounding box rather than their exact outline, and there
+is no multi-select and no rotation.
 **Nothing is saved when you quit.**
 
 Undo and redo are bound to plain `u` and `r` rather than the usual Ctrl chords,
