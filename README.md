@@ -168,6 +168,9 @@ run on a real machine, what happened, and what was *not* tested. Failures are
 kept: [E002](docs/evidence/E002-gnome-xdg-shell-experiment.md) is mostly the
 story of a route that did not work, and it is the most useful document here.
 
+[docs/learning.md](docs/learning.md) keeps the mistakes for the same reason —
+what broke, why, and what changed as a result.
+
 ```
 crates/ink-core              objects, geometry, documents — no OS, no GPU
 crates/ink-app               modes, transitions, gesture rules — no platform
