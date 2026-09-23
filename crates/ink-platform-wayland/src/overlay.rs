@@ -57,6 +57,21 @@ use wayland_client::{Connection, QueueHandle};
 /// The left mouse button, as Wayland reports it.
 const BTN_LEFT: u32 = 0x110;
 
+/// A snapshot of everything the chrome is drawn from.
+///
+/// A named struct rather than a tuple so that adding a field is a visible,
+/// reviewable change rather than an easily missed one.
+#[derive(Clone, PartialEq)]
+struct VisualState {
+    tool: Tool,
+    style: Style,
+    mode: Mode,
+    gesturing: bool,
+    hovered: Option<Icon>,
+    selection: Vec<ink_core::ObjectId>,
+    selection_drag: Option<ink_app::SelectionDrag>,
+}
+
 /// Which interactive operation the compositor is being asked to run.
 #[derive(Clone, Copy, Debug)]
 enum InteractiveGrab {
@@ -674,18 +689,22 @@ impl Overlay {
     /// Everything the chrome is drawn from.
     ///
     /// Compared before and after handling input to decide whether to repaint.
-    /// Asking a narrower question has now caused the same bug twice: first
-    /// shapes not appearing until release, because only freehand samples were
-    /// checked, then the toolbar's selection not moving until the next stroke,
-    /// because only a gesture in flight was checked. The visible state is what
-    /// decides a repaint, so that is what gets compared.
-    fn visual_state(&self) -> (Tool, Style, Mode, bool) {
-        (
-            self.controller.tool(),
-            self.controller.style(),
-            self.controller.mode(),
-            self.controller.is_gesturing(),
-        )
+    /// **Anything drawn on screen must appear here.** Every omission has cost
+    /// a bug that looks like the feature not working: shapes invisible until
+    /// release, the toolbar's selection not moving until the next stroke, and
+    /// a tooltip that never appeared. The compiler cannot catch a missing
+    /// field in a tuple, so this is the one place to check when something is
+    /// correct in the model and absent on screen.
+    fn visual_state(&self) -> VisualState {
+        VisualState {
+            tool: self.controller.tool(),
+            style: self.controller.style(),
+            mode: self.controller.mode(),
+            gesturing: self.controller.is_gesturing(),
+            hovered: self.controller.hovered_button().map(|button| button.icon),
+            selection: self.controller.selection().to_vec(),
+            selection_drag: self.controller.selection_drag(),
+        }
     }
 
     fn queue_handle(&self) -> QueueHandle<Self> {
