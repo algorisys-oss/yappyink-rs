@@ -10,6 +10,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod overlay;
+
 use ink_platform::{
     Capability, CapabilityFinding, CapabilityReport, CapabilityState, OutputInfo, PlatformError,
 };

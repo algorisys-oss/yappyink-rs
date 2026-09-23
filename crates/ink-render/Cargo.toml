@@ -1,0 +1,11 @@
+[package]
+name = "ink-render"
+description = "Turns a document into pixels. Software rasteriser; no GPU, no OS, no window."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ink-core.workspace = true

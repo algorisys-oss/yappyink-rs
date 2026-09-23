@@ -5,6 +5,9 @@
 //! An unimplemented subcommand exits non-zero rather than printing something
 //! that could be mistaken for a result.
 
+#[cfg(target_os = "linux")]
+mod draw;
+
 mod doctor;
 
 fn main() -> std::process::ExitCode {
@@ -14,6 +17,8 @@ fn main() -> std::process::ExitCode {
             print!("{}", doctor::report());
             std::process::ExitCode::SUCCESS
         }
+        #[cfg(target_os = "linux")]
+        Some("draw") => draw::run(),
         Some("--version" | "version") => {
             println!("yappyink {}", env!("CARGO_PKG_VERSION"));
             std::process::ExitCode::SUCCESS
@@ -22,10 +27,10 @@ fn main() -> std::process::ExitCode {
             if let Some(command) = other {
                 eprintln!("unknown command: {command}");
             }
-            eprintln!("usage: yappyink <doctor|version>");
+            eprintln!("usage: yappyink <draw|doctor|version>");
             eprintln!(
-                "No overlay backend exists yet. doctor reports what this machine offers; \
-                 see tasks.md T005 onward."
+                "draw starts the overlay on Wayland. doctor reports what this machine offers. \
+                 Windows, macOS, and X11 have no backend yet (T003, T004, T005)."
             );
             std::process::ExitCode::from(2)
         }

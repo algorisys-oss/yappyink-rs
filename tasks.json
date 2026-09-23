@@ -187,7 +187,7 @@
     {
       "id": "T011",
       "phase": "M1",
-      "status": "not_started",
+      "status": "in_progress",
       "depends_on": [
         "T010"
       ],
@@ -200,7 +200,9 @@
       ],
       "title": "Integrate production overlay lifecycle",
       "work": "Connect the reducer to native adapters, surface ownership, focus/hit-test changes, and confirmed completion events.",
-      "exit_criterion": "The native fixture validates effective-state reporting and no invisible blockers."
+      "exit_criterion": "The native fixture validates effective-state reporting and no invisible blockers.",
+      "evidence": "docs/evidence/E004-vertical-slice.md (awaiting the observation run)",
+      "remaining": "Built and smoke-tested; on-screen behaviour not yet observed. Always on Top is manual and the output cannot be chosen (E002, E003)."
     },
     {
       "id": "T012",
@@ -249,7 +251,8 @@
       ],
       "title": "Implement transparent scene rendering",
       "work": "Add the selected compatible renderer, explicit alpha convention, scene caches, and demand-driven redraw.",
-      "exit_criterion": "Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture."
+      "exit_criterion": "Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture.",
+      "note": "A minimal CPU rasteriser landed with T011 so the slice could paint. T014 still owns the real renderer, geometry caches, and demand-driven redraw. The premultiplied-alpha convention is pinned by crates/ink-render/tests/painting.rs."
     },
     {
       "id": "T015",

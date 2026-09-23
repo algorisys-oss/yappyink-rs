@@ -120,13 +120,15 @@ Add desired/effective modes, transient gesture states, transition IDs, cancellat
 
 ## T011 [M1]: Integrate production overlay lifecycle
 
-Status: not_started. Dependencies: T010.
+Status: in_progress since 2026-09-23. Dependencies: T010.
 
 Requirements: FR-001, FR-002, FR-003, FR-004, FR-019.
 
 Connect the reducer to native adapters, surface ownership, focus/hit-test changes, and confirmed completion events.
 
 **Exit criterion:** The native fixture validates effective-state reporting and no invisible blockers.
+
+**Progress:** `yappyink draw` runs the overlay against the real compositor. `crates/ink-render` (CPU rasteriser, premultiplied ARGB8888, 9 pixel tests) and `crates/ink-platform-wayland/src/overlay.rs` (surface, event loop, effect execution) join the controller and document into a working application. A smoke test on 2026-09-23 created and mapped the surface, entered Draw, and bound to HDMI-1. **On-screen behaviour has not been observed**; the checklist is `docs/evidence/E004-vertical-slice.md`. Limitations carried from E002/E003: Always on Top is manual, the output cannot be chosen, and the surface does not cover the output.
 
 ## T012 [M1]: Implement activation, CLI control, and recovery
 

@@ -12,6 +12,7 @@ name = "yappyink"
 path = "src/main.rs"
 
 [dependencies]
+ink-app.workspace = true
 ink-core.workspace = true
 ink-platform.workspace = true
 

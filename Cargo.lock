@@ -146,8 +146,19 @@ version = "0.0.0"
 name = "ink-platform-wayland"
 version = "0.0.0"
 dependencies = [
+ "ink-app",
+ "ink-core",
  "ink-platform",
+ "ink-render",
+ "smithay-client-toolkit",
  "wayland-client",
+]
+
+[[package]]
+name = "ink-render"
+version = "0.0.0"
+dependencies = [
+ "ink-core",
 ]
 
 [[package]]
@@ -512,6 +523,7 @@ dependencies = [
 name = "yappyink"
 version = "0.0.0"
 dependencies = [
+ "ink-app",
  "ink-core",
  "ink-platform",
  "ink-platform-wayland",
