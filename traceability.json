@@ -87,7 +87,11 @@
         "FR-011"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-core/tests/document.rs"
+      ],
+      "note": "Headless model tests only. No native multi-output or DPI behaviour is exercised (T018)."
     },
     {
       "id": "AC-FR-012",
@@ -95,7 +99,11 @@
         "FR-012"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-core/tests/document.rs"
+      ],
+      "note": "Headless model tests only. No native multi-output or DPI behaviour is exercised (T018)."
     },
     {
       "id": "AC-FR-013",
@@ -465,8 +473,9 @@
       "scenarios": [
         "AC-FR-011"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T009: per-output documents with an output binding, recorded logical size, and an output-mismatch guard. Documents are independent. Output remapping on load is T021."
     },
     {
       "requirement": "FR-012",
@@ -480,8 +489,9 @@
       "scenarios": [
         "AC-FR-012"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T009: output-local logical units throughout; width is in logical units. Actual scale, rotation, and the macOS flip are backend work (T018)."
     },
     {
       "requirement": "FR-013",
@@ -761,7 +771,7 @@
       ],
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "T001: ink-core builds and tests headlessly with no dependencies. Document model and reducer are still T009/T010."
+      "notes": "T009: ink-core has no dependencies and 20 headless deterministic tests. The reducer is T010 and command history is T017."
     },
     {
       "requirement": "NFR-005",

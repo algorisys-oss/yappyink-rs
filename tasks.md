@@ -96,13 +96,15 @@ Compare platform evidence; update ADRs and minimum tested environments. Decide f
 
 ## T009 [M1]: Implement the platform-free document model
 
-Status: not_started. Dependencies: T007 (amended from T008 by ADR-004 on 2026-09-23; T008 remains the gate for support claims).
+Status: implemented on 2026-09-23. Dependencies: T007 (amended from T008 by ADR-004; T008 remains the gate for support claims).
 
 Requirements: FR-011, FR-012, NFR-004.
 
 Add typed output-local coordinates, object IDs, styles, vector objects, and document validation without GPU/OS dependencies.
 
 **Exit criterion:** Headless tests cover valid objects, invalid numeric values, and independent output documents.
+
+**Evidence:** `crates/ink-core/` gains `geometry`, `id`, `style`, `object`, `document`, `error`, and `limits`. All five shapes, validated `Width` and `Opacity`, degenerate-drag rejection, stroke and object limits, per-output independence, and paint order. 20 headless tests in `tests/document.rs` and `tests/identity.rs`, no dependencies. `cargo fmt`, `cargo clippy -D warnings`, and `cargo test --workspace` (42 tests) all clean.
 
 ## T010 [M1]: Implement the pure interaction reducer
 

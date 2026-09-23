@@ -150,7 +150,7 @@
     {
       "id": "T009",
       "phase": "M1",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T007"
       ],
@@ -162,7 +162,8 @@
       "title": "Implement the platform-free document model",
       "work": "Add typed output-local coordinates, object IDs, styles, vector objects, and document validation without GPU/OS dependencies.",
       "exit_criterion": "Headless tests cover valid objects, invalid numeric values, and independent output documents.",
-      "dependency_note": "Amended by ADR-004 on 2026-09-23: was T008. ink-core is platform-free by constitution §3, so its contract cannot be invalidated by a backend decision. T008 remains the gate for support claims."
+      "dependency_note": "Amended by ADR-004 on 2026-09-23: was T008. ink-core is platform-free by constitution §3, so its contract cannot be invalidated by a backend decision. T008 remains the gate for support claims.",
+      "evidence": "crates/ink-core/tests/document.rs, 16 headless tests; cargo fmt/clippy/test clean on 2026-09-23"
     },
     {
       "id": "T010",
