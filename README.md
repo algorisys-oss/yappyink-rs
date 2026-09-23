@@ -177,6 +177,8 @@ story of a route that did not work, and it is the most useful document here.
 
 [docs/learning.md](docs/learning.md) keeps the mistakes for the same reason —
 what broke, why, and what changed as a result.
+[docs/handoff.md](docs/handoff.md) is the state of play: what is done, what is
+next, and what to know before changing anything.
 
 ```
 crates/ink-core              objects, geometry, documents — no OS, no GPU
