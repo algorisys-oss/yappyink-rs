@@ -1,0 +1,365 @@
+# Implementation tasks
+
+Status vocabulary: not_started, in_progress, implemented, verified. `implemented` means the code exists and the recorded checks passed; it does not mean native desktop behavior was demonstrated. This file was written when every task was not_started and the repository contained no Rust application. Read dependencies before choosing the next task. A blocked platform result may close a feasibility investigation, but it does not satisfy the blocked product capability.
+
+M0 = feasibility; M1 = overlay foundation; M2 = MVP; M3 = V1; M4 = optional later features.
+
+## T001 [M0]: Create the implementation workspace and pin dependencies
+
+Status: implemented on 2026-09-23. Dependencies: none.
+
+Requirements: NFR-004, NFR-007, NFR-008.
+
+Create a minimal Rust workspace, record toolchain and compatible dependency choices, enable fmt/clippy/core tests. Do not create placeholder implementations for every platform.
+
+**Exit criterion:** A clean checkout builds the selected spike target; lockfile and actual version choices are recorded.
+
+**Evidence:** Workspace `Cargo.toml` (resolver 3, edition 2024), `rust-toolchain.toml` pinning 1.95.0, `crates/ink-core` (no dependencies, 6 headless tests), `apps/yappyink`. Versions and checks recorded in `docs/toolchain-and-dependencies.md`. `cargo build --workspace --locked --offline` verified in a copy of the tree with `target/` excluded. No native, GUI, Windows, or macOS behavior is tested by this task.
+
+## T002 [M0]: Detect the actual Ubuntu session and capability surface
+
+Status: in_progress since 2026-09-23. Dependencies: T001.
+
+Requirements: FR-013, FR-020, NFR-005.
+
+Add diagnostic probing for active session, outputs, available protocols, shortcut portal, and failure reasons. Keep unknown distinct from unavailable.
+
+**Exit criterion:** A doctor report from the real machine identifies the native backend and states what was not probed.
+
+**Evidence:** `docs/evidence/E001-ubuntu-gnome-wayland.md` with the captured report in `E001-doctor-output.txt`. `yappyink doctor` resolves the session by connecting to a socket rather than reading a desktop name, lists the advertised Wayland globals, and enumerates outputs over the protocol. On the development machine (Ubuntu 24.04.4, GNOME Shell 46.0, Mutter 46.2) **`zwlr_layer_shell_v1` is not advertised**; the only shell protocol is `xdg_wm_base` v6. Every overlay capability is reported `unknown` with the task that would settle it, and only `output_enumeration` is `available`.
+
+**Remaining before this task closes:** the `org.freedesktop.portal.GlobalShortcuts` interface is still unprobed, because no D-Bus client dependency has been chosen; X11 is only probed as far as socket reachability (T005 owns the rest); Windows and macOS have no probe at all.
+
+## T003 [M0]: Prove the Windows overlay path
+
+Status: not_started. Dependencies: T001.
+
+Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
+
+Build only the transparent surface, fixed ink, one-stroke input, mode switching, and exit controls. Check empty transparent hit testing and other-process clicks.
+
+**Exit criterion:** Native Windows evidence records success/failure for live overlay, no click leakage, visible pass-through, and withdrawal.
+
+## T004 [M0]: Prove the macOS overlay path
+
+Status: not_started. Dependencies: T001.
+
+Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
+
+Evaluate the minimal winit/AppKit path, pointer transparency, focus policy, deactivation, and Spaces/fullscreen separately.
+
+**Exit criterion:** Native macOS evidence records ordinary-app behavior and any Spaces/fullscreen restrictions.
+
+## T005 [M0]: Prove the composited X11 path
+
+Status: not_started. Dependencies: T001.
+
+Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
+
+Validate transparency, stacking hints, pointer input shape, keyboard release, and activation on an actual X11 desktop.
+
+**Exit criterion:** Native X11 evidence includes compositor/WM versions and no hidden keyboard grab.
+
+## T006 [M0]: Prove native layer-shell Wayland
+
+Status: not_started. Dependencies: T002.
+
+Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
+
+Create a correctly assigned layer surface, configure/scale lifecycle, input-region switching, keyboard policy, and a portal or desktop-configured action.
+
+**Exit criterion:** Recorded layer-shell environment passes the input fixture checks; missing protocols are reported, not faked.
+
+## T007 [M0]: Resolve the GNOME implementation route
+
+Status: in_progress since 2026-09-23. Dependencies: T002.
+
+Requirements: FR-001, FR-002, FR-003, FR-005, FR-013.
+
+Measure standalone xdg-shell behavior, then prototype the minimum companion only if needed. Record install, lifecycle, and Rust/helper boundaries.
+
+**Exit criterion:** ADR-002 identifies a verified route or explicitly leaves full GNOME parity blocked. A limited fallback is not a pass.
+
+**Result so far (2026-09-23):** the standalone route fails the full contract but yields a narrow limited mode. Fullscreen destroys transparency; a non-fullscreen surface cannot choose its output; a maximized surface cannot be raised above; a **floating** surface with the user applying "Always on Top" from Mutter's window menu **does** keep ink visible while input reaches the application underneath. ADR-002 records this as outcome (c), a limited preview with a `NeedsUserAction` capability, and leaves the companion route (b) as the only path to parity. Details in `docs/evidence/E002-gnome-xdg-shell-experiment.md`.
+
+**Probe:** `experiments/gnome-xdg-shell/` implements the standalone xdg-shell probe: a transparent fullscreen surface with a fixed diagonal, a timed switch to an empty `wl_surface` input region for pass-through, and self-withdrawal. A windowed smoke test on 2026-09-23 confirmed it maps, configures, switches the input region, and withdraws with no protocol error. **It has not been observed on screen**, so nothing is yet known about stacking, transparency, or pass-through on Mutter. The observation checklist is `docs/evidence/E002-gnome-xdg-shell-experiment.md`.
+
+## T008 [M0]: Ratify architecture and support intent
+
+Status: not_started. Dependencies: T003, T004, T005, T006, T007.
+
+Requirements: FR-013, FR-025, NFR-007, NFR-008.
+
+Compare platform evidence; update ADRs and minimum tested environments. Decide full release versus an explicitly limited preview.
+
+**Exit criterion:** The architecture and dependency set are evidence-backed; every claimed environment has a result, including failures/blocked states.
+
+## T009 [M1]: Implement the platform-free document model
+
+Status: not_started. Dependencies: T008.
+
+Requirements: FR-011, FR-012, NFR-004.
+
+Add typed output-local coordinates, object IDs, styles, vector objects, and document validation without GPU/OS dependencies.
+
+**Exit criterion:** Headless tests cover valid objects, invalid numeric values, and independent output documents.
+
+## T010 [M1]: Implement the pure interaction reducer
+
+Status: not_started. Dependencies: T009.
+
+Requirements: FR-002, FR-003, FR-004, FR-018, FR-019.
+
+Add desired/effective modes, transient gesture states, transition IDs, cancellation, and typed effects.
+
+**Exit criterion:** Table-driven tests cover each allowed transition, held-button rules, failure rollback, and stale completion events.
+
+## T011 [M1]: Integrate production overlay lifecycle
+
+Status: not_started. Dependencies: T010.
+
+Requirements: FR-001, FR-002, FR-003, FR-004, FR-019.
+
+Connect the reducer to native adapters, surface ownership, focus/hit-test changes, and confirmed completion events.
+
+**Exit criterion:** The native fixture validates effective-state reporting and no invisible blockers.
+
+## T012 [M1]: Implement activation, CLI control, and recovery
+
+Status: not_started. Dependencies: T011.
+
+Requirements: FR-005, FR-020, NFR-005.
+
+Register approved global actions with conflict feedback; add local single-user CLI IPC and settings/launcher recovery. Respect native event-loop ownership.
+
+**Exit criterion:** Activation works while another app is focused; denied/conflicting bindings are visible; no-tray operation and EmergencyHide are demonstrated.
+
+## T013 [M1]: Implement the independent compact toolbar
+
+Status: not_started. Dependencies: T011.
+
+Requirements: FR-006.
+
+Wire toolbar actions through AppCommand. Distinguish canvas/toolbar hit testing and keep toolbar hidden in default PassThrough.
+
+**Exit criterion:** Toolbar click/drag never creates a stroke; no click-through surface contains a falsely interactive control.
+
+## T014 [M1]: Implement transparent scene rendering
+
+Status: not_started. Dependencies: T009, T011.
+
+Requirements: FR-001, FR-007, NFR-001, NFR-002, NFR-003.
+
+Add the selected compatible renderer, explicit alpha convention, scene caches, and demand-driven redraw.
+
+**Exit criterion:** Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture.
+
+## T015 [M2]: Add pen and highlighter tools
+
+Status: not_started. Dependencies: T010, T014.
+
+Requirements: FR-007, FR-018.
+
+Implement transient sampling, dot creation, preview, commit/cancel, width/color/opacity, and bounded point storage.
+
+**Exit criterion:** One gesture creates one object; canceled gestures produce no history; highlighter self-overlap has no mesh seam.
+
+## T016 [M2]: Add line, arrow, rectangle, and ellipse
+
+Status: not_started. Dependencies: T015.
+
+Requirements: FR-008.
+
+Implement shared drag lifecycle, preview geometry, explicit degenerate-shape thresholds, and style reuse.
+
+**Exit criterion:** Each completed shape creates one object; canceled/degenerate operations do not create invisible edits.
+
+## T017 [M2]: Implement object erasing and command history
+
+Status: not_started. Dependencies: T015, T016.
+
+Requirements: FR-009, FR-010.
+
+Add swept-geometry hit testing, grouped deletion, inverse commands, redo branching, clear, and history budgets.
+
+**Exit criterion:** The drawing-history spec sequence passes headlessly with exact document restoration.
+
+## T018 [M2]: Complete selected-output and DPI behavior
+
+Status: not_started. Dependencies: T011, T014.
+
+Requirements: FR-011, FR-012.
+
+Support output selection and output-local document switching. Normalize native coordinate scale and rotation once at the boundary.
+
+**Exit criterion:** The same logical stroke aligns under tested scales; switching outputs preserves documents and does not assume a global Wayland cursor.
+
+## T019 [M2]: Build capability/settings UX
+
+Status: not_started. Dependencies: T012, T013.
+
+Requirements: FR-013, FR-020, NFR-005.
+
+Show effective support state, errors, shortcuts, tool preferences, and compatibility-mode labeling.
+
+**Exit criterion:** Unavailable operations are clearly disabled/explained; unknown results do not become green supported badges.
+
+## T020 [M2]: Implement explicit vector save
+
+Status: not_started. Dependencies: T009, T017.
+
+Requirements: FR-015, FR-017, NFR-003.
+
+Serialize the versioned scene and apply bounded, failure-safe same-directory writes with platform-specific replacement.
+
+**Exit criterion:** Save/reopen roundtrip works and disk/access/interruption faults preserve the previous valid file.
+
+## T021 [M2]: Implement validated load and output remapping
+
+Status: not_started. Dependencies: T020.
+
+Requirements: FR-015, FR-017.
+
+Stage validation/migration before document replacement; handle missing output bindings explicitly.
+
+**Exit criterion:** Malformed, oversized, nonfinite, or newer-schema inputs leave the current document unchanged.
+
+## T022 [M2]: Audit permissions, content logging, and network behavior
+
+Status: not_started. Dependencies: T019, T020.
+
+Requirements: FR-014, FR-016.
+
+Run basic drawing with capture permissions denied; inspect logging/IPC/default settings and verify no unnecessary privilege or network dependency.
+
+**Exit criterion:** Drawing remains usable offline without capture permission; diagnostics contain no annotation text, pixels, or raw key stream.
+
+## T023 [M2]: Exercise cancellation and recoverable failures
+
+Status: not_started. Dependencies: T011, T012, T015.
+
+Requirements: FR-018, FR-019, NFR-005.
+
+Inject mode failure, stale callbacks, surface loss, shortcut disconnect, and active-gesture cancellation.
+
+**Exit criterion:** Interactive surfaces withdraw on recoverable failure and committed work remains intact; limitations of a fully hung process are documented.
+
+## T024 [M2]: Measure responsiveness and resource use
+
+Status: not_started. Dependencies: T014, T015, T017.
+
+Requirements: NFR-001, NFR-002, NFR-003.
+
+Run documented normal/stress scenes in release mode; record p50/p95/p99 submission delay, frame pacing, idle CPU, allocations, and memory.
+
+**Exit criterion:** A reproducible report separates submission timing from photon latency and explains any missed proposed target.
+
+## T025 [M2]: Run the MVP acceptance matrix
+
+Status: not_started. Dependencies: T017, T018, T019, T021, T022, T023, T024.
+
+Requirements: FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010, FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-020, NFR-001, NFR-002, NFR-003, NFR-004, NFR-005, NFR-007.
+
+Execute domain/contract/native scenarios for every promised environment. Report real failures, untested hardware, and support restrictions.
+
+**Exit criterion:** All advertised MVP environments have passing evidence; GNOME cannot be silently omitted from a full-support claim.
+
+## T026 [M3]: Add simultaneous outputs
+
+Status: not_started. Dependencies: T025.
+
+Requirements: FR-021, FR-012.
+
+Create independent surfaces/documents per output and implement an explicit stroke boundary policy.
+
+**Exit criterion:** Cross-output input cannot jump coordinates; mixed-DPI surfaces keep separate correct transforms.
+
+## T027 [M3]: Handle output and desktop lifecycle
+
+Status: not_started. Dependencies: T026.
+
+Requirements: FR-022, FR-019.
+
+Handle unplug/reconnect, scale/rotation changes, lock/unlock, suspend/resume, and workspace movement using native lifecycle events.
+
+**Exit criterion:** No ghost input surfaces or silent document loss occur in the lifecycle test matrix.
+
+## T028 [M3]: Add text and selection/editing
+
+Status: not_started. Dependencies: T017, T013.
+
+Requirements: FR-023.
+
+Implement explicit text focus, Unicode/IME preedit and commit/cancel, object selection/move/delete, and history for edits.
+
+**Exit criterion:** IME tests and local shortcuts work without leaking keystrokes to the underlying app while editing.
+
+## T029 [M3]: Add annotation-only PNG/SVG export
+
+Status: not_started. Dependencies: T014, T020.
+
+Requirements: FR-024.
+
+Render/serialize the vector document without capturing desktop pixels; preserve alpha and use safe escaped SVG output.
+
+**Exit criterion:** Exports contain only ink, with stable dimensions/styles and no screenshot permission request.
+
+## T030 [M3]: Validate accessible controls
+
+Status: not_started. Dependencies: T013, T019, T028.
+
+Requirements: NFR-006.
+
+Add labels, keyboard navigation, visible focus, scalable controls, and platform accessibility integration for each certified UI path.
+
+**Exit criterion:** A recorded keyboard/screen-reader walkthrough covers all toolbar/settings actions; unverified custom Wayland accessibility is stated.
+
+## T031 [M3]: Package and harden distribution
+
+Status: not_started. Dependencies: T025.
+
+Requirements: FR-025, NFR-008.
+
+Choose exact targets, build installers/packages, review dependency licenses/unsafe code, and perform platform signing/notarization checks where applicable.
+
+**Exit criterion:** Clean-machine installation and uninstall preserve user documents and show truthful permissions/support notes.
+
+## T032 [M3]: Certify V1 support
+
+Status: not_started. Dependencies: T027, T028, T029, T030, T031.
+
+Requirements: FR-025, NFR-007.
+
+Run the full release matrix on real machines, including fullscreen/Spaces cases promised by the product.
+
+**Exit criterion:** Every published support statement maps to evidence and all limitations are visible in release notes.
+
+## T033 [M4]: Specify and implement optional capture/freeze
+
+Status: not_started. Dependencies: T032.
+
+Requirements: FR-026, NFR-003.
+
+Select native capture integrations, permission UI, frame lifetime, freeze input blocking, and cancellation behavior.
+
+**Exit criterion:** Deny/revoke/cancel capture without breaking live drawing; freeze never controls stale underlying pixels.
+
+## T034 [M4]: Implement screenshot-plus-ink export
+
+Status: not_started. Dependencies: T033, T029.
+
+Requirements: FR-027, FR-016.
+
+Prevent self-capture/duplicate ink, exclude toolbar, composite once with correct transforms, and clear captured pixels by default.
+
+**Exit criterion:** A known fixture is exported with exactly one ink layer and no app controls; no background image is silently retained.
+
+## T035 [M4]: Add presenter enhancements one spec at a time
+
+Status: not_started. Dependencies: T032.
+
+Requirements: FR-028.
+
+Write a focused spec for each chosen board/laser/spotlight/pressure feature before implementation. Separate passive global input monitoring from Draw-mode effects.
+
+**Exit criterion:** Each new feature has its own capability/privacy contract and native tests; no universal pressure/global tracking claim is assumed.

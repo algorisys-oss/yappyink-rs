@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/ink-core",
+    "crates/ink-platform",
+    "crates/ink-platform-wayland",
+    "apps/yappyink",
+    "experiments/gnome-xdg-shell",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+ink-core = { path = "crates/ink-core" }
+ink-platform = { path = "crates/ink-platform" }
+ink-platform-wayland = { path = "crates/ink-platform-wayland" }
+
+[profile.release]
+debug = 1

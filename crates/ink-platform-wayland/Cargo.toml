@@ -1,0 +1,15 @@
+[package]
+name = "ink-platform-wayland"
+description = "Wayland adapter. T002 provides registry/output probing only; the layer-shell surface is T006."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ink-platform.workspace = true
+# Default features only: this uses the pure-Rust wayland backend, so the probe
+# does not link libwayland-client.so. Pinned by Cargo.lock; see
+# docs/toolchain-and-dependencies.md.
+wayland-client = "0.31.15"

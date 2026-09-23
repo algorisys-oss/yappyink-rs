@@ -1,0 +1,12 @@
+[package]
+name = "ink-platform"
+description = "Typed capability, session, and error contracts shared by every platform adapter."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# std only. Backend toolkits (wayland-client, winit, ...) belong in the adapter
+# crates that implement these contracts, never here.
+[dependencies]

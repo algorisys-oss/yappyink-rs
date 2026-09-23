@@ -1,0 +1,223 @@
+{
+  "schema_version": 1,
+  "status": "draft_unimplemented",
+  "date": "2026-09-22",
+  "requirements": [
+    {
+      "id": "FR-001",
+      "phase": "MVP",
+      "title": "Live desktop overlay",
+      "contract": "Display annotation ink above normal desktop applications without capturing or freezing their content. The desktop underneath must keep updating. Fullscreen, Spaces, and compositor guarantees are separately certified."
+    },
+    {
+      "id": "FR-002",
+      "phase": "MVP",
+      "title": "Draw mode",
+      "contract": "In Draw mode, the canvas receives pointer input across its entire selected output, including visually transparent pixels. Pointer events used to draw must not activate controls underneath."
+    },
+    {
+      "id": "FR-003",
+      "phase": "MVP",
+      "title": "True pass-through",
+      "contract": "In PassThrough mode, ink remains visible while ordinary pointer, wheel, and keyboard interaction belongs to underlying applications. Do not implement this by forwarding or synthesizing input."
+    },
+    {
+      "id": "FR-004",
+      "phase": "MVP",
+      "title": "Hide without clearing",
+      "contract": "Hidden mode removes canvas and toolbar visibility and input interception while retaining committed annotations in memory. Startup begins Hidden."
+    },
+    {
+      "id": "FR-005",
+      "phase": "MVP",
+      "title": "Activation and escape",
+      "contract": "Provide configurable ToggleDraw and EmergencyHide actions, registration/conflict feedback, a non-tray recovery path, and a CLI control command. Wayland may require the GlobalShortcuts portal or a user-configured compositor shortcut."
+    },
+    {
+      "id": "FR-006",
+      "phase": "MVP",
+      "title": "Toolbar isolation",
+      "contract": "Provide a compact floating toolbar. Its pointer events never create strokes. It is a separate platform surface or a backend-proven input region, not an imaginary clickable button on an entirely click-through surface."
+    },
+    {
+      "id": "FR-007",
+      "phase": "MVP",
+      "title": "Pen and highlighter",
+      "contract": "Support freehand pen and highlighter, configurable color, width in logical units, and opacity. A dot is a valid pen gesture; a canceled gesture is not an undoable document edit."
+    },
+    {
+      "id": "FR-008",
+      "phase": "MVP",
+      "title": "Basic shapes",
+      "contract": "Support line, single-ended arrow, rectangle, and ellipse with a live preview. One completed drag creates one object and one history entry."
+    },
+    {
+      "id": "FR-009",
+      "phase": "MVP",
+      "title": "Object eraser",
+      "contract": "Erase whole annotation objects intersecting the eraser gesture. An eraser drag is one undoable transaction; it never modifies another application or captured background pixels."
+    },
+    {
+      "id": "FR-010",
+      "phase": "MVP",
+      "title": "Undo, redo, and clear",
+      "contract": "Undo/redo act on completed user actions, not pointer samples. Clear is undoable. A new committed edit clears the redo branch; a no-op does not."
+    },
+    {
+      "id": "FR-011",
+      "phase": "MVP",
+      "title": "Output-local document",
+      "contract": "Own annotations by an application OutputId and store output-local logical coordinates. One selected output is sufficient for MVP, but output switching must preserve each document."
+    },
+    {
+      "id": "FR-012",
+      "phase": "MVP",
+      "title": "Coordinate correctness",
+      "contract": "Convert native input, render pixels, output rotation, and display scaling at the backend boundary. Test fractional and mixed DPI. Do not assume a universal Wayland global desktop coordinate space."
+    },
+    {
+      "id": "FR-013",
+      "phase": "MVP",
+      "title": "Capabilities and honest fallback",
+      "contract": "Probe and report overlay, pass-through, shortcut, focus, and output capabilities. Unknown is not Supported. A limited GNOME/windowed fallback must never be advertised as full live-overlay parity."
+    },
+    {
+      "id": "FR-014",
+      "phase": "MVP",
+      "title": "Minimal privileges",
+      "contract": "Basic overlay drawing must not depend on screenshot permission, root, administrator elevation, raw input devices, screen recording, or system-wide keystroke monitoring. Do not bypass operating-system security boundaries."
+    },
+    {
+      "id": "FR-015",
+      "phase": "MVP",
+      "title": "Explicit local document files",
+      "contract": "Save/load an explicit versioned vector document locally. Loading is atomic from the user perspective: validation failure leaves the existing document intact. Saving annotations does not capture the desktop."
+    },
+    {
+      "id": "FR-016",
+      "phase": "MVP",
+      "title": "Privacy defaults",
+      "contract": "No accounts, cloud upload, analytics, content logging, or automatic screenshot retention. Vector autosave is off by default for the MVP. Explicit file exports are user-directed."
+    },
+    {
+      "id": "FR-017",
+      "phase": "MVP",
+      "title": "Safe file and settings handling",
+      "contract": "Validate document/settings sizes and numeric values. Use same-directory temporary writes and platform-appropriate atomic replacement, retaining the previous valid file after failure."
+    },
+    {
+      "id": "FR-018",
+      "phase": "MVP",
+      "title": "Gesture and transition safety",
+      "contract": "Cancel transient drawing on EmergencyHide, focus/input cancellation, or output loss. During a mode transition no already-held pointer button may leak into an accidental underlying click or start a new stroke."
+    },
+    {
+      "id": "FR-019",
+      "phase": "MVP",
+      "title": "Fault recovery",
+      "contract": "On recoverable surface, GPU, or mode-application failure, withdraw interactive overlays before reporting the fault. On backend disconnect clean up resources. Do not show PassThrough as effective until its native transition completes."
+    },
+    {
+      "id": "FR-020",
+      "phase": "MVP",
+      "title": "Settings and diagnostics",
+      "contract": "Persist validated tool preferences and user-approved shortcut bindings. Provide a doctor command with backend, versions, capabilities, and failure reasons, without document text or desktop pixels."
+    },
+    {
+      "id": "FR-021",
+      "phase": "V1",
+      "title": "Simultaneous multiple outputs",
+      "contract": "Support multiple active per-output surfaces. A stroke cannot jump coordinates between outputs; crossing an output boundary ends the current stroke. A new press begins a new stroke on the other output."
+    },
+    {
+      "id": "FR-022",
+      "phase": "V1",
+      "title": "Hotplug and session lifecycle",
+      "contract": "Handle output removal, reconnection, scale/rotation changes, lock/unlock, suspend/resume, and workspace changes without invisible input-blocking surfaces or silent annotation loss."
+    },
+    {
+      "id": "FR-023",
+      "phase": "V1",
+      "title": "Text and editing",
+      "contract": "Add Unicode text with IME/preedit support, selection/move/delete, and style editing. Text edit keyboard focus is explicit and released on leaving the editor."
+    },
+    {
+      "id": "FR-024",
+      "phase": "V1",
+      "title": "Annotation-only export",
+      "contract": "Export transparent PNG and SVG from the vector scene without reading desktop content. Clearly label these as ink-only exports, not screenshots."
+    },
+    {
+      "id": "FR-025",
+      "phase": "V1",
+      "title": "Distribution and verification",
+      "contract": "Package for Windows, macOS, and selected Linux environments. Every supported environment has native acceptance evidence; a successful cross-compilation alone is insufficient."
+    },
+    {
+      "id": "FR-026",
+      "phase": "Later",
+      "title": "Capture and freeze",
+      "contract": "Add explicit user-initiated screenshot capture and freeze as separate capabilities. Permission denial/cancellation must leave live overlay usable; freeze blocks underlying interaction until dismissed."
+    },
+    {
+      "id": "FR-027",
+      "phase": "Later",
+      "title": "Screenshot composite export",
+      "contract": "Capture the selected output, then composite committed annotations exactly once, excluding app controls and avoiding recursive self-capture. Treat captured pixels as sensitive and ephemeral by default."
+    },
+    {
+      "id": "FR-028",
+      "phase": "Later",
+      "title": "Presenter extras",
+      "contract": "Consider whiteboard/blackboard, fading laser in Draw mode, spotlight, and pressure input after their platform and interaction contracts exist. Passive system-wide cursor effects are a separate opt-in project."
+    },
+    {
+      "id": "NFR-001",
+      "phase": "MVP",
+      "title": "Drawing responsiveness",
+      "contract": "Proposed target on a documented 1080p/60 Hz reference machine: p95 input-dispatch-to-render-submit <= 16.7 ms for the benchmark scene. Measure input-to-photon separately; submission is not display latency."
+    },
+    {
+      "id": "NFR-002",
+      "phase": "MVP",
+      "title": "Idle efficiency",
+      "contract": "When Hidden or displaying unchanged ink with no animation, schedule no continuous redraw loop. Proposed Hidden CPU target: < 1% of one logical core averaged over 60 seconds on a recorded reference machine."
+    },
+    {
+      "id": "NFR-003",
+      "phase": "MVP",
+      "title": "Responsiveness and memory bounds",
+      "contract": "No blocking capture, disk, or portal calls in the GUI event loop. Bound input queues, geometry caches, object count, and undo history; report truncation or limits rather than silently growing without bound."
+    },
+    {
+      "id": "NFR-004",
+      "phase": "MVP",
+      "title": "Testable core",
+      "contract": "The domain and command reducer have no OS, window, GPU, or portal dependencies. Their tests run headlessly and deterministically with injected clocks/IDs."
+    },
+    {
+      "id": "NFR-005",
+      "phase": "MVP",
+      "title": "Failure visibility",
+      "contract": "Typed errors distinguish Unsupported, PermissionDenied, ShortcutConflict, Disconnected, SurfaceLost, and InvalidData. Unsupported native operations must not return fake success."
+    },
+    {
+      "id": "NFR-006",
+      "phase": "V1",
+      "title": "Accessible controls",
+      "contract": "All toolbar actions have labels, keyboard navigation, visible focus, and a non-color-only selected state. Verify platform accessibility output; egui selection alone is not evidence of conformance."
+    },
+    {
+      "id": "NFR-007",
+      "phase": "MVP",
+      "title": "Traceable development",
+      "contract": "Every implementation change references requirement IDs, scenario IDs, and a task. Tests, evidence, changed assumptions, and remaining gaps are recorded before a task is marked verified."
+    },
+    {
+      "id": "NFR-008",
+      "phase": "V1",
+      "title": "Dependency and release hygiene",
+      "contract": "Pin a compatible Rust toolchain/dependency set during implementation, commit Cargo.lock, review unsafe FFI, audit licenses/dependencies, and record platform signing/package checks. No guessed version compatibility."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+[package]
+name = "ink-core"
+description = "Platform-free annotation domain types. No OS, window, GPU, or portal dependencies."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# Intentionally empty: NFR-004 requires this crate to build and test without a
+# display, GPU, or platform toolkit. Adding a dependency here needs a requirement.
+[dependencies]

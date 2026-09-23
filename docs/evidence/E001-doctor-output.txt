@@ -1,0 +1,87 @@
+yappyink doctor 0.0.0
+build target: linux
+
+session
+  reachable backend: wayland
+  wayland socket:    /run/user/1001/wayland-0 (connected)
+  claims to be:      XDG_SESSION_TYPE=wayland, XDG_CURRENT_DESKTOP=ubuntu:GNOME
+  note:              these two strings are context only. Nothing above or below was
+                     decided from them; the backend is whatever answered a connection.
+
+wayland protocol
+  advertised globals: 28
+    gtk_shell1 v5
+    wl_compositor v6
+    wl_data_device_manager v3
+    wl_output v4
+    wl_output v4
+    wl_seat v8
+    wl_shm v1
+    wl_subcompositor v1
+    wp_fractional_scale_manager_v1 v1
+    wp_presentation v1
+    wp_single_pixel_buffer_manager_v1 v1
+    wp_viewporter v1
+    xdg_activation_v1 v1
+    xdg_wm_base v6
+    zwp_idle_inhibit_manager_v1 v1
+    zwp_keyboard_shortcuts_inhibit_manager_v1 v1
+    zwp_linux_dmabuf_v1 v5
+    zwp_pointer_constraints_v1 v1
+    zwp_pointer_gestures_v1 v3
+    zwp_primary_selection_device_manager_v1 v1
+    zwp_relative_pointer_manager_v1 v1
+    zwp_tablet_manager_v2 v1
+    zwp_text_input_manager_v3 v1
+    zxdg_exporter_v1 v1
+    zxdg_exporter_v2 v1
+    zxdg_importer_v1 v1
+    zxdg_importer_v2 v1
+    zxdg_output_manager_v1 v3
+  zwlr_layer_shell_v1: not advertised
+
+outputs (2)
+  [0] eDP-1
+      description: Built-in display
+      current mode: 1366x768 px @ 60.059 Hz
+      integer scale: 1   transform: Normal
+  [1] HDMI-1
+      description: LG Electronics 24"
+      current mode: 1920x1080 px @ 100.000 Hz
+      integer scale: 1   transform: Normal
+  note: integer scale only. Fractional scaling is negotiated per surface,
+        so the effective scale is not established here (FR-012, T018).
+
+capabilities
+  live_overlay           unknown
+                           because: zwlr_layer_shell_v1 is not advertised; the standalone xdg-shell route is unproven and is the subject of T007 and ADR-002
+  draw_pointer_capture   unknown
+                           because: no input region has been set on any surface. zwlr_layer_shell_v1 is not advertised; the standalone xdg-shell route is unproven and is the subject of T007 and ADR-002
+  visible_passthrough    unknown
+                           because: an empty input region must be observed on a live surface. zwlr_layer_shell_v1 is not advertised; the standalone xdg-shell route is unproven and is the subject of T007 and ADR-002
+  keyboard_release       unknown
+                           because: keyboard interactivity is a layer-surface property; no surface exists yet (T006)
+  global_shortcut        unknown
+                           because: the org.freedesktop.portal.GlobalShortcuts interface was not queried: no D-Bus client dependency has been chosen yet (T012)
+  output_enumeration     available
+                           because: wl_output enumerated 2 output(s) over the protocol
+  simultaneous_outputs   unknown
+                           because: a V1 concern (FR-021); no surface exists on any output yet
+  fullscreen_overlay     unknown
+                           because: requires a native run against a fullscreen application (T006)
+  workspace_overlay      unknown
+                           because: requires a native run across workspaces (T006)
+  capture                unknown
+                           because: not probed on purpose: capture is a later feature (FR-026) and drawing must never depend on it
+  capture_exclusion      unknown
+                           because: not probed: belongs with capture (FR-027)
+
+not probed
+  - X11 and XWayland: not probed, because the native wayland socket answered first
+  - the GlobalShortcuts portal: no D-Bus client dependency is chosen yet, so the interface was never queried (T012, FR-005)
+  - Windows and macOS: this binary has never been built or run on them (T003, T004)
+  - capture and screen recording: deliberately never probed, because drawing must not depend on them (FR-014, FR-026)
+
+No overlay surface, input region, shortcut, or pass-through behaviour has been
+demonstrated by this report. Every capability above is a runtime observation, which
+is not release certification: see platform-matrix.md for what evidence requires.

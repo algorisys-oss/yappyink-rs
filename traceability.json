@@ -1,0 +1,825 @@
+{
+  "schema_version": 1,
+  "scenarios": [
+    {
+      "id": "AC-FR-001",
+      "requirements": [
+        "FR-001"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-002",
+      "requirements": [
+        "FR-002"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-003",
+      "requirements": [
+        "FR-003"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-004",
+      "requirements": [
+        "FR-004"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-005",
+      "requirements": [
+        "FR-005"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-006",
+      "requirements": [
+        "FR-006"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-007",
+      "requirements": [
+        "FR-007"
+      ],
+      "file": "tests/acceptance/drawing.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-008",
+      "requirements": [
+        "FR-008"
+      ],
+      "file": "tests/acceptance/drawing.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-009",
+      "requirements": [
+        "FR-009"
+      ],
+      "file": "tests/acceptance/drawing.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-010",
+      "requirements": [
+        "FR-010"
+      ],
+      "file": "tests/acceptance/drawing.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-011",
+      "requirements": [
+        "FR-011"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-012",
+      "requirements": [
+        "FR-012"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-013",
+      "requirements": [
+        "FR-013"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-platform/tests/honest_reporting.rs"
+      ],
+      "note": "Headless contract tests only. No native overlay behaviour is exercised, so the scenario is not passed."
+    },
+    {
+      "id": "AC-FR-014",
+      "requirements": [
+        "FR-014"
+      ],
+      "file": "tests/acceptance/privacy.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-015",
+      "requirements": [
+        "FR-015"
+      ],
+      "file": "tests/acceptance/storage.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-016",
+      "requirements": [
+        "FR-016"
+      ],
+      "file": "tests/acceptance/privacy.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-017",
+      "requirements": [
+        "FR-017"
+      ],
+      "file": "tests/acceptance/storage.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-018",
+      "requirements": [
+        "FR-018"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-019",
+      "requirements": [
+        "FR-019"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-020",
+      "requirements": [
+        "FR-020"
+      ],
+      "file": "tests/acceptance/storage.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-021",
+      "requirements": [
+        "FR-021"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-022",
+      "requirements": [
+        "FR-022"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-023",
+      "requirements": [
+        "FR-023"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-024",
+      "requirements": [
+        "FR-024"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-025",
+      "requirements": [
+        "FR-025"
+      ],
+      "file": "tests/acceptance/release.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-026",
+      "requirements": [
+        "FR-026"
+      ],
+      "file": "tests/acceptance/later.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-027",
+      "requirements": [
+        "FR-027"
+      ],
+      "file": "tests/acceptance/later.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-028",
+      "requirements": [
+        "FR-028"
+      ],
+      "file": "tests/acceptance/later.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-001",
+      "requirements": [
+        "NFR-001"
+      ],
+      "file": "tests/acceptance/quality.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-002",
+      "requirements": [
+        "NFR-002"
+      ],
+      "file": "tests/acceptance/quality.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-003",
+      "requirements": [
+        "NFR-003"
+      ],
+      "file": "tests/acceptance/quality.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-004",
+      "requirements": [
+        "NFR-004"
+      ],
+      "file": "tests/acceptance/quality.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-005",
+      "requirements": [
+        "NFR-005"
+      ],
+      "file": "tests/acceptance/overlay.feature",
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-platform/tests/honest_reporting.rs"
+      ],
+      "note": "Headless contract tests only. No native overlay behaviour is exercised, so the scenario is not passed."
+    },
+    {
+      "id": "AC-NFR-006",
+      "requirements": [
+        "NFR-006"
+      ],
+      "file": "tests/acceptance/release.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-007",
+      "requirements": [
+        "NFR-007"
+      ],
+      "file": "tests/acceptance/quality.feature",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-NFR-008",
+      "requirements": [
+        "NFR-008"
+      ],
+      "file": "tests/acceptance/release.feature",
+      "status": "specified_not_implemented"
+    }
+  ],
+  "requirements": [
+    {
+      "requirement": "FR-001",
+      "phase": "MVP",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T011",
+        "T014",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-001"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-002",
+      "phase": "MVP",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T010",
+        "T011",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-002"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-003",
+      "phase": "MVP",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T010",
+        "T011",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-003"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-004",
+      "phase": "MVP",
+      "tasks": [
+        "T010",
+        "T011",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-004"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-005",
+      "phase": "MVP",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007",
+        "T012",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-005"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-006",
+      "phase": "MVP",
+      "tasks": [
+        "T013",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-006"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-007",
+      "phase": "MVP",
+      "tasks": [
+        "T014",
+        "T015",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-007"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-008",
+      "phase": "MVP",
+      "tasks": [
+        "T016",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-008"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-009",
+      "phase": "MVP",
+      "tasks": [
+        "T017",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-009"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-010",
+      "phase": "MVP",
+      "tasks": [
+        "T017",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-010"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-011",
+      "phase": "MVP",
+      "tasks": [
+        "T009",
+        "T018",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-011"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-012",
+      "phase": "MVP",
+      "tasks": [
+        "T009",
+        "T018",
+        "T025",
+        "T026"
+      ],
+      "scenarios": [
+        "AC-FR-012"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-013",
+      "phase": "MVP",
+      "tasks": [
+        "T002",
+        "T007",
+        "T008",
+        "T019",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-013"
+      ],
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T002: capability vocabulary with Unknown/Available/NeedsUserAction/Unavailable and a doctor report exist. Only output_enumeration is observed as available on E001; every overlay capability remains unknown because no surface has been created."
+    },
+    {
+      "requirement": "FR-014",
+      "phase": "MVP",
+      "tasks": [
+        "T022",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-014"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-015",
+      "phase": "MVP",
+      "tasks": [
+        "T020",
+        "T021",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-015"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-016",
+      "phase": "MVP",
+      "tasks": [
+        "T022",
+        "T025",
+        "T034"
+      ],
+      "scenarios": [
+        "AC-FR-016"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-017",
+      "phase": "MVP",
+      "tasks": [
+        "T020",
+        "T021",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-017"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-018",
+      "phase": "MVP",
+      "tasks": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T010",
+        "T015",
+        "T023",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-018"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-019",
+      "phase": "MVP",
+      "tasks": [
+        "T010",
+        "T011",
+        "T023",
+        "T025",
+        "T027"
+      ],
+      "scenarios": [
+        "AC-FR-019"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-020",
+      "phase": "MVP",
+      "tasks": [
+        "T002",
+        "T012",
+        "T019",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-FR-020"
+      ],
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T002: the doctor report exists and omits user content. Settings persistence and the shortcut recovery path are untouched (T012, T019)."
+    },
+    {
+      "requirement": "FR-021",
+      "phase": "V1",
+      "tasks": [
+        "T026"
+      ],
+      "scenarios": [
+        "AC-FR-021"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-022",
+      "phase": "V1",
+      "tasks": [
+        "T027"
+      ],
+      "scenarios": [
+        "AC-FR-022"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-023",
+      "phase": "V1",
+      "tasks": [
+        "T028"
+      ],
+      "scenarios": [
+        "AC-FR-023"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-024",
+      "phase": "V1",
+      "tasks": [
+        "T029"
+      ],
+      "scenarios": [
+        "AC-FR-024"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-025",
+      "phase": "V1",
+      "tasks": [
+        "T008",
+        "T031",
+        "T032"
+      ],
+      "scenarios": [
+        "AC-FR-025"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-026",
+      "phase": "Later",
+      "tasks": [
+        "T033"
+      ],
+      "scenarios": [
+        "AC-FR-026"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-027",
+      "phase": "Later",
+      "tasks": [
+        "T034"
+      ],
+      "scenarios": [
+        "AC-FR-027"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-028",
+      "phase": "Later",
+      "tasks": [
+        "T035"
+      ],
+      "scenarios": [
+        "AC-FR-028"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-001",
+      "phase": "MVP",
+      "tasks": [
+        "T014",
+        "T024",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-NFR-001"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-002",
+      "phase": "MVP",
+      "tasks": [
+        "T014",
+        "T024",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-NFR-002"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-003",
+      "phase": "MVP",
+      "tasks": [
+        "T014",
+        "T020",
+        "T024",
+        "T025",
+        "T033"
+      ],
+      "scenarios": [
+        "AC-NFR-003"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-004",
+      "phase": "MVP",
+      "tasks": [
+        "T001",
+        "T009",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-NFR-004"
+      ],
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T001: ink-core builds and tests headlessly with no dependencies. Document model and reducer are still T009/T010."
+    },
+    {
+      "requirement": "NFR-005",
+      "phase": "MVP",
+      "tasks": [
+        "T002",
+        "T012",
+        "T019",
+        "T023",
+        "T025"
+      ],
+      "scenarios": [
+        "AC-NFR-005"
+      ],
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T002: the six typed error classes exist and are covered by headless tests."
+    },
+    {
+      "requirement": "NFR-006",
+      "phase": "V1",
+      "tasks": [
+        "T030"
+      ],
+      "scenarios": [
+        "AC-NFR-006"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-007",
+      "phase": "MVP",
+      "tasks": [
+        "T001",
+        "T008",
+        "T025",
+        "T032"
+      ],
+      "scenarios": [
+        "AC-NFR-007"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    },
+    {
+      "requirement": "NFR-008",
+      "phase": "V1",
+      "tasks": [
+        "T001",
+        "T008",
+        "T031"
+      ],
+      "scenarios": [
+        "AC-NFR-008"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested"
+    }
+  ]
+}

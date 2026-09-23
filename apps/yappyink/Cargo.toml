@@ -1,0 +1,19 @@
+[package]
+name = "yappyink"
+description = "ScreenInk / yappyink-rs spike binary. T001 scaffolding only; no overlay yet."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "yappyink"
+path = "src/main.rs"
+
+[dependencies]
+ink-core.workspace = true
+ink-platform.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ink-platform-wayland.workspace = true

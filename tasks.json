@@ -1,0 +1,615 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "T001",
+      "phase": "M0",
+      "status": "implemented",
+      "depends_on": [],
+      "requirements": [
+        "NFR-004",
+        "NFR-007",
+        "NFR-008"
+      ],
+      "title": "Create the implementation workspace and pin dependencies",
+      "work": "Create a minimal Rust workspace, record toolchain and compatible dependency choices, enable fmt/clippy/core tests. Do not create placeholder implementations for every platform.",
+      "exit_criterion": "A clean checkout builds the selected spike target; lockfile and actual version choices are recorded.",
+      "evidence": "docs/toolchain-and-dependencies.md; cargo fmt/clippy/test/build --locked on x86_64-unknown-linux-gnu, 2026-09-23"
+    },
+    {
+      "id": "T002",
+      "phase": "M0",
+      "status": "in_progress",
+      "depends_on": [
+        "T001"
+      ],
+      "requirements": [
+        "FR-013",
+        "FR-020",
+        "NFR-005"
+      ],
+      "title": "Detect the actual Ubuntu session and capability surface",
+      "work": "Add diagnostic probing for active session, outputs, available protocols, shortcut portal, and failure reasons. Keep unknown distinct from unavailable.",
+      "exit_criterion": "A doctor report from the real machine identifies the native backend and states what was not probed.",
+      "evidence": "docs/evidence/E001-ubuntu-gnome-wayland.md; docs/evidence/E001-doctor-output.txt",
+      "remaining": "The GlobalShortcuts portal interface is still unprobed: no D-Bus client dependency has been chosen. X11 probing beyond socket reachability is T005. Windows and macOS have no probe."
+    },
+    {
+      "id": "T003",
+      "phase": "M0",
+      "status": "not_started",
+      "depends_on": [
+        "T001"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-005",
+        "FR-018"
+      ],
+      "title": "Prove the Windows overlay path",
+      "work": "Build only the transparent surface, fixed ink, one-stroke input, mode switching, and exit controls. Check empty transparent hit testing and other-process clicks.",
+      "exit_criterion": "Native Windows evidence records success/failure for live overlay, no click leakage, visible pass-through, and withdrawal."
+    },
+    {
+      "id": "T004",
+      "phase": "M0",
+      "status": "not_started",
+      "depends_on": [
+        "T001"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-005",
+        "FR-018"
+      ],
+      "title": "Prove the macOS overlay path",
+      "work": "Evaluate the minimal winit/AppKit path, pointer transparency, focus policy, deactivation, and Spaces/fullscreen separately.",
+      "exit_criterion": "Native macOS evidence records ordinary-app behavior and any Spaces/fullscreen restrictions."
+    },
+    {
+      "id": "T005",
+      "phase": "M0",
+      "status": "not_started",
+      "depends_on": [
+        "T001"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-005",
+        "FR-018"
+      ],
+      "title": "Prove the composited X11 path",
+      "work": "Validate transparency, stacking hints, pointer input shape, keyboard release, and activation on an actual X11 desktop.",
+      "exit_criterion": "Native X11 evidence includes compositor/WM versions and no hidden keyboard grab."
+    },
+    {
+      "id": "T006",
+      "phase": "M0",
+      "status": "not_started",
+      "depends_on": [
+        "T002"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-005",
+        "FR-018"
+      ],
+      "title": "Prove native layer-shell Wayland",
+      "work": "Create a correctly assigned layer surface, configure/scale lifecycle, input-region switching, keyboard policy, and a portal or desktop-configured action.",
+      "exit_criterion": "Recorded layer-shell environment passes the input fixture checks; missing protocols are reported, not faked."
+    },
+    {
+      "id": "T007",
+      "phase": "M0",
+      "status": "in_progress",
+      "depends_on": [
+        "T002"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-005",
+        "FR-013"
+      ],
+      "title": "Resolve the GNOME implementation route",
+      "work": "Measure standalone xdg-shell behavior, then prototype the minimum companion only if needed. Record install, lifecycle, and Rust/helper boundaries.",
+      "exit_criterion": "ADR-002 identifies a verified route or explicitly leaves full GNOME parity blocked. A limited fallback is not a pass.",
+      "evidence": "docs/evidence/E002-gnome-xdg-shell-experiment.md",
+      "remaining": "Standalone route measured: fails automatically, works only as a floating surface with a manual per-launch \"Always on Top\". ADR-002 records outcome (c). The GNOME Shell companion prototype (outcome b) is not started, and the durability of always-on-top across workspaces, fullscreen apps, hotplug and suspend is untested."
+    },
+    {
+      "id": "T008",
+      "phase": "M0",
+      "status": "not_started",
+      "depends_on": [
+        "T003",
+        "T004",
+        "T005",
+        "T006",
+        "T007"
+      ],
+      "requirements": [
+        "FR-013",
+        "FR-025",
+        "NFR-007",
+        "NFR-008"
+      ],
+      "title": "Ratify architecture and support intent",
+      "work": "Compare platform evidence; update ADRs and minimum tested environments. Decide full release versus an explicitly limited preview.",
+      "exit_criterion": "The architecture and dependency set are evidence-backed; every claimed environment has a result, including failures/blocked states."
+    },
+    {
+      "id": "T009",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T008"
+      ],
+      "requirements": [
+        "FR-011",
+        "FR-012",
+        "NFR-004"
+      ],
+      "title": "Implement the platform-free document model",
+      "work": "Add typed output-local coordinates, object IDs, styles, vector objects, and document validation without GPU/OS dependencies.",
+      "exit_criterion": "Headless tests cover valid objects, invalid numeric values, and independent output documents."
+    },
+    {
+      "id": "T010",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T009"
+      ],
+      "requirements": [
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-018",
+        "FR-019"
+      ],
+      "title": "Implement the pure interaction reducer",
+      "work": "Add desired/effective modes, transient gesture states, transition IDs, cancellation, and typed effects.",
+      "exit_criterion": "Table-driven tests cover each allowed transition, held-button rules, failure rollback, and stale completion events."
+    },
+    {
+      "id": "T011",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T010"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-019"
+      ],
+      "title": "Integrate production overlay lifecycle",
+      "work": "Connect the reducer to native adapters, surface ownership, focus/hit-test changes, and confirmed completion events.",
+      "exit_criterion": "The native fixture validates effective-state reporting and no invisible blockers."
+    },
+    {
+      "id": "T012",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T011"
+      ],
+      "requirements": [
+        "FR-005",
+        "FR-020",
+        "NFR-005"
+      ],
+      "title": "Implement activation, CLI control, and recovery",
+      "work": "Register approved global actions with conflict feedback; add local single-user CLI IPC and settings/launcher recovery. Respect native event-loop ownership.",
+      "exit_criterion": "Activation works while another app is focused; denied/conflicting bindings are visible; no-tray operation and EmergencyHide are demonstrated."
+    },
+    {
+      "id": "T013",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T011"
+      ],
+      "requirements": [
+        "FR-006"
+      ],
+      "title": "Implement the independent compact toolbar",
+      "work": "Wire toolbar actions through AppCommand. Distinguish canvas/toolbar hit testing and keep toolbar hidden in default PassThrough.",
+      "exit_criterion": "Toolbar click/drag never creates a stroke; no click-through surface contains a falsely interactive control."
+    },
+    {
+      "id": "T014",
+      "phase": "M1",
+      "status": "not_started",
+      "depends_on": [
+        "T009",
+        "T011"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-007",
+        "NFR-001",
+        "NFR-002",
+        "NFR-003"
+      ],
+      "title": "Implement transparent scene rendering",
+      "work": "Add the selected compatible renderer, explicit alpha convention, scene caches, and demand-driven redraw.",
+      "exit_criterion": "Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture."
+    },
+    {
+      "id": "T015",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T010",
+        "T014"
+      ],
+      "requirements": [
+        "FR-007",
+        "FR-018"
+      ],
+      "title": "Add pen and highlighter tools",
+      "work": "Implement transient sampling, dot creation, preview, commit/cancel, width/color/opacity, and bounded point storage.",
+      "exit_criterion": "One gesture creates one object; canceled gestures produce no history; highlighter self-overlap has no mesh seam."
+    },
+    {
+      "id": "T016",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T015"
+      ],
+      "requirements": [
+        "FR-008"
+      ],
+      "title": "Add line, arrow, rectangle, and ellipse",
+      "work": "Implement shared drag lifecycle, preview geometry, explicit degenerate-shape thresholds, and style reuse.",
+      "exit_criterion": "Each completed shape creates one object; canceled/degenerate operations do not create invisible edits."
+    },
+    {
+      "id": "T017",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T015",
+        "T016"
+      ],
+      "requirements": [
+        "FR-009",
+        "FR-010"
+      ],
+      "title": "Implement object erasing and command history",
+      "work": "Add swept-geometry hit testing, grouped deletion, inverse commands, redo branching, clear, and history budgets.",
+      "exit_criterion": "The drawing-history spec sequence passes headlessly with exact document restoration."
+    },
+    {
+      "id": "T018",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T011",
+        "T014"
+      ],
+      "requirements": [
+        "FR-011",
+        "FR-012"
+      ],
+      "title": "Complete selected-output and DPI behavior",
+      "work": "Support output selection and output-local document switching. Normalize native coordinate scale and rotation once at the boundary.",
+      "exit_criterion": "The same logical stroke aligns under tested scales; switching outputs preserves documents and does not assume a global Wayland cursor."
+    },
+    {
+      "id": "T019",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T012",
+        "T013"
+      ],
+      "requirements": [
+        "FR-013",
+        "FR-020",
+        "NFR-005"
+      ],
+      "title": "Build capability/settings UX",
+      "work": "Show effective support state, errors, shortcuts, tool preferences, and compatibility-mode labeling.",
+      "exit_criterion": "Unavailable operations are clearly disabled/explained; unknown results do not become green supported badges."
+    },
+    {
+      "id": "T020",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T009",
+        "T017"
+      ],
+      "requirements": [
+        "FR-015",
+        "FR-017",
+        "NFR-003"
+      ],
+      "title": "Implement explicit vector save",
+      "work": "Serialize the versioned scene and apply bounded, failure-safe same-directory writes with platform-specific replacement.",
+      "exit_criterion": "Save/reopen roundtrip works and disk/access/interruption faults preserve the previous valid file."
+    },
+    {
+      "id": "T021",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T020"
+      ],
+      "requirements": [
+        "FR-015",
+        "FR-017"
+      ],
+      "title": "Implement validated load and output remapping",
+      "work": "Stage validation/migration before document replacement; handle missing output bindings explicitly.",
+      "exit_criterion": "Malformed, oversized, nonfinite, or newer-schema inputs leave the current document unchanged."
+    },
+    {
+      "id": "T022",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T019",
+        "T020"
+      ],
+      "requirements": [
+        "FR-014",
+        "FR-016"
+      ],
+      "title": "Audit permissions, content logging, and network behavior",
+      "work": "Run basic drawing with capture permissions denied; inspect logging/IPC/default settings and verify no unnecessary privilege or network dependency.",
+      "exit_criterion": "Drawing remains usable offline without capture permission; diagnostics contain no annotation text, pixels, or raw key stream."
+    },
+    {
+      "id": "T023",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T011",
+        "T012",
+        "T015"
+      ],
+      "requirements": [
+        "FR-018",
+        "FR-019",
+        "NFR-005"
+      ],
+      "title": "Exercise cancellation and recoverable failures",
+      "work": "Inject mode failure, stale callbacks, surface loss, shortcut disconnect, and active-gesture cancellation.",
+      "exit_criterion": "Interactive surfaces withdraw on recoverable failure and committed work remains intact; limitations of a fully hung process are documented."
+    },
+    {
+      "id": "T024",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T014",
+        "T015",
+        "T017"
+      ],
+      "requirements": [
+        "NFR-001",
+        "NFR-002",
+        "NFR-003"
+      ],
+      "title": "Measure responsiveness and resource use",
+      "work": "Run documented normal/stress scenes in release mode; record p50/p95/p99 submission delay, frame pacing, idle CPU, allocations, and memory.",
+      "exit_criterion": "A reproducible report separates submission timing from photon latency and explains any missed proposed target."
+    },
+    {
+      "id": "T025",
+      "phase": "M2",
+      "status": "not_started",
+      "depends_on": [
+        "T017",
+        "T018",
+        "T019",
+        "T021",
+        "T022",
+        "T023",
+        "T024"
+      ],
+      "requirements": [
+        "FR-001",
+        "FR-002",
+        "FR-003",
+        "FR-004",
+        "FR-005",
+        "FR-006",
+        "FR-007",
+        "FR-008",
+        "FR-009",
+        "FR-010",
+        "FR-011",
+        "FR-012",
+        "FR-013",
+        "FR-014",
+        "FR-015",
+        "FR-016",
+        "FR-017",
+        "FR-018",
+        "FR-019",
+        "FR-020",
+        "NFR-001",
+        "NFR-002",
+        "NFR-003",
+        "NFR-004",
+        "NFR-005",
+        "NFR-007"
+      ],
+      "title": "Run the MVP acceptance matrix",
+      "work": "Execute domain/contract/native scenarios for every promised environment. Report real failures, untested hardware, and support restrictions.",
+      "exit_criterion": "All advertised MVP environments have passing evidence; GNOME cannot be silently omitted from a full-support claim."
+    },
+    {
+      "id": "T026",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T025"
+      ],
+      "requirements": [
+        "FR-021",
+        "FR-012"
+      ],
+      "title": "Add simultaneous outputs",
+      "work": "Create independent surfaces/documents per output and implement an explicit stroke boundary policy.",
+      "exit_criterion": "Cross-output input cannot jump coordinates; mixed-DPI surfaces keep separate correct transforms."
+    },
+    {
+      "id": "T027",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T026"
+      ],
+      "requirements": [
+        "FR-022",
+        "FR-019"
+      ],
+      "title": "Handle output and desktop lifecycle",
+      "work": "Handle unplug/reconnect, scale/rotation changes, lock/unlock, suspend/resume, and workspace movement using native lifecycle events.",
+      "exit_criterion": "No ghost input surfaces or silent document loss occur in the lifecycle test matrix."
+    },
+    {
+      "id": "T028",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T017",
+        "T013"
+      ],
+      "requirements": [
+        "FR-023"
+      ],
+      "title": "Add text and selection/editing",
+      "work": "Implement explicit text focus, Unicode/IME preedit and commit/cancel, object selection/move/delete, and history for edits.",
+      "exit_criterion": "IME tests and local shortcuts work without leaking keystrokes to the underlying app while editing."
+    },
+    {
+      "id": "T029",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T014",
+        "T020"
+      ],
+      "requirements": [
+        "FR-024"
+      ],
+      "title": "Add annotation-only PNG/SVG export",
+      "work": "Render/serialize the vector document without capturing desktop pixels; preserve alpha and use safe escaped SVG output.",
+      "exit_criterion": "Exports contain only ink, with stable dimensions/styles and no screenshot permission request."
+    },
+    {
+      "id": "T030",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T013",
+        "T019",
+        "T028"
+      ],
+      "requirements": [
+        "NFR-006"
+      ],
+      "title": "Validate accessible controls",
+      "work": "Add labels, keyboard navigation, visible focus, scalable controls, and platform accessibility integration for each certified UI path.",
+      "exit_criterion": "A recorded keyboard/screen-reader walkthrough covers all toolbar/settings actions; unverified custom Wayland accessibility is stated."
+    },
+    {
+      "id": "T031",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T025"
+      ],
+      "requirements": [
+        "FR-025",
+        "NFR-008"
+      ],
+      "title": "Package and harden distribution",
+      "work": "Choose exact targets, build installers/packages, review dependency licenses/unsafe code, and perform platform signing/notarization checks where applicable.",
+      "exit_criterion": "Clean-machine installation and uninstall preserve user documents and show truthful permissions/support notes."
+    },
+    {
+      "id": "T032",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T027",
+        "T028",
+        "T029",
+        "T030",
+        "T031"
+      ],
+      "requirements": [
+        "FR-025",
+        "NFR-007"
+      ],
+      "title": "Certify V1 support",
+      "work": "Run the full release matrix on real machines, including fullscreen/Spaces cases promised by the product.",
+      "exit_criterion": "Every published support statement maps to evidence and all limitations are visible in release notes."
+    },
+    {
+      "id": "T033",
+      "phase": "M4",
+      "status": "not_started",
+      "depends_on": [
+        "T032"
+      ],
+      "requirements": [
+        "FR-026",
+        "NFR-003"
+      ],
+      "title": "Specify and implement optional capture/freeze",
+      "work": "Select native capture integrations, permission UI, frame lifetime, freeze input blocking, and cancellation behavior.",
+      "exit_criterion": "Deny/revoke/cancel capture without breaking live drawing; freeze never controls stale underlying pixels."
+    },
+    {
+      "id": "T034",
+      "phase": "M4",
+      "status": "not_started",
+      "depends_on": [
+        "T033",
+        "T029"
+      ],
+      "requirements": [
+        "FR-027",
+        "FR-016"
+      ],
+      "title": "Implement screenshot-plus-ink export",
+      "work": "Prevent self-capture/duplicate ink, exclude toolbar, composite once with correct transforms, and clear captured pixels by default.",
+      "exit_criterion": "A known fixture is exported with exactly one ink layer and no app controls; no background image is silently retained."
+    },
+    {
+      "id": "T035",
+      "phase": "M4",
+      "status": "not_started",
+      "depends_on": [
+        "T032"
+      ],
+      "requirements": [
+        "FR-028"
+      ],
+      "title": "Add presenter enhancements one spec at a time",
+      "work": "Write a focused spec for each chosen board/laser/spotlight/pressure feature before implementation. Separate passive global input monitoring from Draw-mode effects.",
+      "exit_criterion": "Each new feature has its own capability/privacy contract and native tests; no universal pressure/global tracking claim is assumed."
+    }
+  ]
+}

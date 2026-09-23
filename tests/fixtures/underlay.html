@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScreenInk manual underlay fixture</title>
+  <style>
+    body { max-width: 800px; margin: 2rem auto; padding: 0 1rem; font: 18px/1.5 system-ui, sans-serif; }
+    button, input, textarea { font: inherit; padding: .6rem; }
+    section { margin: 1.5rem 0; }
+    .track { height: 48px; border: 1px solid; position: relative; overflow: hidden; }
+    .marker { width: 32px; height: 32px; border-radius: 50%; background: currentColor; position: absolute; top: 8px; animation: move 3s linear infinite alternate; }
+    @keyframes move { from { left: 0; } to { left: calc(100% - 32px); } }
+    .scroll { height: 160px; overflow: auto; border: 1px solid; padding: 1rem; }
+    label { display: block; }
+    textarea { width: 95%; min-height: 100px; }
+  </style>
+</head>
+<body>
+  <h1>ScreenInk: underlying application fixture</h1>
+  <p>This page performs no network requests. Its controls receive only normal browser input. Run the future desktop overlay above this page.</p>
+  <section>
+    <h2>Live content</h2>
+    <p>The moving marker must remain live behind normal annotation mode.</p>
+    <div class="track" aria-label="Continuously moving marker"><div class="marker"></div></div>
+  </section>
+  <section>
+    <h2>Pointer delivery</h2>
+    <button id="counter" type="button">Click count: 0</button>
+    <button id="reset" type="button">Reset count</button>
+    <p>Draw above this button: count must not change. In PassThrough, one click must add exactly one.</p>
+  </section>
+  <section>
+    <h2>Keyboard and selection</h2>
+    <label for="text">Click here and type after switching to PassThrough:</label>
+    <textarea id="text" spellcheck="false">Select this text, replace it, and try ordinary local undo.</textarea>
+  </section>
+  <section>
+    <h2>Wheel and scrolling</h2>
+    <div class="scroll" tabindex="0" aria-label="Scrollable test content" id="scroll"></div>
+  </section>
+  <script>
+    'use strict';
+    let clicks = 0;
+    const counter = document.getElementById('counter');
+    counter.addEventListener('click', () => {
+      clicks += 1;
+      counter.textContent = `Click count: ${clicks}`;
+    });
+    document.getElementById('reset').addEventListener('click', () => {
+      clicks = 0;
+      counter.textContent = 'Click count: 0';
+    });
+    const scroll = document.getElementById('scroll');
+    for (let line = 1; line <= 40; line += 1) {
+      const row = document.createElement('p');
+      row.textContent = `Scrollable fixture line ${line}`;
+      scroll.append(row);
+    }
+  </script>
+</body>
+</html>
