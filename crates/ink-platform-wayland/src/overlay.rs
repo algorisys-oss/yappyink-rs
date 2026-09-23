@@ -633,10 +633,11 @@ impl PointerHandler for Overlay {
         }
         for event in produced {
             let effects = self.controller.handle(event);
-            // Any pointer event can change what the preview looks like, so the
-            // press that starts a stroke paints its dot at once rather than
-            // waiting for the first movement.
-            if self.controller.gesture_points().is_some() {
+            // Any pointer event can change the preview, so a redraw is asked
+            // for whenever a gesture is in flight, whatever kind it is. Asking
+            // only about freehand samples was a bug: a shape being dragged out
+            // has no samples, so it only appeared once it was committed.
+            if self.controller.is_gesturing() {
                 self.needs_redraw = true;
             }
             self.apply(effects);

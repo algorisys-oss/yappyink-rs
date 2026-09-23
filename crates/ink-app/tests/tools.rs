@@ -557,3 +557,51 @@ fn a_shape_keeps_the_style_it_started_with() {
         other => panic!("expected a commit, got {other:?}"),
     }
 }
+
+#[test]
+fn every_tool_reports_a_gesture_in_flight_while_dragging() {
+    // The adapter repaints while this is true. Asking a freehand-only question
+    // instead, such as whether there are samples, means a shape is only drawn
+    // once it is committed: it has no samples, so nothing asks for a repaint
+    // while it is being dragged out. That was a real bug, found by using the
+    // application rather than by any test here.
+    for tool in [
+        Tool::Pen,
+        Tool::Highlighter,
+        Tool::Line,
+        Tool::Arrow,
+        Tool::Rectangle,
+        Tool::Ellipse,
+    ] {
+        let mut controller = drawing();
+        controller.act(Action::SelectTool(tool));
+
+        controller.handle(PlatformEvent::PointerDown {
+            at: point(10.0, 10.0),
+        });
+        assert!(
+            controller.is_gesturing(),
+            "{tool:?} is not gesturing after a press"
+        );
+
+        controller.handle(PlatformEvent::PointerMoved {
+            at: point(80.0, 60.0),
+        });
+        assert!(
+            controller.is_gesturing(),
+            "{tool:?} is not gesturing mid-drag"
+        );
+        assert!(
+            controller.preview().is_some(),
+            "{tool:?} has nothing to preview mid-drag"
+        );
+
+        controller.handle(PlatformEvent::PointerUp {
+            at: point(80.0, 60.0),
+        });
+        assert!(
+            !controller.is_gesturing(),
+            "{tool:?} is still gesturing after release"
+        );
+    }
+}
