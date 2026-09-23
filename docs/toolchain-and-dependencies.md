@@ -15,6 +15,13 @@ unchanged. This is a name change only; no requirement or acceptance criterion is
 affected. The spec prose has not been rewritten, so treat "ScreenInk" in the
 `.md` files as the same product.
 
+## Licence
+
+MIT, chosen by the owner on 2026-09-23 and recorded in `LICENSE`. The workspace
+manifests carry `license = "MIT"` to match. An earlier draft of this file said
+`MIT OR Apache-2.0`; that was a placeholder written before the owner decided,
+and it was wrong to state it as settled.
+
 ## Toolchain actually used, 2026-09-23
 
 Read from the development machine, not chosen from memory:

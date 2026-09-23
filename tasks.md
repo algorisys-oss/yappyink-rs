@@ -96,7 +96,7 @@ Compare platform evidence; update ADRs and minimum tested environments. Decide f
 
 ## T009 [M1]: Implement the platform-free document model
 
-Status: not_started. Dependencies: T008.
+Status: not_started. Dependencies: T007 (amended from T008 by ADR-004 on 2026-09-23; T008 remains the gate for support claims).
 
 Requirements: FR-011, FR-012, NFR-004.
 
