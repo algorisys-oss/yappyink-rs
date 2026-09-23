@@ -58,8 +58,27 @@ pass-through.
 Press `Alt+Space` and choose **Always on Top**, then drag with the left mouse
 button to draw.
 
-Keys, while the overlay has focus: `d` draw, `p` pass through, `h` hide,
-`Esc` cancel a stroke or leave draw mode, `q` quit.
+Keys, while the overlay has focus:
+
+| Key | Does |
+|---|---|
+| `d` | draw |
+| `p` | pass through: ink stays, input goes to what is underneath |
+| `h` | hide the ink, keeping it in memory |
+| `1` / `2` | pen / highlighter |
+| `c` | next colour |
+| `[` / `]` | thinner / thicker |
+| `-` / `=` | less / more opaque |
+| `Esc` | cancel a stroke, or leave draw mode |
+| `q` | quit |
+
+The corner of the overlay shows the mode and the colour and width you are about
+to draw with, so none of that has to be remembered.
+
+A highlighter's opacity applies to the completed stroke as a whole: scribbling
+back and forth over one spot gives an even wash rather than a dark smear.
+Drawing over it a *second* time does build up, because that is you asking for a
+denser mark.
 
 ### Reaching it when something else has focus
 
@@ -81,9 +100,9 @@ other route and is not implemented yet.
 
 ## Not built yet
 
-Undo and redo, the eraser, shapes, a highlighter, a colour or width picker, a
-toolbar, saving to a file, image export, text, and multiple monitors at once.
-There is one pen, in one colour, and nothing is saved when you quit.
+Undo and redo, the eraser, shapes, a toolbar, saving to a file, image export,
+text, and multiple monitors at once. **Nothing is saved when you quit**, and
+there is no way to remove a stroke short of restarting.
 
 Out of scope for a first release entirely: cloud sync, accounts, AI, OCR, video
 recording, and screen capture. Live drawing never reads your screen, and it
