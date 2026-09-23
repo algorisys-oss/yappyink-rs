@@ -278,7 +278,7 @@
     {
       "id": "T016",
       "phase": "M2",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T015"
       ],
@@ -287,7 +287,9 @@
       ],
       "title": "Add line, arrow, rectangle, and ellipse",
       "work": "Implement shared drag lifecycle, preview geometry, explicit degenerate-shape thresholds, and style reuse.",
-      "exit_criterion": "Each completed shape creates one object; canceled/degenerate operations do not create invisible edits."
+      "exit_criterion": "Each completed shape creates one object; canceled/degenerate operations do not create invisible edits.",
+      "evidence": "crates/ink-app/tests/tools.rs (22 tests); crates/ink-render/tests/painting.rs (16 pixel tests)",
+      "remaining": "Not observed on screen; only the headless rules and pixel fixtures are verified."
     },
     {
       "id": "T017",

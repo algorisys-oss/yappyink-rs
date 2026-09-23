@@ -6,8 +6,8 @@
 //! Headless. The rules about what a gesture becomes live here rather than in
 //! the adapter, which is why they can be tested at all.
 
-use ink_app::{Action, Controller, Effect, PlatformEvent, Tool};
-use ink_core::{LogicalPoint, Opacity, Rgb, StrokeKind, limits};
+use ink_app::{Action, Controller, Effect, PlatformEvent, Preview, Tool};
+use ink_core::{LogicalPoint, Opacity, Rgb, Shape, StrokeKind, limits};
 
 fn point(x: f64, y: f64) -> LogicalPoint {
     LogicalPoint::new(x, y).expect("finite test coordinate")
@@ -41,7 +41,7 @@ fn stroke(controller: &mut Controller) -> Effect {
             at: point(70.0, 70.0),
         })
         .into_iter()
-        .find(|e| matches!(e, Effect::CommitStroke { .. }))
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
         .expect("a completed gesture commits")
 }
 
@@ -58,13 +58,23 @@ fn a_committed_stroke_carries_the_tool_it_was_drawn_with() {
     let mut controller = drawing();
 
     match stroke(&mut controller) {
-        Effect::CommitStroke { kind, .. } => assert_eq!(kind, StrokeKind::Pen),
+        Effect::CommitObject {
+            shape: Shape::Stroke { kind, .. },
+            ..
+        } => {
+            assert_eq!(kind, StrokeKind::Pen)
+        }
         other => panic!("expected a commit, got {other:?}"),
     }
 
     controller.act(Action::SelectTool(Tool::Highlighter));
     match stroke(&mut controller) {
-        Effect::CommitStroke { kind, .. } => assert_eq!(kind, StrokeKind::Highlighter),
+        Effect::CommitObject {
+            shape: Shape::Stroke { kind, .. },
+            ..
+        } => {
+            assert_eq!(kind, StrokeKind::Highlighter)
+        }
         other => panic!("expected a commit, got {other:?}"),
     }
 }
@@ -117,11 +127,11 @@ fn changing_the_style_mid_gesture_does_not_rewrite_the_stroke() {
             at: point(20.0, 20.0),
         })
         .into_iter()
-        .find(|e| matches!(e, Effect::CommitStroke { .. }))
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
         .expect("a commit");
 
     match committed {
-        Effect::CommitStroke { style, .. } => assert_eq!(style, started_with),
+        Effect::CommitObject { style, .. } => assert_eq!(style, started_with),
         other => panic!("expected a commit, got {other:?}"),
     }
 }
@@ -139,11 +149,14 @@ fn changing_the_tool_mid_gesture_does_not_change_what_is_being_drawn() {
             at: point(20.0, 20.0),
         })
         .into_iter()
-        .find(|e| matches!(e, Effect::CommitStroke { .. }))
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
         .expect("a commit");
 
     match committed {
-        Effect::CommitStroke { kind, .. } => {
+        Effect::CommitObject {
+            shape: Shape::Stroke { kind, .. },
+            ..
+        } => {
             assert_eq!(kind, StrokeKind::Pen, "the stroke stays what it started as");
         }
         other => panic!("expected a commit, got {other:?}"),
@@ -272,11 +285,14 @@ fn a_capped_gesture_still_commits_one_valid_object() {
             at: point(1.0, 1.0),
         })
         .into_iter()
-        .find(|e| matches!(e, Effect::CommitStroke { .. }))
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
         .expect("a commit");
 
     match committed {
-        Effect::CommitStroke { points, .. } => {
+        Effect::CommitObject {
+            shape: Shape::Stroke { points, .. },
+            ..
+        } => {
             assert!(
                 points.len() <= limits::MAX_STROKE_POINTS,
                 "got {}",
@@ -302,11 +318,16 @@ fn a_dot_survives_the_thinning_rule() {
             at: point(10.0, 10.0),
         })
         .into_iter()
-        .find(|e| matches!(e, Effect::CommitStroke { .. }))
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
         .expect("a dot commits");
 
     match committed {
-        Effect::CommitStroke { points, .. } => assert_eq!(points.len(), 1),
+        Effect::CommitObject {
+            shape: Shape::Stroke { points, .. },
+            ..
+        } => {
+            assert_eq!(points.len(), 1)
+        }
         other => panic!("expected a commit, got {other:?}"),
     }
 }
@@ -332,6 +353,207 @@ fn a_cancelled_gesture_still_produces_no_commit_whatever_the_tool() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
+}
+
+// --- T016: shapes ----------------------------------------------------------
+
+/// Drags from one point to another and returns what it produced.
+fn drag(controller: &mut Controller, from: (f64, f64), to: (f64, f64)) -> Vec<Effect> {
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(from.0, from.1),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point((from.0 + to.0) / 2.0, (from.1 + to.1) / 2.0),
+    });
+    controller.handle(PlatformEvent::PointerUp {
+        at: point(to.0, to.1),
+    })
+}
+
+fn committed_shape(effects: &[Effect]) -> Option<&Shape> {
+    effects.iter().find_map(|e| match e {
+        Effect::CommitObject { shape, .. } => Some(shape),
+        _ => None,
+    })
+}
+
+#[test]
+fn each_shape_tool_commits_its_own_geometry() {
+    for (tool, matches_shape) in [
+        (
+            Tool::Line,
+            (|s: &Shape| matches!(s, Shape::Line { .. })) as fn(&Shape) -> bool,
+        ),
+        (Tool::Arrow, |s| matches!(s, Shape::Arrow { .. })),
+        (Tool::Rectangle, |s| matches!(s, Shape::Rectangle { .. })),
+        (Tool::Ellipse, |s| matches!(s, Shape::Ellipse { .. })),
+    ] {
+        let mut controller = drawing();
+        controller.act(Action::SelectTool(tool));
+
+        let effects = drag(&mut controller, (10.0, 10.0), (80.0, 60.0));
+
+        let shape =
+            committed_shape(&effects).unwrap_or_else(|| panic!("{tool:?} committed nothing"));
+        assert!(matches_shape(shape), "{tool:?} produced {shape:?}");
+    }
+}
+
+#[test]
+fn one_completed_drag_creates_exactly_one_object() {
+    // FR-008. The samples in between are not objects, however many there were.
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Rectangle));
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    for step in 1..50 {
+        controller.handle(PlatformEvent::PointerMoved {
+            at: point(10.0 + step as f64, 10.0),
+        });
+    }
+    let effects = controller.handle(PlatformEvent::PointerUp {
+        at: point(80.0, 60.0),
+    });
+
+    let commits = effects
+        .iter()
+        .filter(|e| matches!(e, Effect::CommitObject { .. }))
+        .count();
+    assert_eq!(commits, 1);
+}
+
+#[test]
+fn a_shape_is_defined_by_where_the_drag_ended_not_by_the_samples() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Line));
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(500.0, 500.0),
+    });
+    let effects = controller.handle(PlatformEvent::PointerUp {
+        at: point(80.0, 60.0),
+    });
+
+    match committed_shape(&effects) {
+        Some(Shape::Line { from, to }) => {
+            assert_eq!((from.x, from.y), (10.0, 10.0));
+            assert_eq!(
+                (to.x, to.y),
+                (80.0, 60.0),
+                "the wandering middle is not kept"
+            );
+        }
+        other => panic!("expected a line, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_drag_that_went_nowhere_is_discarded_with_a_reason() {
+    // FR-008: a degenerate drag must not become an invisible object. The user
+    // completed this gesture, so it is discarded rather than cancelled, and
+    // the reason travels with it.
+    for tool in [Tool::Line, Tool::Arrow, Tool::Rectangle, Tool::Ellipse] {
+        let mut controller = drawing();
+        controller.act(Action::SelectTool(tool));
+
+        let effects = drag(&mut controller, (40.0, 40.0), (40.0, 40.0));
+
+        assert!(
+            committed_shape(&effects).is_none(),
+            "{tool:?} created an invisible object"
+        );
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::GestureDiscarded { .. })),
+            "{tool:?} discarded the gesture silently: {effects:?}"
+        );
+    }
+}
+
+#[test]
+fn a_shape_in_flight_previews_and_a_degenerate_one_does_not() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Ellipse));
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(40.0, 40.0),
+    });
+    assert!(
+        controller.preview().is_none(),
+        "a drag that has not moved shows nothing"
+    );
+    assert!(controller.is_gesturing(), "but a gesture is in flight");
+
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(90.0, 80.0),
+    });
+    assert!(matches!(controller.preview(), Some(Preview::Shape { .. })));
+}
+
+#[test]
+fn cancelling_a_shape_mid_drag_commits_nothing() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Arrow));
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(80.0, 60.0),
+    });
+
+    let effects = controller.act(Action::Escape);
+
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, Effect::GestureCancelled { .. }))
+    );
+    assert!(committed_shape(&effects).is_none());
+    assert!(!controller.is_gesturing());
+}
+
+#[test]
+fn the_four_shape_tools_share_one_style() {
+    // T016 asks for style reuse: they are one pen held differently, so
+    // switching from a rectangle to an arrow must not change the colour.
+    let mut controller = Controller::new();
+    controller.act(Action::SelectTool(Tool::Rectangle));
+    controller.act(Action::CycleColor);
+    let chosen = controller.style();
+
+    controller.act(Action::SelectTool(Tool::Arrow));
+
+    assert_eq!(controller.style(), chosen);
+}
+
+#[test]
+fn a_shape_keeps_the_style_it_started_with() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Rectangle));
+    let started_with = controller.style();
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.act(Action::CycleColor);
+    controller.act(Action::AdjustWidth(3));
+    let effects = controller.handle(PlatformEvent::PointerUp {
+        at: point(80.0, 60.0),
+    });
+
+    match effects
+        .iter()
+        .find(|e| matches!(e, Effect::CommitObject { .. }))
+    {
+        Some(Effect::CommitObject { style, .. }) => assert_eq!(*style, started_with),
+        other => panic!("expected a commit, got {other:?}"),
+    }
 }

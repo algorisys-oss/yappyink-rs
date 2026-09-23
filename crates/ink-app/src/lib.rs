@@ -19,10 +19,28 @@
 
 #![forbid(unsafe_code)]
 
-use ink_core::{LogicalPoint, Opacity, Rgb, StrokeKind, Style, Width, limits};
+use ink_core::{
+    DocumentError, LogicalPoint, Opacity, Rgb, Shape, StrokeKind, Style, Width, limits,
+};
 use ink_platform::PlatformError;
 
-/// A drawing tool (FR-007).
+/// The gesture in flight, ready to be drawn as a preview.
+///
+/// Borrowed rather than owned: a stroke's samples can run to six figures, and
+/// cloning them for every frame of the preview would be the kind of per-sample
+/// copy `architecture.md` warns against.
+#[derive(Clone, Debug)]
+pub enum Preview<'a> {
+    Stroke {
+        points: &'a [LogicalPoint],
+        kind: StrokeKind,
+        style: Style,
+    },
+    /// Already-built geometry. Cheap, because a shape is two points.
+    Shape { shape: Shape, style: Style },
+}
+
+/// A drawing tool (FR-007, FR-008).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tool {
     /// Opaque freehand ink.
@@ -31,14 +49,42 @@ pub enum Tool {
     /// whole, which the renderer is responsible for; the document only records
     /// the value.
     Highlighter,
+    Line,
+    /// A line with a head at the end the drag finished on.
+    Arrow,
+    Rectangle,
+    Ellipse,
 }
 
 impl Tool {
-    /// How a stroke drawn with this tool is stored.
-    pub fn stroke_kind(self) -> StrokeKind {
+    /// Whether this tool follows the pointer, rather than being defined by
+    /// where a drag started and ended.
+    pub fn is_freehand(self) -> bool {
+        matches!(self, Self::Pen | Self::Highlighter)
+    }
+
+    /// How a stroke drawn with this tool is stored, for the freehand tools.
+    pub fn stroke_kind(self) -> Option<StrokeKind> {
         match self {
-            Self::Pen => StrokeKind::Pen,
-            Self::Highlighter => StrokeKind::Highlighter,
+            Self::Pen => Some(StrokeKind::Pen),
+            Self::Highlighter => Some(StrokeKind::Highlighter),
+            _ => None,
+        }
+    }
+
+    /// Builds the geometry for a completed drag between two points.
+    ///
+    /// Returns the same [`DocumentError`] the document would: a drag that went
+    /// nowhere is refused here rather than becoming an object nobody can see
+    /// (FR-008).
+    fn shape_from_drag(self, from: LogicalPoint, to: LogicalPoint) -> Result<Shape, DocumentError> {
+        match self {
+            Self::Line => Shape::line(from, to),
+            Self::Arrow => Shape::arrow(from, to),
+            Self::Rectangle => Shape::rectangle(from, to),
+            Self::Ellipse => Shape::ellipse(from, to),
+            // A freehand tool is not defined by its endpoints.
+            Self::Pen | Self::Highlighter => Err(DocumentError::EmptyStroke),
         }
     }
 }
@@ -187,16 +233,17 @@ pub enum Effect {
     /// Withdraw every interactive surface immediately, without awaiting
     /// confirmation.
     WithdrawImmediately,
-    /// A gesture finished. Carries the tool and style captured when it began,
-    /// so a setting changed mid-stroke cannot rewrite what the user drew.
-    CommitStroke {
-        points: Vec<LogicalPoint>,
-        kind: StrokeKind,
-        style: Style,
-    },
-    /// A gesture was discarded. Carries the sample count for diagnostics; the
+    /// A gesture finished and should become one object. Carries the style
+    /// captured when it began, so a setting changed mid-gesture cannot
+    /// rewrite what the user drew.
+    CommitObject { shape: Shape, style: Style },
+    /// A gesture was cancelled. Carries the sample count for diagnostics; the
     /// points themselves are gone deliberately, so nothing can resurrect them.
     GestureCancelled { points: usize },
+    /// A gesture finished but produced nothing usable, such as a drag that
+    /// went nowhere. Distinct from a cancellation: the user completed this
+    /// one, so they may need telling why nothing appeared (FR-008).
+    GestureDiscarded { reason: DocumentError },
     /// A transition failed. Always preceded by [`Effect::WithdrawImmediately`].
     Faulted { error: PlatformError },
 }
@@ -219,6 +266,14 @@ enum Gesture {
     Drawing {
         points: Vec<LogicalPoint>,
         kind: StrokeKind,
+        style: Style,
+    },
+    /// A shape being dragged out. Only the two endpoints matter, so a long
+    /// drag costs nothing to keep.
+    Dragging {
+        tool: Tool,
+        from: LogicalPoint,
+        to: LogicalPoint,
         style: Style,
     },
     /// A button was already down when Draw became effective. Everything from
@@ -250,6 +305,10 @@ pub struct Controller {
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
+    /// Shared by the four shape tools. They are one pen held differently, so
+    /// switching between a rectangle and an arrow should not change the
+    /// colour under the user.
+    shape: ToolState,
 }
 
 impl Default for Controller {
@@ -281,6 +340,11 @@ impl Controller {
                 width: 5,
                 opacity: 1,
             },
+            shape: ToolState {
+                colour: 0,
+                width: 2,
+                opacity: OPACITIES.len() - 1,
+            },
         }
     }
 
@@ -298,6 +362,7 @@ impl Controller {
         match self.tool {
             Tool::Pen => &self.pen,
             Tool::Highlighter => &self.highlighter,
+            _ => &self.shape,
         }
     }
 
@@ -305,6 +370,7 @@ impl Controller {
         match self.tool {
             Tool::Pen => &mut self.pen,
             Tool::Highlighter => &mut self.highlighter,
+            _ => &mut self.shape,
         }
     }
 
@@ -326,7 +392,8 @@ impl Controller {
         self.faulted
     }
 
-    /// The samples of the gesture in flight, if any. Not yet a document edit.
+    /// The samples of the freehand gesture in flight, if any. Not yet a
+    /// document edit.
     pub fn gesture_points(&self) -> Option<&[LogicalPoint]> {
         match &self.gesture {
             Gesture::Drawing { points, .. } => Some(points),
@@ -334,17 +401,43 @@ impl Controller {
         }
     }
 
-    /// The gesture in flight, with the tool and style it started with.
+    /// Whether any gesture is in flight, freehand or shape.
+    pub fn is_gesturing(&self) -> bool {
+        matches!(
+            self.gesture,
+            Gesture::Drawing { .. } | Gesture::Dragging { .. }
+        )
+    }
+
+    /// The gesture in flight, ready to draw.
     ///
-    /// For drawing the preview. The style here is the one captured at the
-    /// press, so a preview cannot disagree with what will be committed.
-    pub fn gesture_preview(&self) -> Option<(&[LogicalPoint], StrokeKind, Style)> {
+    /// The style is the one captured at the press, so a preview cannot
+    /// disagree with what will be committed. A shape whose drag has not gone
+    /// anywhere yet previews as nothing, which matches what committing it
+    /// would do.
+    pub fn preview(&self) -> Option<Preview<'_>> {
         match &self.gesture {
             Gesture::Drawing {
                 points,
                 kind,
                 style,
-            } => Some((points, *kind, *style)),
+            } => Some(Preview::Stroke {
+                points,
+                kind: *kind,
+                style: *style,
+            }),
+            Gesture::Dragging {
+                tool,
+                from,
+                to,
+                style,
+            } => tool
+                .shape_from_drag(*from, *to)
+                .ok()
+                .map(|shape| Preview::Shape {
+                    shape,
+                    style: *style,
+                }),
             _ => None,
         }
     }
@@ -539,15 +632,30 @@ impl Controller {
             // can press again. Treated as a fresh press rather than trusted.
             return Vec::new();
         }
-        self.gesture = Gesture::Drawing {
-            points: vec![at],
-            kind: self.tool.stroke_kind(),
-            style: self.style(),
+        let style = self.style();
+        self.gesture = match self.tool.stroke_kind() {
+            Some(kind) => Gesture::Drawing {
+                points: vec![at],
+                kind,
+                style,
+            },
+            // A shape is defined by where the drag started and where it ends,
+            // so the samples in between are not kept at all.
+            None => Gesture::Dragging {
+                tool: self.tool,
+                from: at,
+                to: at,
+                style,
+            },
         };
         Vec::new()
     }
 
     fn pointer_moved(&mut self, at: LogicalPoint) -> Vec<Effect> {
+        if let Gesture::Dragging { to, .. } = &mut self.gesture {
+            *to = at;
+            return Vec::new();
+        }
         let Gesture::Drawing { points, .. } = &mut self.gesture else {
             return Vec::new();
         };
@@ -589,11 +697,23 @@ impl Controller {
                     points.push(at);
                 }
                 // One gesture is one object, however many samples it took.
-                vec![Effect::CommitStroke {
-                    points,
-                    kind,
-                    style,
-                }]
+                match Shape::stroke(kind, points) {
+                    Ok(shape) => vec![Effect::CommitObject { shape, style }],
+                    Err(reason) => vec![Effect::GestureDiscarded { reason }],
+                }
+            }
+            Gesture::Dragging {
+                tool, from, style, ..
+            } => {
+                // The release point defines the shape, not the last sample
+                // seen during the drag.
+                match tool.shape_from_drag(from, at) {
+                    Ok(shape) => vec![Effect::CommitObject { shape, style }],
+                    // A drag that went nowhere. FR-008: it must not become an
+                    // object the user cannot see, select, or erase, and the
+                    // reason travels with it rather than vanishing.
+                    Err(reason) => vec![Effect::GestureDiscarded { reason }],
+                }
             }
             // The release that ends an ignored drag. Nothing is committed, and
             // the next press starts clean.
@@ -607,6 +727,7 @@ impl Controller {
             Gesture::Drawing { points, .. } => Some(Effect::GestureCancelled {
                 points: points.len(),
             }),
+            Gesture::Dragging { .. } => Some(Effect::GestureCancelled { points: 2 }),
             Gesture::IgnoringHeldButton | Gesture::Idle => None,
         }
     }

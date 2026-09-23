@@ -332,3 +332,128 @@ fn two_separate_highlighter_strokes_do_accumulate() {
         "two passes should be denser than one, got {alpha}"
     );
 }
+
+// --- FR-008: shapes --------------------------------------------------------
+
+#[test]
+fn an_arrow_has_a_head_and_a_line_does_not() {
+    // The only visible difference between the two shapes, so if this passes
+    // for both they are the same tool with two names.
+    let from = point(20.0, 40.0);
+    let to = point(70.0, 40.0);
+    let style = opaque_magenta();
+
+    let mut arrow_pixels = vec![0u8; 100 * 80 * 4];
+    let mut arrow = Canvas::new(&mut arrow_pixels, 100, 80).unwrap();
+    paint(
+        &document_with(Shape::arrow(from, to).unwrap(), style),
+        &mut arrow,
+        Scale::ONE,
+    );
+
+    let mut line_pixels = vec![0u8; 100 * 80 * 4];
+    let mut line = Canvas::new(&mut line_pixels, 100, 80).unwrap();
+    paint(
+        &document_with(Shape::line(from, to).unwrap(), style),
+        &mut line,
+        Scale::ONE,
+    );
+
+    let painted = |canvas: &Canvas| {
+        (0..80)
+            .flat_map(|y| (0..100).map(move |x| (x, y)))
+            .filter(|(x, y)| canvas.pixel(*x, *y).unwrap()[3] > 0)
+            .count()
+    };
+
+    assert!(
+        painted(&arrow) > painted(&line),
+        "the arrow must cover more than its own shaft"
+    );
+
+    // The barbs sit behind the head, off the shaft's own row.
+    let above = (30..40).any(|y| arrow.pixel(60, y).unwrap()[3] > 0);
+    let below = (41..50).any(|y| arrow.pixel(60, y).unwrap()[3] > 0);
+    assert!(above && below, "an arrowhead has two barbs");
+}
+
+#[test]
+fn a_rectangle_is_an_outline_not_a_fill() {
+    let document = document_with(
+        Shape::rectangle(point(20.0, 20.0), point(70.0, 60.0)).unwrap(),
+        opaque_magenta(),
+    );
+    let mut pixels = vec![0u8; 100 * 80 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 100, 80).unwrap();
+
+    paint(&document, &mut canvas, Scale::ONE);
+
+    assert!(
+        canvas.pixel(45, 20).unwrap()[3] > 0,
+        "the top edge is drawn"
+    );
+    assert!(
+        canvas.pixel(45, 60).unwrap()[3] > 0,
+        "the bottom edge is drawn"
+    );
+    assert_eq!(
+        canvas.pixel(45, 40).unwrap()[3],
+        0,
+        "the middle is empty: an annotation frames what is underneath"
+    );
+}
+
+#[test]
+fn an_ellipse_is_round_rather_than_its_bounding_box() {
+    let document = document_with(
+        Shape::ellipse(point(20.0, 20.0), point(70.0, 60.0)).unwrap(),
+        opaque_magenta(),
+    );
+    let mut pixels = vec![0u8; 100 * 80 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 100, 80).unwrap();
+
+    paint(&document, &mut canvas, Scale::ONE);
+
+    // Its widest point is on the centre line, and its corners are empty.
+    assert!(
+        canvas.pixel(20, 40).unwrap()[3] > 0,
+        "the left extreme is drawn"
+    );
+    assert!(
+        canvas.pixel(70, 40).unwrap()[3] > 0,
+        "the right extreme is drawn"
+    );
+    assert_eq!(
+        canvas.pixel(21, 21).unwrap()[3],
+        0,
+        "the bounding box corner is empty"
+    );
+}
+
+#[test]
+fn a_shape_drawn_backwards_looks_the_same() {
+    let a = point(20.0, 20.0);
+    let b = point(70.0, 60.0);
+    let style = opaque_magenta();
+
+    let mut forwards_pixels = vec![0u8; 100 * 80 * 4];
+    let mut forwards = Canvas::new(&mut forwards_pixels, 100, 80).unwrap();
+    paint(
+        &document_with(Shape::rectangle(a, b).unwrap(), style),
+        &mut forwards,
+        Scale::ONE,
+    );
+
+    let mut backwards_pixels = vec![0u8; 100 * 80 * 4];
+    let mut backwards = Canvas::new(&mut backwards_pixels, 100, 80).unwrap();
+    paint(
+        &document_with(Shape::rectangle(b, a).unwrap(), style),
+        &mut backwards,
+        Scale::ONE,
+    );
+
+    assert_eq!(
+        forwards_pixels, backwards_pixels,
+        "drag direction is not a style"
+    );
+}

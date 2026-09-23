@@ -76,7 +76,12 @@
         "FR-008"
       ],
       "file": "tests/acceptance/drawing.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/tools.rs",
+        "crates/ink-render/tests/painting.rs"
+      ],
+      "note": "Headless rules and pixel fixtures pass. Native use has not been observed."
     },
     {
       "id": "AC-FR-009",
@@ -462,8 +467,9 @@
       "scenarios": [
         "AC-FR-008"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T016: line, arrow, rectangle and ellipse share one drag lifecycle and one style. A degenerate drag is discarded with a reason rather than stored. Arrowheads, outline shapes and drag-direction independence have pixel fixtures."
     },
     {
       "requirement": "FR-009",

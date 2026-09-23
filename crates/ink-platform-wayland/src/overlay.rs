@@ -22,7 +22,7 @@
 //! layer-shell backend (T006) or a GNOME companion (ADR-002) removes these
 //! limits; nothing in this file can.
 
-use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Tool, TransitionId};
+use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Preview, Tool, TransitionId};
 use ink_core::{Document, IdSource, LogicalPoint, LogicalSize, Object, OutputId, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
@@ -251,6 +251,7 @@ fn print_controls() {
          \x20 p      pass through: ink stays, input goes to what is underneath\n\
          \x20 h      hide the ink, keeping it in memory\n\
          \x20 1 / 2  pen / highlighter\n\
+         \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 c      next colour\n\
          \x20 [ / ]  thinner / thicker\n\
          \x20 - / =  less / more opaque\n\
@@ -302,13 +303,15 @@ impl Overlay {
             match effect {
                 Effect::ApplyMode { mode, transition } => self.apply_mode(mode, transition),
                 Effect::WithdrawImmediately => self.withdraw(),
-                Effect::CommitStroke {
-                    points,
-                    kind,
-                    style,
-                } => self.commit_stroke(points, kind, style),
+                Effect::CommitObject { shape, style } => self.commit(shape, style),
+                Effect::GestureDiscarded { reason } => {
+                    // The user finished this gesture and nothing appeared, so
+                    // they are told why rather than left guessing (FR-008).
+                    eprintln!("[discarded] {reason}");
+                    self.needs_redraw = true;
+                }
                 Effect::GestureCancelled { points } => {
-                    eprintln!("[cancelled] a stroke of {points} sample(s) was discarded");
+                    eprintln!("[cancelled] a gesture of {points} sample(s) was discarded");
                     self.needs_redraw = true;
                 }
                 Effect::Faulted { error } => {
@@ -371,19 +374,7 @@ impl Overlay {
         self.pending_confirmations.push(transition);
     }
 
-    fn commit_stroke(
-        &mut self,
-        points: Vec<LogicalPoint>,
-        kind: ink_core::StrokeKind,
-        style: Style,
-    ) {
-        let shape = match Shape::stroke(kind, points) {
-            Ok(shape) => shape,
-            Err(error) => {
-                eprintln!("[rejected] {error}");
-                return;
-            }
-        };
+    fn commit(&mut self, shape: Shape, style: Style) {
         let object = Object::new(
             self.ids.next_id(),
             self.document.output().clone(),
@@ -457,16 +448,26 @@ impl Overlay {
 
         // The gesture in flight is drawn but not in the document, which is the
         // whole point of keeping the preview separate from committed state.
-        if let Some((points, kind, style)) = self.controller.gesture_preview()
-            && let Ok(shape) = Shape::stroke(kind, points.to_vec())
-        {
-            let preview = Object::new(
-                ink_core::ObjectId::from_raw(u64::MAX),
-                self.document.output().clone(),
-                style,
-                shape,
-            );
-            self.painter.paint_object(&preview, &mut canvas, self.scale);
+        if let Some(preview) = self.controller.preview() {
+            let built = match preview {
+                Preview::Stroke {
+                    points,
+                    kind,
+                    style,
+                } => Shape::stroke(kind, points.to_vec())
+                    .ok()
+                    .map(|shape| (shape, style)),
+                Preview::Shape { shape, style } => Some((shape, style)),
+            };
+            if let Some((shape, style)) = built {
+                let object = Object::new(
+                    ink_core::ObjectId::from_raw(u64::MAX),
+                    self.document.output().clone(),
+                    style,
+                    shape,
+                );
+                self.painter.paint_object(&object, &mut canvas, self.scale);
+            }
         }
 
         paint_chrome(
@@ -567,10 +568,18 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
     let bar = style.width.get().round().max(1.0) as i64;
     canvas.fill_rect(34, 10 + (18 - bar).max(0) / 2, 40, bar.min(18), ink);
 
-    // A second pip marks the highlighter, so the two tools are not told apart
-    // by colour alone.
-    if tool == Tool::Highlighter {
-        canvas.fill_rect(80, 14, 10, 10, ink);
+    // A pip count marks which tool is selected, so the tools are not told
+    // apart by colour alone. A toolbar showing them properly is T013.
+    let pips = match tool {
+        Tool::Pen => 0,
+        Tool::Highlighter => 1,
+        Tool::Line => 2,
+        Tool::Arrow => 3,
+        Tool::Rectangle => 4,
+        Tool::Ellipse => 5,
+    };
+    for pip in 0..pips {
+        canvas.fill_rect(80 + i64::from(pip) * 12, 14, 8, 8, ink);
     }
 }
 
@@ -675,6 +684,10 @@ impl KeyboardHandler for Overlay {
             Keysym::Escape => Some(Action::Escape),
             Keysym::_1 => Some(Action::SelectTool(Tool::Pen)),
             Keysym::_2 => Some(Action::SelectTool(Tool::Highlighter)),
+            Keysym::_3 => Some(Action::SelectTool(Tool::Line)),
+            Keysym::_4 => Some(Action::SelectTool(Tool::Arrow)),
+            Keysym::_5 => Some(Action::SelectTool(Tool::Rectangle)),
+            Keysym::_6 => Some(Action::SelectTool(Tool::Ellipse)),
             Keysym::c | Keysym::C => Some(Action::CycleColor),
             Keysym::bracketleft => Some(Action::AdjustWidth(-1)),
             Keysym::bracketright => Some(Action::AdjustWidth(1)),

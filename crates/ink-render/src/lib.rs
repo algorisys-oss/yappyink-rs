@@ -191,11 +191,12 @@ impl Painter {
         };
         match object.shape() {
             Shape::Stroke { points, .. } => pen.polyline(points, scale),
-            Shape::Line { from, to } | Shape::Arrow { from, to } => {
-                // The arrowhead is T016's work. Drawing the shaft alone here
-                // would be a silent half-implementation, so an arrow is its
-                // line until T016 adds the head.
-                pen.polyline(&[*from, *to], scale);
+            Shape::Line { from, to } => pen.polyline(&[*from, *to], scale),
+            Shape::Arrow { from, to } => {
+                let tail = scale.apply(*from);
+                let head = scale.apply(*to);
+                pen.segment(tail, head);
+                pen.arrowhead(tail, head);
             }
             Shape::Rectangle { a, b } => {
                 let (x0, y0) = scale.apply(*a);
@@ -323,6 +324,30 @@ impl Pen<'_> {
         for step in 0..=steps {
             let t = step as f64 / steps as f64;
             self.disc((from.0 + dx * t, from.1 + dy * t));
+        }
+    }
+
+    /// Draws the two barbs of a single-ended arrow at `head`.
+    ///
+    /// The head scales with the stroke width rather than being a fixed size,
+    /// so a thick arrow does not end in a pinhead. FR-008 asks for a
+    /// single-ended arrow, so only the end the drag finished on gets one.
+    fn arrowhead(&mut self, tail: (f64, f64), head: (f64, f64)) {
+        let (dx, dy) = (head.0 - tail.0, head.1 - tail.1);
+        let length = (dx * dx + dy * dy).sqrt();
+        if length < f64::EPSILON {
+            return;
+        }
+        let (ux, uy) = (dx / length, dy / length);
+
+        // Long enough to read as an arrow, but never longer than the shaft.
+        let barb = (self.radius * 6.0).min(length * 0.5).max(self.radius * 2.0);
+        let spread = 0.45_f64;
+        let (sin, cos) = spread.sin_cos();
+
+        for sign in [1.0, -1.0] {
+            let (bx, by) = (ux * cos + sign * uy * sin, uy * cos - sign * ux * sin);
+            self.segment(head, (head.0 - bx * barb, head.1 - by * barb));
         }
     }
 

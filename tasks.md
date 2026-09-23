@@ -178,13 +178,15 @@ Implement transient sampling, dot creation, preview, commit/cancel, width/color/
 
 ## T016 [M2]: Add line, arrow, rectangle, and ellipse
 
-Status: not_started. Dependencies: T015.
+Status: implemented on 2026-09-23. Dependencies: T015.
 
 Requirements: FR-008.
 
 Implement shared drag lifecycle, preview geometry, explicit degenerate-shape thresholds, and style reuse.
 
 **Exit criterion:** Each completed shape creates one object; canceled/degenerate operations do not create invisible edits.
+
+**Evidence:** `crates/ink-app/tests/tools.rs` and `crates/ink-render/tests/painting.rs`. The four shape tools share one drag lifecycle with the freehand tools and one style between them, since they are one pen held differently. A shape keeps only its endpoints, so the wandering middle of a drag is not stored, and the release point defines the geometry. A degenerate drag emits `GestureDiscarded` with the reason rather than committing an object nobody could see; a shape whose drag has not moved previews as nothing, matching what committing it would do. Arrowheads scale with stroke width, rectangles and ellipses are outlines, and drag direction does not change the result. **Not observed on screen.**
 
 ## T017 [M2]: Implement object erasing and command history
 

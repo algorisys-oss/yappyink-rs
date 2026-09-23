@@ -66,14 +66,21 @@ Keys, while the overlay has focus:
 | `p` | pass through: ink stays, input goes to what is underneath |
 | `h` | hide the ink, keeping it in memory |
 | `1` / `2` | pen / highlighter |
+| `3` – `6` | line / arrow / rectangle / ellipse |
 | `c` | next colour |
 | `[` / `]` | thinner / thicker |
 | `-` / `=` | less / more opaque |
 | `Esc` | cancel a stroke, or leave draw mode |
 | `q` | quit |
 
-The corner of the overlay shows the mode and the colour and width you are about
-to draw with, so none of that has to be remembered.
+The corner of the overlay shows the mode, the colour and width you are about to
+draw with, and a pip count for the selected tool, so none of that has to be
+remembered.
+
+Shapes are dragged from one corner to the other, and a drag that goes nowhere
+creates nothing rather than an invisible object you could never select or
+erase. Rectangles and ellipses are outlines, not fills, because an annotation
+frames what is underneath rather than hiding it.
 
 A highlighter's opacity applies to the completed stroke as a whole: scribbling
 back and forth over one spot gives an even wash rather than a dark smear.
@@ -100,9 +107,9 @@ other route and is not implemented yet.
 
 ## Not built yet
 
-Undo and redo, the eraser, shapes, a toolbar, saving to a file, image export,
-text, and multiple monitors at once. **Nothing is saved when you quit**, and
-there is no way to remove a stroke short of restarting.
+Undo and redo, the eraser, a toolbar, saving to a file, image export, text, and
+multiple monitors at once. **Nothing is saved when you quit**, and there is no
+way to remove a stroke short of restarting.
 
 Out of scope for a first release entirely: cloud sync, accounts, AI, OCR, video
 recording, and screen capture. Live drawing never reads your screen, and it

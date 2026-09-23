@@ -9,7 +9,7 @@
 //! `docs/evidence/E003-gnome-interaction-probe.md`.
 
 use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId};
-use ink_core::LogicalPoint;
+use ink_core::{LogicalPoint, Shape};
 use ink_platform::PlatformError;
 
 fn point(x: f64, y: f64) -> LogicalPoint {
@@ -144,11 +144,14 @@ fn a_completed_gesture_commits_exactly_one_stroke() {
 
     let committed: Vec<&Effect> = effects
         .iter()
-        .filter(|e| matches!(e, Effect::CommitStroke { .. }))
+        .filter(|e| matches!(e, Effect::CommitObject { .. }))
         .collect();
     assert_eq!(committed.len(), 1);
     match committed[0] {
-        Effect::CommitStroke { points, .. } => assert_eq!(points.len(), 4),
+        Effect::CommitObject {
+            shape: Shape::Stroke { points, .. },
+            ..
+        } => assert_eq!(points.len(), 4),
         other => panic!("expected a commit, got {other:?}"),
     }
     assert!(
@@ -172,7 +175,7 @@ fn a_press_without_movement_still_commits_a_dot() {
     assert!(
         effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
 }
 
@@ -196,7 +199,7 @@ fn pointer_input_outside_draw_never_starts_a_stroke() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
 }
 
@@ -213,7 +216,7 @@ fn a_cancelled_gesture_commits_nothing() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
     assert!(controller.gesture_points().is_none());
 }
@@ -244,7 +247,7 @@ fn a_mode_change_mid_gesture_discards_the_stroke() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
     assert!(controller.gesture_points().is_none());
 }
@@ -280,7 +283,7 @@ fn a_button_still_held_when_draw_resumes_is_ignored_until_released() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
 
     // Only a fresh press draws again.
@@ -536,7 +539,7 @@ fn losing_the_output_cancels_the_gesture_and_withdraws() {
     assert!(
         !effects
             .iter()
-            .any(|e| matches!(e, Effect::CommitStroke { .. }))
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
     );
     assert_eq!(controller.mode(), Mode::Hidden);
 }
