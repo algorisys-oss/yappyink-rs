@@ -22,7 +22,7 @@
 //! layer-shell backend (T006) or a GNOME companion (ADR-002) removes these
 //! limits; nothing in this file can.
 
-use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId};
+use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Tool, TransitionId};
 use ink_core::{Document, IdSource, LogicalPoint, LogicalSize, Object, OutputId, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
@@ -100,8 +100,6 @@ pub fn control_channel() -> (ControlSender, ControlChannel) {
 
 /// How the overlay is set up for a run.
 pub struct OverlayConfig {
-    /// Style for new strokes. The tool palette is T015/T016.
-    pub style: Style,
     /// Requested surface size in logical units. The compositor decides the
     /// real size, and the configure it sends is what is used.
     pub size: LogicalSize,
@@ -169,7 +167,7 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
         controller: Controller::new(),
         document: Document::new(output, config.size),
         ids: IdSource::starting_at(1),
-        style: config.style,
+        painter: ink_render::Painter::new(),
         pending_confirmations: Vec::new(),
         quit: false,
     };
@@ -249,11 +247,15 @@ fn print_controls() {
          another window. Mutter offers no way for an application to do this\n\
          itself. See docs/evidence/E002.\n\n\
          Keys, while the overlay has focus:\n\
-         \x20 d    draw\n\
-         \x20 p    pass through: ink stays, input goes to what is underneath\n\
-         \x20 h    hide the ink, keeping it in memory\n\
-         \x20 Esc  cancel a stroke, or leave draw mode\n\
-         \x20 q    quit\n\n\
+         \x20 d      draw\n\
+         \x20 p      pass through: ink stays, input goes to what is underneath\n\
+         \x20 h      hide the ink, keeping it in memory\n\
+         \x20 1 / 2  pen / highlighter\n\
+         \x20 c      next colour\n\
+         \x20 [ / ]  thinner / thicker\n\
+         \x20 - / =  less / more opaque\n\
+         \x20 Esc    cancel a stroke, or leave draw mode\n\
+         \x20 q      quit\n\n\
          While hidden the overlay has no surface and no keyboard, so nothing you\n\
          press can reach it. Run `yappyink toggle-draw` from anywhere, or bind\n\
          that command to a chord in your desktop's keyboard settings.\n"
@@ -282,7 +284,7 @@ struct Overlay {
     controller: Controller,
     document: Document,
     ids: IdSource,
-    style: Style,
+    painter: ink_render::Painter,
     /// Transitions whose native work has been issued and will be confirmed on
     /// the next loop iteration, once the commit has reached the compositor.
     pending_confirmations: Vec<TransitionId>,
@@ -300,7 +302,11 @@ impl Overlay {
             match effect {
                 Effect::ApplyMode { mode, transition } => self.apply_mode(mode, transition),
                 Effect::WithdrawImmediately => self.withdraw(),
-                Effect::CommitStroke { points } => self.commit_stroke(points),
+                Effect::CommitStroke {
+                    points,
+                    kind,
+                    style,
+                } => self.commit_stroke(points, kind, style),
                 Effect::GestureCancelled { points } => {
                     eprintln!("[cancelled] a stroke of {points} sample(s) was discarded");
                     self.needs_redraw = true;
@@ -365,8 +371,13 @@ impl Overlay {
         self.pending_confirmations.push(transition);
     }
 
-    fn commit_stroke(&mut self, points: Vec<LogicalPoint>) {
-        let shape = match Shape::stroke(ink_core::StrokeKind::Pen, points) {
+    fn commit_stroke(
+        &mut self,
+        points: Vec<LogicalPoint>,
+        kind: ink_core::StrokeKind,
+        style: Style,
+    ) {
+        let shape = match Shape::stroke(kind, points) {
             Ok(shape) => shape,
             Err(error) => {
                 eprintln!("[rejected] {error}");
@@ -376,7 +387,7 @@ impl Overlay {
         let object = Object::new(
             self.ids.next_id(),
             self.document.output().clone(),
-            self.style,
+            style,
             shape,
         );
         match self.document.add(object) {
@@ -442,23 +453,28 @@ impl Overlay {
             return;
         };
         canvas.clear();
-        ink_render::paint(&self.document, &mut canvas, self.scale);
+        self.painter.paint(&self.document, &mut canvas, self.scale);
 
         // The gesture in flight is drawn but not in the document, which is the
         // whole point of keeping the preview separate from committed state.
-        if let Some(points) = self.controller.gesture_points()
-            && let Ok(shape) = Shape::stroke(ink_core::StrokeKind::Pen, points.to_vec())
+        if let Some((points, kind, style)) = self.controller.gesture_preview()
+            && let Ok(shape) = Shape::stroke(kind, points.to_vec())
         {
             let preview = Object::new(
                 ink_core::ObjectId::from_raw(u64::MAX),
                 self.document.output().clone(),
-                self.style,
+                style,
                 shape,
             );
-            ink_render::paint_object(&preview, &mut canvas, self.scale);
+            self.painter.paint_object(&preview, &mut canvas, self.scale);
         }
 
-        paint_chrome(&mut canvas, self.controller.mode());
+        paint_chrome(
+            &mut canvas,
+            self.controller.mode(),
+            self.controller.style(),
+            self.controller.tool(),
+        );
 
         let surface = window.wl_surface();
         surface.damage_buffer(0, 0, self.width as i32, self.height as i32);
@@ -512,13 +528,13 @@ impl Overlay {
 /// This is chrome, not document content: it is painted after the document,
 /// never stored in it, and an ink-only export must exclude it (FR-024). A real
 /// toolbar is T013.
-fn paint_chrome(canvas: &mut Canvas, mode: Mode) {
+fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
     // Premultiplied, memory order B, G, R, A.
-    let (badge, frame) = match mode {
+    let frame = match mode {
         // Cyan: this surface is taking your pointer.
-        Mode::Draw => ([0xC0, 0xC0, 0x00, 0xC0], [0x30, 0x30, 0x00, 0x30]),
+        Mode::Draw => [0x30, 0x30, 0x00, 0x30],
         // Amber: your pointer belongs to whatever is underneath.
-        Mode::PassThrough => ([0x00, 0x80, 0xC0, 0xC0], [0x00, 0x20, 0x30, 0x30]),
+        Mode::PassThrough => [0x00, 0x20, 0x30, 0x30],
         // Unreachable while a frame is being painted: Hidden has no surface.
         Mode::Hidden => return,
     };
@@ -530,7 +546,32 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode) {
     canvas.fill_rect(0, 0, thickness, height, frame);
     canvas.fill_rect(width - thickness, 0, thickness, height, frame);
 
-    canvas.fill_rect(10, 10, 18, 18, badge);
+    // The mode swatch.
+    let mode_colour = match mode {
+        Mode::Draw => [0xC0, 0xC0, 0x00, 0xC0],
+        Mode::PassThrough => [0x00, 0x80, 0xC0, 0xC0],
+        Mode::Hidden => return,
+    };
+    canvas.fill_rect(10, 10, 18, 18, mode_colour);
+
+    // The tool swatch: the colour and width about to be drawn, so the user can
+    // see the setting rather than remember it. A real toolbar is T013.
+    let alpha = style.opacity.get();
+    let channel = |value: u8| (f64::from(value) * alpha).round().clamp(0.0, 255.0) as u8;
+    let ink = [
+        channel(style.color.b),
+        channel(style.color.g),
+        channel(style.color.r),
+        (alpha * 255.0).round().clamp(0.0, 255.0) as u8,
+    ];
+    let bar = style.width.get().round().max(1.0) as i64;
+    canvas.fill_rect(34, 10 + (18 - bar).max(0) / 2, 40, bar.min(18), ink);
+
+    // A second pip marks the highlighter, so the two tools are not told apart
+    // by colour alone.
+    if tool == Tool::Highlighter {
+        canvas.fill_rect(80, 14, 10, 10, ink);
+    }
 }
 
 impl ActivationHandler for Overlay {
@@ -632,6 +673,13 @@ impl KeyboardHandler for Overlay {
             Keysym::p | Keysym::P => Some(Action::ToggleDraw),
             Keysym::h | Keysym::H => Some(Action::ToggleVisibility),
             Keysym::Escape => Some(Action::Escape),
+            Keysym::_1 => Some(Action::SelectTool(Tool::Pen)),
+            Keysym::_2 => Some(Action::SelectTool(Tool::Highlighter)),
+            Keysym::c | Keysym::C => Some(Action::CycleColor),
+            Keysym::bracketleft => Some(Action::AdjustWidth(-1)),
+            Keysym::bracketright => Some(Action::AdjustWidth(1)),
+            Keysym::minus => Some(Action::AdjustOpacity(-1)),
+            Keysym::equal | Keysym::plus => Some(Action::AdjustOpacity(1)),
             Keysym::q | Keysym::Q => {
                 self.quit = true;
                 None
@@ -641,6 +689,8 @@ impl KeyboardHandler for Overlay {
         if let Some(action) = action {
             let effects = self.controller.act(action);
             self.apply(effects);
+            // A tool change produces no effects but does change the chrome.
+            self.needs_redraw = true;
         }
     }
 

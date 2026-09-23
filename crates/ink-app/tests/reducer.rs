@@ -148,7 +148,7 @@ fn a_completed_gesture_commits_exactly_one_stroke() {
         .collect();
     assert_eq!(committed.len(), 1);
     match committed[0] {
-        Effect::CommitStroke { points } => assert_eq!(points.len(), 4),
+        Effect::CommitStroke { points, .. } => assert_eq!(points.len(), 4),
         other => panic!("expected a commit, got {other:?}"),
     }
     assert!(

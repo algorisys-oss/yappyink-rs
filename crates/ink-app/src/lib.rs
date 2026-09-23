@@ -19,8 +19,76 @@
 
 #![forbid(unsafe_code)]
 
-use ink_core::LogicalPoint;
+use ink_core::{LogicalPoint, Opacity, Rgb, StrokeKind, Style, Width, limits};
 use ink_platform::PlatformError;
+
+/// A drawing tool (FR-007).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tool {
+    /// Opaque freehand ink.
+    Pen,
+    /// Wide translucent ink. Its opacity applies to the completed stroke as a
+    /// whole, which the renderer is responsible for; the document only records
+    /// the value.
+    Highlighter,
+}
+
+impl Tool {
+    /// How a stroke drawn with this tool is stored.
+    pub fn stroke_kind(self) -> StrokeKind {
+        match self {
+            Self::Pen => StrokeKind::Pen,
+            Self::Highlighter => StrokeKind::Highlighter,
+        }
+    }
+}
+
+/// The default palette.
+///
+/// A starting set, not a designed one. Real colour configuration is T019, and
+/// a picker belongs on the toolbar (T013). These are chosen to stay legible
+/// over both dark and light windows.
+const PALETTE: [Rgb; 6] = [
+    Rgb::new(255, 0, 255),
+    Rgb::new(255, 64, 64),
+    Rgb::new(255, 208, 0),
+    Rgb::new(64, 224, 96),
+    Rgb::new(64, 176, 255),
+    Rgb::new(255, 255, 255),
+];
+
+/// Width steps, in logical units.
+const WIDTHS: [f64; 7] = [1.0, 2.0, 4.0, 6.0, 10.0, 16.0, 24.0];
+/// Opacity steps. Nothing reaches 0.0: a fully invisible tool is a trap.
+const OPACITIES: [f64; 5] = [0.15, 0.3, 0.5, 0.75, 1.0];
+
+/// One tool's settings.
+#[derive(Clone, Copy, Debug)]
+struct ToolState {
+    colour: usize,
+    width: usize,
+    opacity: usize,
+}
+
+impl ToolState {
+    fn style(self) -> Style {
+        Style::new(
+            PALETTE[self.colour % PALETTE.len()],
+            Width::new(WIDTHS[self.width.min(WIDTHS.len() - 1)])
+                .expect("table entries are positive"),
+            Opacity::new(OPACITIES[self.opacity.min(OPACITIES.len() - 1)])
+                .expect("table entries are in range"),
+        )
+    }
+
+    /// Moves `steps` through a table, stopping at either end rather than
+    /// wrapping: a user holding the thicker key should not suddenly get the
+    /// thinnest line.
+    fn step(current: usize, steps: i32, len: usize) -> usize {
+        let target = current as i64 + i64::from(steps);
+        target.clamp(0, len as i64 - 1) as usize
+    }
+}
 
 /// A stable, user-visible mode.
 ///
@@ -63,6 +131,16 @@ pub enum Action {
     /// Withdraw everything now. Never waits for confirmation, a save, or a
     /// permission prompt.
     EmergencyHide,
+    /// Choose the pen or the highlighter.
+    SelectTool(Tool),
+    /// Set the current tool's colour. Off-palette colours are kept as given.
+    SetColor(Rgb),
+    /// Move to the next colour in the palette, wrapping.
+    CycleColor,
+    /// Step the current tool's width up or down the table.
+    AdjustWidth(i32),
+    /// Step the current tool's opacity up or down the table.
+    AdjustOpacity(i32),
 }
 
 /// Something that happened outside the controller.
@@ -109,9 +187,13 @@ pub enum Effect {
     /// Withdraw every interactive surface immediately, without awaiting
     /// confirmation.
     WithdrawImmediately,
-    /// A gesture finished. The caller turns these points into an object with
-    /// the current tool and style, which is why no style appears here.
-    CommitStroke { points: Vec<LogicalPoint> },
+    /// A gesture finished. Carries the tool and style captured when it began,
+    /// so a setting changed mid-stroke cannot rewrite what the user drew.
+    CommitStroke {
+        points: Vec<LogicalPoint>,
+        kind: StrokeKind,
+        style: Style,
+    },
     /// A gesture was discarded. Carries the sample count for diagnostics; the
     /// points themselves are gone deliberately, so nothing can resurrect them.
     GestureCancelled { points: usize },
@@ -119,13 +201,26 @@ pub enum Effect {
     Faulted { error: PlatformError },
 }
 
+/// How far a sample must be from the previous one to be worth keeping, in
+/// logical units.
+///
+/// A pointer reporting at 1000 Hz over a slow drag produces samples far below
+/// a pixel apart. Storing them costs memory and rendering time and changes
+/// nothing a person can see (NFR-003).
+const MIN_SAMPLE_DISTANCE: f64 = 0.5;
+
 /// What the pointer is doing.
 #[derive(Clone, Debug)]
 enum Gesture {
     /// Nothing in flight. A press starts drawing.
     Idle,
-    /// Collecting samples for a stroke that has not been committed.
-    Drawing { points: Vec<LogicalPoint> },
+    /// Collecting samples for a stroke that has not been committed. The tool
+    /// and style are fixed at the press.
+    Drawing {
+        points: Vec<LogicalPoint>,
+        kind: StrokeKind,
+        style: Style,
+    },
     /// A button was already down when Draw became effective. Everything from
     /// it is ignored until it is released, so a drag begun in another mode
     /// cannot turn into ink (`ux-state-machine.md`, "Pointer sequence safety").
@@ -152,6 +247,9 @@ pub struct Controller {
     /// decide whether a resumed Draw should ignore a held button.
     button_held: bool,
     faulted: bool,
+    tool: Tool,
+    pen: ToolState,
+    highlighter: ToolState,
 }
 
 impl Default for Controller {
@@ -171,6 +269,42 @@ impl Controller {
             gesture: Gesture::Idle,
             button_held: false,
             faulted: false,
+            tool: Tool::Pen,
+            pen: ToolState {
+                colour: 0,
+                width: 2,
+                opacity: OPACITIES.len() - 1,
+            },
+            // Wider and translucent, or it would be a pen by another name.
+            highlighter: ToolState {
+                colour: 2,
+                width: 5,
+                opacity: 1,
+            },
+        }
+    }
+
+    /// The selected tool.
+    pub fn tool(&self) -> Tool {
+        self.tool
+    }
+
+    /// The selected tool's current style.
+    pub fn style(&self) -> Style {
+        self.tool_state().style()
+    }
+
+    fn tool_state(&self) -> &ToolState {
+        match self.tool {
+            Tool::Pen => &self.pen,
+            Tool::Highlighter => &self.highlighter,
+        }
+    }
+
+    fn tool_state_mut(&mut self) -> &mut ToolState {
+        match self.tool {
+            Tool::Pen => &mut self.pen,
+            Tool::Highlighter => &mut self.highlighter,
         }
     }
 
@@ -195,7 +329,22 @@ impl Controller {
     /// The samples of the gesture in flight, if any. Not yet a document edit.
     pub fn gesture_points(&self) -> Option<&[LogicalPoint]> {
         match &self.gesture {
-            Gesture::Drawing { points } => Some(points),
+            Gesture::Drawing { points, .. } => Some(points),
+            _ => None,
+        }
+    }
+
+    /// The gesture in flight, with the tool and style it started with.
+    ///
+    /// For drawing the preview. The style here is the one captured at the
+    /// press, so a preview cannot disagree with what will be committed.
+    pub fn gesture_preview(&self) -> Option<(&[LogicalPoint], StrokeKind, Style)> {
+        match &self.gesture {
+            Gesture::Drawing {
+                points,
+                kind,
+                style,
+            } => Some((points, *kind, *style)),
             _ => None,
         }
     }
@@ -214,6 +363,39 @@ impl Controller {
                 Mode::Hidden => self.request(Mode::PassThrough),
                 Mode::Draw | Mode::PassThrough => self.request(Mode::Hidden),
             },
+            // Tool changes never touch a gesture in flight. The stroke keeps
+            // the tool and style it was started with, so a setting changed
+            // mid-drag cannot rewrite what the user drew.
+            Action::SelectTool(tool) => {
+                self.tool = tool;
+                Vec::new()
+            }
+            Action::SetColor(colour) => {
+                // Only palette colours can be selected today, because the
+                // style is derived from an index. Storing an arbitrary colour
+                // needs a settings model, which is T019; until then an
+                // off-palette request is ignored rather than silently
+                // substituted with something else.
+                if let Some(index) = PALETTE.iter().position(|entry| *entry == colour) {
+                    self.tool_state_mut().colour = index;
+                }
+                Vec::new()
+            }
+            Action::CycleColor => {
+                let next = (self.tool_state().colour + 1) % PALETTE.len();
+                self.tool_state_mut().colour = next;
+                Vec::new()
+            }
+            Action::AdjustWidth(steps) => {
+                let current = self.tool_state().width;
+                self.tool_state_mut().width = ToolState::step(current, steps, WIDTHS.len());
+                Vec::new()
+            }
+            Action::AdjustOpacity(steps) => {
+                let current = self.tool_state().opacity;
+                self.tool_state_mut().opacity = ToolState::step(current, steps, OPACITIES.len());
+                Vec::new()
+            }
         }
     }
 
@@ -357,14 +539,32 @@ impl Controller {
             // can press again. Treated as a fresh press rather than trusted.
             return Vec::new();
         }
-        self.gesture = Gesture::Drawing { points: vec![at] };
+        self.gesture = Gesture::Drawing {
+            points: vec![at],
+            kind: self.tool.stroke_kind(),
+            style: self.style(),
+        };
         Vec::new()
     }
 
     fn pointer_moved(&mut self, at: LogicalPoint) -> Vec<Effect> {
-        if let Gesture::Drawing { points } = &mut self.gesture {
-            points.push(at);
+        let Gesture::Drawing { points, .. } = &mut self.gesture else {
+            return Vec::new();
+        };
+
+        // NFR-003: bound what a single gesture can store. A high-rate pointer
+        // over a long drag would otherwise accumulate samples nobody can see.
+        if points.len() >= limits::MAX_STROKE_POINTS {
+            return Vec::new();
         }
+        if let Some(last) = points.last()
+            && (at.x - last.x).abs() < MIN_SAMPLE_DISTANCE
+            && (at.y - last.y).abs() < MIN_SAMPLE_DISTANCE
+        {
+            // Too close to the previous sample to change the shape.
+            return Vec::new();
+        }
+        points.push(at);
         Vec::new()
     }
 
@@ -372,11 +572,28 @@ impl Controller {
         self.button_held = false;
 
         match std::mem::replace(&mut self.gesture, Gesture::Idle) {
-            Gesture::Drawing { mut points } => {
-                points.push(at);
-                // One gesture is one object, however many samples it took
-                // (FR-007). A press and release without movement is a dot.
-                vec![Effect::CommitStroke { points }]
+            Gesture::Drawing {
+                mut points,
+                kind,
+                style,
+            } => {
+                // The release point completes the shape, so it is kept even
+                // when the thinning rule would have dropped it. A press and
+                // release in one place stays a single-sample dot, which FR-007
+                // calls a valid gesture.
+                let moved = points.last().is_none_or(|last| {
+                    (at.x - last.x).abs() >= MIN_SAMPLE_DISTANCE
+                        || (at.y - last.y).abs() >= MIN_SAMPLE_DISTANCE
+                });
+                if moved && points.len() < limits::MAX_STROKE_POINTS {
+                    points.push(at);
+                }
+                // One gesture is one object, however many samples it took.
+                vec![Effect::CommitStroke {
+                    points,
+                    kind,
+                    style,
+                }]
             }
             // The release that ends an ignored drag. Nothing is committed, and
             // the next press starts clean.
@@ -387,7 +604,7 @@ impl Controller {
     /// Discards any gesture in flight, reporting how much was thrown away.
     fn cancel_gesture(&mut self) -> Option<Effect> {
         match std::mem::replace(&mut self.gesture, Gesture::Idle) {
-            Gesture::Drawing { points } => Some(Effect::GestureCancelled {
+            Gesture::Drawing { points, .. } => Some(Effect::GestureCancelled {
                 points: points.len(),
             }),
             Gesture::IgnoringHeldButton | Gesture::Idle => None,

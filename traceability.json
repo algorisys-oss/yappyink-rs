@@ -65,9 +65,10 @@
       "file": "tests/acceptance/drawing.feature",
       "status": "partially_implemented",
       "tests": [
+        "crates/ink-app/tests/tools.rs",
         "crates/ink-render/tests/painting.rs"
       ],
-      "note": "Whole-stroke opacity has fixtures. The pen and highlighter tools are T015."
+      "note": "Headless rules and pixel fixtures pass. Native use of the tools has not been observed."
     },
     {
       "id": "AC-FR-008",
@@ -449,7 +450,7 @@
       ],
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "T014: highlighter opacity applies to the whole stroke, with pixel fixtures. The pen/highlighter tools themselves are T015."
+      "notes": "T015: pen and highlighter with per-tool colour, width and opacity; style captured at the press so a mid-gesture change cannot rewrite a stroke; samples thinned and bounded. T014 fixed whole-stroke opacity with pixel fixtures."
     },
     {
       "requirement": "FR-008",

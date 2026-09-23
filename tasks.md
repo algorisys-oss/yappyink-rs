@@ -166,13 +166,15 @@ Add the selected compatible renderer, explicit alpha convention, scene caches, a
 
 ## T015 [M2]: Add pen and highlighter tools
 
-Status: not_started. Dependencies: T010, T014.
+Status: implemented on 2026-09-23. Dependencies: T010, T014.
 
 Requirements: FR-007, FR-018.
 
 Implement transient sampling, dot creation, preview, commit/cancel, width/color/opacity, and bounded point storage.
 
 **Exit criterion:** One gesture creates one object; canceled gestures produce no history; highlighter self-overlap has no mesh seam.
+
+**Evidence:** `crates/ink-app/tests/tools.rs`, 14 headless tests. Pen and highlighter each keep their own colour, width and opacity, stepped through bounded tables so width can never reach zero and opacity can never reach full transparency. The tool and style are captured when a gesture starts, so changing either mid-drag cannot rewrite what the user drew. Samples closer than 0.5 logical units are dropped and a stroke stops growing at `MAX_STROKE_POINTS`, while a press-and-release in one place still commits a dot. Self-overlap was fixed in T014 and has pixel fixtures. Keys `1`, `2`, `c`, `[`, `]`, `-`, `=` drive it, and the chrome shows the current colour and width. **Not observed on screen.**
 
 ## T016 [M2]: Add line, arrow, rectangle, and ellipse
 

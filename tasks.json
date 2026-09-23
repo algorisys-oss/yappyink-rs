@@ -260,7 +260,7 @@
     {
       "id": "T015",
       "phase": "M2",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T010",
         "T014"
@@ -271,7 +271,9 @@
       ],
       "title": "Add pen and highlighter tools",
       "work": "Implement transient sampling, dot creation, preview, commit/cancel, width/color/opacity, and bounded point storage.",
-      "exit_criterion": "One gesture creates one object; canceled gestures produce no history; highlighter self-overlap has no mesh seam."
+      "exit_criterion": "One gesture creates one object; canceled gestures produce no history; highlighter self-overlap has no mesh seam.",
+      "evidence": "crates/ink-app/tests/tools.rs (14 tests); crates/ink-render/tests/painting.rs (highlighter fixtures, T014)",
+      "remaining": "On-screen use of the highlighter and the style keys has not been observed; only the headless rules and the pixel fixtures are verified."
     },
     {
       "id": "T016",

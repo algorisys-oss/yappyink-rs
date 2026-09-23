@@ -9,19 +9,10 @@
 
 use std::sync::mpsc;
 
-use ink_core::{LogicalSize, Opacity, Rgb, Style, Width};
+use ink_core::LogicalSize;
 use ink_platform_wayland::overlay::{OverlayConfig, OverlayRequest, control_channel};
 
 use crate::control::{self, ControlCommand};
-
-/// The starting tool. A palette is T015/T016; one pen is enough for the slice.
-fn default_style() -> Style {
-    Style::new(
-        Rgb::new(255, 0, 255),
-        Width::new(4.0).expect("a positive default width"),
-        Opacity::OPAQUE,
-    )
-}
 
 pub fn run() -> std::process::ExitCode {
     let size = LogicalSize::new(1280.0, 720.0).expect("a positive default size");
@@ -61,8 +52,9 @@ pub fn run() -> std::process::ExitCode {
 
     print_orientation();
 
+    // The tool and its style live in the controller, so nothing here chooses
+    // a colour: the overlay starts with the pen and the user changes it.
     let config = OverlayConfig {
-        style: default_style(),
         size,
         control: Some(receiver),
     };
