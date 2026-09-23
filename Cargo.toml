@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/ink-app",
     "crates/ink-core",
     "crates/ink-platform",
     "crates/ink-platform-wayland",
@@ -16,6 +17,7 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+ink-app = { path = "crates/ink-app" }
 ink-core = { path = "crates/ink-core" }
 ink-platform = { path = "crates/ink-platform" }
 ink-platform-wayland = { path = "crates/ink-platform-wayland" }

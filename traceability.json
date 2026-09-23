@@ -31,7 +31,11 @@
         "FR-004"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/reducer.rs"
+      ],
+      "note": "Headless reducer tests. No native overlay exercises these yet (T011, T023)."
     },
     {
       "id": "AC-FR-005",
@@ -155,7 +159,11 @@
         "FR-018"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/reducer.rs"
+      ],
+      "note": "Headless reducer tests. No native overlay exercises these yet (T011, T023)."
     },
     {
       "id": "AC-FR-019",
@@ -163,7 +171,11 @@
         "FR-019"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/reducer.rs"
+      ],
+      "note": "Headless reducer tests. No native overlay exercises these yet (T011, T023)."
     },
     {
       "id": "AC-FR-020",
@@ -375,8 +387,9 @@
       "scenarios": [
         "AC-FR-004"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T010: startup is Hidden and Hidden retains committed work; the document is untouched by mode changes."
     },
     {
       "requirement": "FR-005",
@@ -581,8 +594,9 @@
       "scenarios": [
         "AC-FR-018"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T010: a mode change cancels an in-flight gesture, and a button held across a transition is ignored until released. Verified natively in E003 finding 5."
     },
     {
       "requirement": "FR-019",
@@ -597,8 +611,9 @@
       "scenarios": [
         "AC-FR-019"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T010: transitions are numbered so stale callbacks are ignored; a failed transition withdraws before it reports. Native fault injection is T023."
     },
     {
       "requirement": "FR-020",

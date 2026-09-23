@@ -108,13 +108,15 @@ Add typed output-local coordinates, object IDs, styles, vector objects, and docu
 
 ## T010 [M1]: Implement the pure interaction reducer
 
-Status: not_started. Dependencies: T009.
+Status: implemented on 2026-09-23. Dependencies: T009.
 
 Requirements: FR-002, FR-003, FR-004, FR-018, FR-019.
 
 Add desired/effective modes, transient gesture states, transition IDs, cancellation, and typed effects.
 
 **Exit criterion:** Table-driven tests cover each allowed transition, held-button rules, failure rollback, and stale completion events.
+
+**Evidence:** `crates/ink-app/` holds the controller: desired and effective modes kept apart, numbered transitions so a late callback cannot overwrite current state, gesture cancellation on any mode change, held-button suppression on re-entering Draw, EmergencyHide that never awaits confirmation, and a failed transition that withdraws before it reports. 25 headless tests in `tests/reducer.rs`, no platform dependency. The suite was mutation-checked: deliberately removing the transition-id comparison and turning a cancellation into a commit both made tests fail, and the first mutation exposed a missing case that is now covered.
 
 ## T011 [M1]: Integrate production overlay lifecycle
 
