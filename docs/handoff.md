@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-23, after `ec290f5` and the configure-logging fix.
+**Last updated:** 2026-09-23, after `f2bd63c`.
 
 ## What this is
 
@@ -29,18 +29,19 @@ of a route that did not work, and it is why the GNOME extension is small.
 
 **Implemented:** T001 workspace, T009 document model, T010 reducer, T013
 toolbar, T014 rendering, T015 pen and highlighter, T016 shapes, T017 eraser and
-history, T036 selection.
+history, T020 save, T021 validated load, T036 selection.
 
 **In progress:** T002 (capability probe; the GlobalShortcuts portal is
 unprobed), T007 (GNOME route; extension prototype written, never loaded), T011
 (vertical slice; half the checklist unobserved), T012 (control socket works; no
 portal, no bound chord, no conflict feedback).
 
-**Not started:** 23 tasks, including save and load (T020, T021), output and DPI
-correctness (T018), text and IME (T028), and everything on Windows, macOS, X11
-and layer-shell Wayland, none of which has any backend at all.
+**Not started:** 21 tasks, including output and DPI correctness (T018), the
+capability and settings UX (T019), text and IME (T028), and everything on
+Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
+all.
 
-183 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+202 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -152,6 +153,9 @@ a fix.
   and not built: set the input region to the toolbar's rectangle rather than
   empty. It would remove the "no controls and no keyboard" dead end. The owner
   has been offered it twice and not taken it up.
+- **A file picker.** Saving uses one fixed path, because choosing a path needs
+  the desktop's file portal, which needs the D-Bus dependency that is also
+  blocking the shortcuts portal. Deciding that dependency unblocks both.
 - **The GPU renderer and geometry caching** are deliberately deferred until
   something is profiled (T024). `architecture.md` warns against a second
   renderer before the first is measured.
