@@ -389,6 +389,8 @@ impl Overlay {
             ink_render::paint_object(&preview, &mut canvas, self.scale);
         }
 
+        paint_chrome(&mut canvas, self.controller.mode());
+
         let surface = window.wl_surface();
         surface.damage_buffer(0, 0, self.width as i32, self.height as i32);
         if buffer.attach_to(surface).is_err() {
@@ -401,6 +403,37 @@ impl Overlay {
     fn queue_handle(&self) -> QueueHandle<Self> {
         self.qh.clone()
     }
+}
+
+/// Draws the frame and mode badge.
+///
+/// Not decoration for its own sake. The surface is transparent and
+/// undecorated, so without an outline the user cannot tell where it is, which
+/// makes it impossible to aim at. The badge answers "which mode am I in?"
+/// without looking away at a terminal.
+///
+/// This is chrome, not document content: it is painted after the document,
+/// never stored in it, and an ink-only export must exclude it (FR-024). A real
+/// toolbar is T013.
+fn paint_chrome(canvas: &mut Canvas, mode: Mode) {
+    // Premultiplied, memory order B, G, R, A.
+    let (badge, frame) = match mode {
+        // Cyan: this surface is taking your pointer.
+        Mode::Draw => ([0xC0, 0xC0, 0x00, 0xC0], [0x30, 0x30, 0x00, 0x30]),
+        // Amber: your pointer belongs to whatever is underneath.
+        Mode::PassThrough => ([0x00, 0x80, 0xC0, 0xC0], [0x00, 0x20, 0x30, 0x30]),
+        // Unreachable while a frame is being painted: Hidden has no surface.
+        Mode::Hidden => return,
+    };
+
+    let (width, height) = (i64::from(canvas.width()), i64::from(canvas.height()));
+    let thickness = 2;
+    canvas.fill_rect(0, 0, width, thickness, frame);
+    canvas.fill_rect(0, height - thickness, width, thickness, frame);
+    canvas.fill_rect(0, 0, thickness, height, frame);
+    canvas.fill_rect(width - thickness, 0, thickness, height, frame);
+
+    canvas.fill_rect(10, 10, 18, 18, badge);
 }
 
 impl PointerHandler for Overlay {
@@ -441,9 +474,11 @@ impl PointerHandler for Overlay {
             }
         }
         for event in produced {
-            let drawing = matches!(event, PlatformEvent::PointerMoved { .. });
             let effects = self.controller.handle(event);
-            if drawing && self.controller.gesture_points().is_some() {
+            // Any pointer event can change what the preview looks like, so the
+            // press that starts a stroke paints its dot at once rather than
+            // waiting for the first movement.
+            if self.controller.gesture_points().is_some() {
                 self.needs_redraw = true;
             }
             self.apply(effects);

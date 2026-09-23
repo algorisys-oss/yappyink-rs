@@ -22,6 +22,14 @@ fn default_style() -> Style {
 }
 
 pub fn run() -> std::process::ExitCode {
+    eprintln!(
+        "Look for a thin outlined rectangle with a small square in its corner: that\n\
+         is the overlay, and it is transparent everywhere else. You can only draw\n\
+         inside it. Drag with the LEFT MOUSE BUTTON to draw; the keys below change\n\
+         mode, they do not draw.\n\
+         The corner square is cyan in draw mode and amber in pass-through.\n"
+    );
+
     let size = LogicalSize::new(1280.0, 720.0).expect("a positive default size");
 
     // Hidden withdraws the surface, and the keyboard goes with it. Until T012

@@ -68,6 +68,19 @@ impl<'a> Canvas<'a> {
         ])
     }
 
+    /// Source-over blend of a premultiplied colour over a rectangle.
+    ///
+    /// For application chrome, not document content: the mode indicator and
+    /// frame are drawn with this. Anything painted this way is a control, so
+    /// an ink-only export (FR-024) must leave it out.
+    pub fn fill_rect(&mut self, x: i64, y: i64, width: i64, height: i64, colour: [u8; 4]) {
+        for row in y..y.saturating_add(height) {
+            for column in x..x.saturating_add(width) {
+                self.blend(column, row, colour);
+            }
+        }
+    }
+
     /// Source-over blend of a premultiplied colour at a pixel.
     fn blend(&mut self, x: i64, y: i64, colour: [u8; 4]) {
         if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {
