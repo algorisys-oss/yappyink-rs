@@ -1407,10 +1407,23 @@ impl WindowHandler for Overlay {
         configure: WindowConfigure,
         _serial: u32,
     ) {
+        let previous = (self.width, self.height);
         if let (Some(width), Some(height)) = configure.new_size {
             self.width = width.get();
             self.height = height.get();
         }
+
+        // Logged on the first configure and whenever the size changes. This is
+        // how a run says what the compositor actually granted, which is the
+        // only way to tell whether something else, such as the Shell
+        // extension, has resized the surface.
+        if !self.configured || previous != (self.width, self.height) {
+            eprintln!(
+                "[note  ] configure: {}x{} logical, state {:?}, decorations {:?}",
+                self.width, self.height, configure.state, configure.decoration_mode
+            );
+        }
+
         self.configured = true;
         self.needs_redraw = true;
     }

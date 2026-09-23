@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-23, after `d28ebbe`.
+**Last updated:** 2026-09-23, after `ec290f5` and the configure-logging fix.
 
 ## What this is
 
@@ -67,7 +67,21 @@ dbus-run-session -- gnome-shell --nested --wayland --wayland-display=wayland-99
 WAYLAND_DISPLAY=wayland-99 ./target/debug/yappyink draw
 ```
 
-Look for `[yappyink]` in the terminal that launched the nested Shell.
+Look for `[yappyink]` in the terminal that launched the nested Shell. Launch it
+redirected to a file if someone else needs to read it:
+
+```sh
+dbus-run-session -- gnome-shell --nested --wayland --wayland-display=wayland-99 \
+    > /tmp/nested-shell.log 2>&1
+```
+
+**Attempted on 2026-09-23 and inconclusive.** The app reached the nested
+compositor and bound to its output, so the plumbing works, but the window came
+back 800x529 with `MAXIMIZED | TILED_*`, which is Mutter fitting an oversized
+request rather than our extension, which uses `move_resize_frame` and sets no
+such flags. No `[yappyink]` line was seen. Querying the nested Shell over D-Bus
+does not work: it shares `/run/user/1001/bus` with the outer session, which owns
+the `org.gnome.Shell` name, so the query answers for the wrong Shell.
 
 Two questions, and the second is the one that matters:
 
