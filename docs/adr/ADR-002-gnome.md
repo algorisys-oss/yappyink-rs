@@ -78,6 +78,25 @@ Open before any GNOME claim is made: whether always-on-top survives workspace
 switches, fullscreen applications, hotplug, and suspend/resume; and whether the
 overlay ever reclaims focus by itself.
 
+## Companion prototype, 2026-09-23
+
+Outcome (b) now has code: `integrations/gnome/`, about 100 lines of GJS. It is
+scoped to exactly the two things E002 and E003 proved a Wayland client cannot
+do for itself, so that a failure says something specific. It makes a yappyink
+window above and sticky and sizes it to its monitor, matches strictly on the
+app id, touches nothing else, and undoes all three when disabled.
+
+It declares GNOME Shell 46 only, because that is the only version available to
+test on. This ADR requires declared versions to have evidence behind them.
+
+**It has never been loaded by a running Shell.** The open question is recorded
+in `docs/evidence/E007`: whether a window merely *sized* to the monitor keeps
+its transparency, given that a *fullscreen* one demonstrably does not. If it
+does not, full-output coverage is unreachable on GNOME by any route currently
+known, and the honest ceiling is a work-area overlay.
+
+The decision stays open until E007 has a result.
+
 ## Required record
 
 Actual Ubuntu/GNOME/compositor versions, scenario results, route selected, user-installation steps, failure cleanup, compatibility boundaries, and reviewer approval. All are currently unverified.

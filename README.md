@@ -37,8 +37,11 @@ On GNOME specifically, measured rather than assumed
   another window.
 
 None of that is worked around by faking anything. See
-[ADR-002](docs/adr/ADR-002-gnome.md) for why GNOME is a limited preview and what
-a Shell extension would have to do to lift these limits.
+[ADR-002](docs/adr/ADR-002-gnome.md) for why GNOME is a limited preview.
+
+A **GNOME Shell extension** that would lift the last two limits lives in
+[integrations/gnome/](integrations/gnome/). It is a prototype and has never been
+loaded by a running Shell, so it is not part of the instructions below.
 
 ## Try it
 

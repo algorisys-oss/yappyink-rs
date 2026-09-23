@@ -1,0 +1,8 @@
+{
+  "uuid": "yappyink@algorisys-oss.github.io",
+  "name": "yappyink overlay support",
+  "description": "Gives the yappyink annotation overlay the two things a Wayland client cannot do for itself: staying above other windows, and being placed and sized on a chosen monitor. It touches no other application's windows. Without it yappyink still runs, and the user applies Always on Top by hand once per launch.",
+  "shell-version": ["46"],
+  "url": "https://github.com/algorisys-oss/yappyink-rs",
+  "version-name": "0.0.1-prototype"
+}

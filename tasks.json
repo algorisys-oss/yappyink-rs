@@ -124,7 +124,7 @@
       "work": "Measure standalone xdg-shell behavior, then prototype the minimum companion only if needed. Record install, lifecycle, and Rust/helper boundaries.",
       "exit_criterion": "ADR-002 identifies a verified route or explicitly leaves full GNOME parity blocked. A limited fallback is not a pass.",
       "evidence": "docs/evidence/E002-gnome-xdg-shell-experiment.md",
-      "remaining": "Standalone route measured: fails automatically, works only as a floating surface with a manual per-launch \"Always on Top\". ADR-002 records outcome (c). The GNOME Shell companion prototype (outcome b) is not started, and the durability of always-on-top across workspaces, fullscreen apps, hotplug and suspend is untested."
+      "remaining": "The standalone route is measured and recorded. A GNOME Shell companion prototype now exists in integrations/gnome/ but has never been loaded by a running Shell: docs/evidence/E007 holds the checklist. ADR-002 stays open until it has a result."
     },
     {
       "id": "T008",
