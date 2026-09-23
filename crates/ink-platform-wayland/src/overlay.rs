@@ -22,7 +22,9 @@
 //! layer-shell backend (T006) or a GNOME companion (ADR-002) removes these
 //! limits; nothing in this file can.
 
-use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Preview, Tool, TransitionId};
+use ink_app::{
+    Action, Controller, Effect, Icon, Mode, PlatformEvent, Preview, Tool, Toolbar, TransitionId,
+};
 use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
@@ -521,6 +523,14 @@ impl Overlay {
             self.controller.style(),
             self.controller.tool(),
         );
+        if self.controller.toolbar_visible() {
+            paint_toolbar(
+                &mut canvas,
+                self.controller.toolbar(),
+                self.controller.tool(),
+                self.scale,
+            );
+        }
 
         let surface = window.wl_surface();
         surface.damage_buffer(0, 0, self.width as i32, self.height as i32);
@@ -637,6 +647,135 @@ impl ActivationHandler for Overlay {
             return;
         };
         activation.activate::<Overlay>(window.wl_surface(), token);
+    }
+}
+
+/// Draws the toolbar and its icons.
+///
+/// Chrome, not document content: it is painted after the scene, never stored,
+/// and an ink-only export must exclude it (FR-024).
+///
+/// Icons are drawn as paths rather than glyphs from a font, because there is no
+/// text stack here and a toolbar does not need one. Each icon is described in a
+/// unit square and scaled into its button, so the layout in `ink-app` stays the
+/// only place that knows about sizes.
+fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scale) {
+    // Premultiplied, memory order B, G, R, A.
+    let panel = [0x1E, 0x1A, 0x18, 0xD8];
+    let edge = [0x50, 0x48, 0x44, 0xE0];
+    let ink = [0xF0, 0xF0, 0xF0, 0xFF];
+    let selected_fill = [0x80, 0x70, 0x20, 0xE0];
+
+    let to_px = |value: f64| (value * scale.get()).round() as i64;
+    let bounds = toolbar.bounds();
+    let (x0, y0) = (to_px(bounds.min.x), to_px(bounds.min.y));
+    let (width, height) = (to_px(bounds.max.x) - x0, to_px(bounds.max.y) - y0);
+
+    canvas.fill_rect(x0, y0, width, height, panel);
+    canvas.fill_rect(x0, y0, width, 1, edge);
+    canvas.fill_rect(x0, y0 + height - 1, width, 1, edge);
+    canvas.fill_rect(x0, y0, 1, height, edge);
+    canvas.fill_rect(x0 + width - 1, y0, 1, height, edge);
+
+    for button in toolbar.buttons() {
+        let bx = to_px(button.bounds.min.x);
+        let by = to_px(button.bounds.min.y);
+        let size = to_px(button.bounds.max.x) - bx;
+
+        if button.is_selected(tool) {
+            canvas.fill_rect(bx, by, size, size, selected_fill);
+            // A mark as well as a fill: NFR-006 forbids a selected state
+            // carried by colour alone, which also matters on a background
+            // that happens to be the same colour.
+            canvas.fill_rect(bx, by + size - 2, size, 2, ink);
+        }
+
+        // Icons are described in a unit square with a margin, so they never
+        // touch the button's edge.
+        let inset = 0.24;
+        let place = |u: f64, v: f64| {
+            (
+                (bx as f64) + (inset + u * (1.0 - inset * 2.0)) * size as f64,
+                (by as f64) + (inset + v * (1.0 - inset * 2.0)) * size as f64,
+            )
+        };
+        let thickness = (size as f64 * 0.09).max(1.4);
+        let mut draw = |path: &[(f64, f64)]| {
+            let points: Vec<(f64, f64)> = path.iter().map(|(u, v)| place(*u, *v)).collect();
+            canvas.stroke_path(&points, thickness, ink);
+        };
+
+        match button.icon {
+            // A nib: a stroke with a tail.
+            Icon::Pen => draw(&[(0.0, 1.0), (0.35, 0.55), (1.0, 0.0)]),
+            // The same line, deliberately blunter.
+            Icon::Highlighter => {
+                let points: Vec<(f64, f64)> = [(0.0, 1.0), (1.0, 0.0)]
+                    .iter()
+                    .map(|(u, v)| place(*u, *v))
+                    .collect();
+                canvas.stroke_path(&points, thickness * 2.6, ink);
+            }
+            Icon::Line => draw(&[(0.0, 1.0), (1.0, 0.0)]),
+            Icon::Arrow => {
+                draw(&[(0.0, 1.0), (1.0, 0.0)]);
+                draw(&[(0.45, 0.0), (1.0, 0.0), (1.0, 0.55)]);
+            }
+            Icon::Rectangle => draw(&[
+                (0.0, 0.15),
+                (1.0, 0.15),
+                (1.0, 0.85),
+                (0.0, 0.85),
+                (0.0, 0.15),
+            ]),
+            Icon::Ellipse => {
+                let steps = 20;
+                let ring: Vec<(f64, f64)> = (0..=steps)
+                    .map(|step| {
+                        let angle = std::f64::consts::TAU * f64::from(step) / f64::from(steps);
+                        (0.5 + 0.5 * angle.cos(), 0.5 + 0.42 * angle.sin())
+                    })
+                    .collect();
+                draw(&ring);
+            }
+            // A wedge rubbing something out.
+            Icon::Eraser => {
+                draw(&[
+                    (0.0, 0.85),
+                    (0.55, 0.15),
+                    (1.0, 0.5),
+                    (0.45, 1.0),
+                    (0.0, 0.85),
+                ]);
+                draw(&[(0.45, 1.0), (1.0, 1.0)]);
+            }
+            // An arrow curling back on itself.
+            Icon::Undo => {
+                draw(&[(1.0, 0.85), (0.45, 0.85), (0.1, 0.5), (0.45, 0.15)]);
+                draw(&[(0.1, 0.5), (0.45, 0.5)]);
+            }
+            Icon::Redo => {
+                draw(&[(0.0, 0.85), (0.55, 0.85), (0.9, 0.5), (0.55, 0.15)]);
+                draw(&[(0.9, 0.5), (0.55, 0.5)]);
+            }
+            // A cross: everything goes.
+            Icon::Clear => {
+                draw(&[(0.0, 0.0), (1.0, 1.0)]);
+                draw(&[(1.0, 0.0), (0.0, 1.0)]);
+            }
+            // An arrow going through a surface.
+            Icon::PassThrough => {
+                draw(&[(0.5, 0.0), (0.5, 0.8)]);
+                draw(&[(0.2, 0.5), (0.5, 0.85), (0.8, 0.5)]);
+                draw(&[(0.0, 1.0), (1.0, 1.0)]);
+            }
+            // A closed eye.
+            Icon::Hide => {
+                draw(&[(0.0, 0.35), (0.5, 0.8), (1.0, 0.35)]);
+                draw(&[(0.15, 0.7), (0.05, 0.95)]);
+                draw(&[(0.85, 0.7), (0.95, 0.95)]);
+            }
+        }
     }
 }
 

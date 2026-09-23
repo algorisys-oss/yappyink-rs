@@ -19,6 +19,10 @@
 
 #![forbid(unsafe_code)]
 
+pub mod toolbar;
+
+pub use toolbar::{Button, Icon, Toolbar};
+
 use ink_core::{
     DocumentError, LogicalPoint, Opacity, Rgb, Shape, StrokeKind, Style, Width, limits,
 };
@@ -309,6 +313,11 @@ enum Gesture {
         to: LogicalPoint,
         style: Style,
     },
+    /// The pointer went down on the toolbar. Nothing is drawn, and the
+    /// button acts on release if the pointer is still on it, which is how a
+    /// button is meant to behave and also why a drag starting on the toolbar
+    /// cannot leave ink (FR-006).
+    OnToolbar { icon: crate::toolbar::Icon },
     /// A button was already down when Draw became effective. Everything from
     /// it is ignored until it is released, so a drag begun in another mode
     /// cannot turn into ink (`ux-state-machine.md`, "Pointer sequence safety").
@@ -335,6 +344,7 @@ pub struct Controller {
     /// decide whether a resumed Draw should ignore a held button.
     button_held: bool,
     faulted: bool,
+    toolbar: Toolbar,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -363,6 +373,7 @@ impl Controller {
             gesture: Gesture::Idle,
             button_held: false,
             faulted: false,
+            toolbar: Toolbar::new(),
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -386,6 +397,16 @@ impl Controller {
                 opacity: OPACITIES.len() - 1,
             },
         }
+    }
+
+    /// The toolbar, for drawing it and for tests.
+    pub fn toolbar(&self) -> &Toolbar {
+        &self.toolbar
+    }
+
+    /// Whether the toolbar should be drawn right now.
+    pub fn toolbar_visible(&self) -> bool {
+        Toolbar::is_visible(self.effective)
     }
 
     /// The selected tool.
@@ -691,6 +712,21 @@ impl Controller {
             // can press again. Treated as a fresh press rather than trusted.
             return Vec::new();
         }
+        // FR-006: a press on the toolbar belongs to the toolbar. This is
+        // checked before anything else, so no tool can ever draw over its own
+        // controls, and the gaps between buttons are not holes to draw
+        // through.
+        if self.toolbar_visible() && self.toolbar.contains(at) {
+            let icon = self.toolbar.hit(at).map(|button| button.icon);
+            self.gesture = match icon {
+                Some(icon) => Gesture::OnToolbar { icon },
+                // The frame between buttons: swallow the press without arming
+                // anything.
+                None => Gesture::IgnoringHeldButton,
+            };
+            return Vec::new();
+        }
+
         let style = self.style();
         self.gesture = match self.tool {
             // The eraser's width is the diameter of what it takes, so the
@@ -803,6 +839,19 @@ impl Controller {
                 }
                 vec![Effect::EraseAlong { path, radius }]
             }
+            Gesture::OnToolbar { icon } => {
+                // Only if the pointer is still on the button it went down on,
+                // which is how a user cancels a press by sliding off it.
+                let still_there = self
+                    .toolbar
+                    .hit(at)
+                    .filter(|button| button.icon == icon)
+                    .map(|button| button.action);
+                match still_there {
+                    Some(action) => self.act(action),
+                    None => Vec::new(),
+                }
+            }
             // The release that ends an ignored drag. Nothing is committed, and
             // the next press starts clean.
             Gesture::IgnoringHeldButton | Gesture::Idle => Vec::new(),
@@ -817,6 +866,8 @@ impl Controller {
             }),
             Gesture::Dragging { .. } => Some(Effect::GestureCancelled { points: 2 }),
             Gesture::Sweeping { path, .. } => Some(Effect::GestureCancelled { points: path.len() }),
+            // Nothing was being drawn, so there is nothing to report.
+            Gesture::OnToolbar { .. } => None,
             Gesture::IgnoringHeldButton | Gesture::Idle => None,
         }
     }

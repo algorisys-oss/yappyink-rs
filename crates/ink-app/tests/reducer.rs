@@ -12,8 +12,15 @@ use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId};
 use ink_core::{LogicalPoint, Shape};
 use ink_platform::PlatformError;
 
+/// A canvas coordinate.
+///
+/// Offset below the toolbar, which owns the top-left of the surface: a press
+/// there is a button, not a stroke (FR-006). Tests that care about drawing
+/// have to aim at the canvas, exactly as a user does.
+const BELOW_TOOLBAR: f64 = 120.0;
+
 fn point(x: f64, y: f64) -> LogicalPoint {
-    LogicalPoint::new(x, y).expect("finite test coordinate")
+    LogicalPoint::new(x, y + BELOW_TOOLBAR).expect("finite test coordinate")
 }
 
 /// Drives the controller to a confirmed mode, the way a working platform would.

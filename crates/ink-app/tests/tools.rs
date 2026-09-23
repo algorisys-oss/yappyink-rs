@@ -9,8 +9,15 @@
 use ink_app::{Action, Controller, Effect, PlatformEvent, Preview, Tool};
 use ink_core::{LogicalPoint, Opacity, Rgb, Shape, StrokeKind, limits};
 
+/// A canvas coordinate.
+///
+/// Offset below the toolbar, which owns the top-left of the surface: a press
+/// there is a button, not a stroke (FR-006). Tests that care about drawing
+/// have to aim at the canvas, exactly as a user does.
+const BELOW_TOOLBAR: f64 = 120.0;
+
 fn point(x: f64, y: f64) -> LogicalPoint {
-    LogicalPoint::new(x, y).expect("finite test coordinate")
+    LogicalPoint::new(x, y + BELOW_TOOLBAR).expect("finite test coordinate")
 }
 
 /// Drives the controller into Draw, the way a working platform would.
@@ -443,12 +450,8 @@ fn a_shape_is_defined_by_where_the_drag_ended_not_by_the_samples() {
 
     match committed_shape(&effects) {
         Some(Shape::Line { from, to }) => {
-            assert_eq!((from.x, from.y), (10.0, 10.0));
-            assert_eq!(
-                (to.x, to.y),
-                (80.0, 60.0),
-                "the wandering middle is not kept"
-            );
+            assert_eq!(*from, point(10.0, 10.0));
+            assert_eq!(*to, point(80.0, 60.0), "the wandering middle is not kept");
         }
         other => panic!("expected a line, got {other:?}"),
     }

@@ -225,7 +225,7 @@
     {
       "id": "T013",
       "phase": "M1",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T011"
       ],
@@ -234,7 +234,9 @@
       ],
       "title": "Implement the independent compact toolbar",
       "work": "Wire toolbar actions through AppCommand. Distinguish canvas/toolbar hit testing and keep toolbar hidden in default PassThrough.",
-      "exit_criterion": "Toolbar click/drag never creates a stroke; no click-through surface contains a falsely interactive control."
+      "exit_criterion": "Toolbar click/drag never creates a stroke; no click-through surface contains a falsely interactive control.",
+      "evidence": "crates/ink-app/tests/toolbar.rs (13 tests)",
+      "remaining": "Not observed on screen. Icons are drawn as paths and have no rendering tests; accessibility labels and keyboard navigation are NFR-006 and T030."
     },
     {
       "id": "T014",

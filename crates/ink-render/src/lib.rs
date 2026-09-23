@@ -81,6 +81,45 @@ impl<'a> Canvas<'a> {
         }
     }
 
+    /// Draws a polyline of a given thickness.
+    ///
+    /// For application chrome: toolbar icons and the frame. Unlike
+    /// [`Painter::paint_object`] it blends as it goes rather than building
+    /// coverage first, which is fine because chrome is drawn opaque and does
+    /// not have FR-007's whole-stroke opacity requirement.
+    pub fn stroke_path(&mut self, points: &[(f64, f64)], width: f64, colour: [u8; 4]) {
+        let radius = (width / 2.0).max(0.5);
+        match points {
+            [] => {}
+            [only] => self.disc(*only, radius, colour),
+            _ => {
+                for pair in points.windows(2) {
+                    let (from, to) = (pair[0], pair[1]);
+                    let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+                    let distance = (dx * dx + dy * dy).sqrt();
+                    let steps = distance.ceil().max(1.0) as i64;
+                    for step in 0..=steps {
+                        let t = step as f64 / steps as f64;
+                        self.disc((from.0 + dx * t, from.1 + dy * t), radius, colour);
+                    }
+                }
+            }
+        }
+    }
+
+    fn disc(&mut self, centre: (f64, f64), radius: f64, colour: [u8; 4]) {
+        let limit = radius.ceil() as i64;
+        let (cx, cy) = (centre.0.round() as i64, centre.1.round() as i64);
+        let radius_squared = radius * radius;
+        for dy in -limit..=limit {
+            for dx in -limit..=limit {
+                if (dx * dx + dy * dy) as f64 <= radius_squared {
+                    self.blend(cx + dx, cy + dy, colour);
+                }
+            }
+        }
+    }
+
     /// Source-over blend of a premultiplied colour at a pixel.
     fn blend(&mut self, x: i64, y: i64, colour: [u8; 4]) {
         if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {

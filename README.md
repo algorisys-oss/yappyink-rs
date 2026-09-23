@@ -58,6 +58,11 @@ pass-through.
 Press `Alt+Space` and choose **Always on Top**, then drag with the left mouse
 button to draw.
 
+A toolbar sits in the top-left of the overlay while you are in draw mode: the
+seven tools, undo, redo, clear, and the two ways out. It disappears in
+pass-through, because there the surface takes no pointer input and a button you
+cannot click should not be on screen. The keys below do the same things.
+
 Keys, while the overlay has focus:
 
 | Key | Does |
@@ -116,7 +121,7 @@ other route and is not implemented yet.
 
 ## Not built yet
 
-A toolbar, saving to a file, image export, text, and multiple monitors at once.
+Saving to a file, image export, text, and multiple monitors at once.
 **Nothing is saved when you quit.**
 
 Undo and redo are bound to plain `u` and `r` rather than the usual Ctrl chords,

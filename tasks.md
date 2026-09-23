@@ -144,13 +144,15 @@ Register approved global actions with conflict feedback; add local single-user C
 
 ## T013 [M1]: Implement the independent compact toolbar
 
-Status: not_started. Dependencies: T011.
+Status: implemented on 2026-09-23. Dependencies: T011.
 
 Requirements: FR-006.
 
 Wire toolbar actions through AppCommand. Distinguish canvas/toolbar hit testing and keep toolbar hidden in default PassThrough.
 
 **Exit criterion:** Toolbar click/drag never creates a stroke; no click-through surface contains a falsely interactive control.
+
+**Evidence:** `crates/ink-app/tests/toolbar.rs`, 13 headless tests. Layout and hit testing live in `ink-app::toolbar` because the contract is pointer arbitration, which is the controller's job; `architecture.md`'s proposed `ink-ui` crate is deferred until a settings panel gives that boundary real code. A press on the toolbar is checked before any tool sees it, so no tool can draw over its own controls, and the gaps between buttons belong to the toolbar rather than being holes to draw through. Buttons act on release over the same button, so a drag off one cancels it and a drag from one onto the canvas leaves no ink. The toolbar is shown only in Draw, where the surface accepts pointer input: in PassThrough it is hidden rather than left on screen looking clickable. Icons are drawn as unit-square paths, with no font stack. **Not observed on screen**, and the icons have no rendering tests.
 
 ## T014 [M1]: Implement transparent scene rendering
 

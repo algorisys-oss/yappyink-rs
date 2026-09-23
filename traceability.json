@@ -55,7 +55,11 @@
         "FR-006"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/toolbar.rs"
+      ],
+      "note": "Pointer arbitration is covered headlessly. Native clicking has not been observed, and accessibility is NFR-006/T030."
     },
     {
       "id": "AC-FR-007",
@@ -449,8 +453,9 @@
       "scenarios": [
         "AC-FR-006"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T013: the toolbar is part of the Draw-mode surface, which accepts pointer input, so a control that looks interactive is one. A press on it never starts a gesture, the gaps between buttons belong to the toolbar, and buttons act on release over the same button. Hidden in PassThrough."
     },
     {
       "requirement": "FR-007",
