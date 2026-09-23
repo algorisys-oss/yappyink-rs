@@ -78,6 +78,22 @@ Open before any GNOME claim is made: whether always-on-top survives workspace
 switches, fullscreen applications, hotplug, and suspend/resume; and whether the
 overlay ever reclaims focus by itself.
 
+## Mitigation in the application, 2026-09-23
+
+Before the companion, the overlay gained a toolbar button and a `t` key that
+ask the compositor to show its own window menu, where "Always on Top" lives.
+
+This is recorded here because it is easy to mistake for a solution. It is not.
+Mutter gives a client no way to *set* the property; `show_window_menu` only
+asks for the menu in which a user can. The manual step remains, the capability
+remains `NeedsUserAction`, and nothing about this ADR's outcomes changes. What
+it removes is the need to know about `Alt+Space`.
+
+It is included in the honest-fallback accounting: an application that offered a
+button labelled "Always on Top" and silently did nothing when the compositor
+refused would be the kind of fake success FR-013 and NFR-005 forbid. It does
+not draw a menu, and a refusal produces no menu.
+
 ## Companion prototype, 2026-09-23
 
 Outcome (b) now has code: `integrations/gnome/`, about 100 lines of GJS. It is

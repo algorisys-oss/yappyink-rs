@@ -32,9 +32,10 @@ On GNOME specifically, measured rather than assumed
   is lost.
 - It **cannot choose which monitor** it appears on. xdg-shell gives clients no
   positioning at all.
-- It **cannot raise itself** reliably. You apply *Always on Top* from the window
-  menu (`Alt+Space`) once per launch, or the ink is covered as soon as you click
-  another window.
+- It **cannot raise itself** reliably. You apply *Always on Top* once per
+  launch, or the ink is covered as soon as you click another window. The app
+  has a button for it (see below), but the setting is still the compositor's to
+  make, not ours.
 
 None of that is worked around by faking anything. See
 [ADR-002](docs/adr/ADR-002-gnome.md) for why GNOME is a limited preview.

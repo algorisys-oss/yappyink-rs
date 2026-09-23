@@ -132,6 +132,15 @@ Constraints that come with it:
   for always-on-top, so the application cannot set it. The user must open the
   window menu themselves. In the capability vocabulary this is
   `NeedsUserAction`, not `Available`.
+
+  **Mitigated, not removed, on 2026-09-23.** The overlay now has a toolbar
+  button and a `t` key that call `xdg_toplevel.show_window_menu`, so the
+  compositor's own menu opens under the button. That is the full extent of what
+  a Wayland client may do here: it asks for the menu, the user still chooses
+  the setting, and if the compositor declines there is no menu rather than an
+  imitation of one. The capability stays `NeedsUserAction`, because the user
+  action is still required. What changed is that the action is discoverable
+  instead of being a shortcut the user has to have been told about.
 - The surface is floating, so it covers part of a screen, at a position the
   compositor chooses. Findings 1 and 2 still stand: fullscreen would restore
   full coverage but destroys transparency, and no non-fullscreen surface can

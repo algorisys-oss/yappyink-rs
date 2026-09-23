@@ -274,10 +274,13 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
 fn print_controls() {
     eprintln!(
         "yappyink overlay\n\n\
-         This surface is floating and cannot raise itself: press Alt+Space and\n\
-         choose \"Always on Top\", or the ink will be covered when you click\n\
-         another window. Mutter offers no way for an application to do this\n\
-         itself. See docs/evidence/E002.\n\n\
+         This surface is floating and cannot raise itself. Press t, or the\n\
+         pinned-window button on the toolbar, and choose \"Always on Top\", or\n\
+         the ink will be covered when you click another window.\n\
+         That opens the compositor's own menu: Mutter gives an application no\n\
+         way to set the property itself, so this saves remembering Alt+Space\n\
+         rather than removing the step. The GNOME extension in\n\
+         integrations/gnome removes it. See docs/evidence/E002.\n\n\
          Keys, while the overlay has focus:\n\
          \x20 d      draw\n\
          \x20 p      pass through: ink stays, input goes to what is underneath\n\
