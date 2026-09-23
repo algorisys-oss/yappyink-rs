@@ -569,6 +569,23 @@ impl Overlay {
         );
     }
 
+    /// Everything the chrome is drawn from.
+    ///
+    /// Compared before and after handling input to decide whether to repaint.
+    /// Asking a narrower question has now caused the same bug twice: first
+    /// shapes not appearing until release, because only freehand samples were
+    /// checked, then the toolbar's selection not moving until the next stroke,
+    /// because only a gesture in flight was checked. The visible state is what
+    /// decides a repaint, so that is what gets compared.
+    fn visual_state(&self) -> (Tool, Style, Mode, bool) {
+        (
+            self.controller.tool(),
+            self.controller.style(),
+            self.controller.mode(),
+            self.controller.is_gesturing(),
+        )
+    }
+
     fn queue_handle(&self) -> QueueHandle<Self> {
         self.qh.clone()
     }
@@ -817,12 +834,11 @@ impl PointerHandler for Overlay {
             }
         }
         for event in produced {
+            let before = self.visual_state();
             let effects = self.controller.handle(event);
-            // Any pointer event can change the preview, so a redraw is asked
-            // for whenever a gesture is in flight, whatever kind it is. Asking
-            // only about freehand samples was a bug: a shape being dragged out
-            // has no samples, so it only appeared once it was committed.
-            if self.controller.is_gesturing() {
+            // A gesture in flight means the preview moved; a change in the
+            // visible state means the chrome did. Either way, repaint.
+            if self.controller.is_gesturing() || self.visual_state() != before {
                 self.needs_redraw = true;
             }
             self.apply(effects);
