@@ -6,6 +6,8 @@
 //! that could be mistaken for a result.
 
 #[cfg(target_os = "linux")]
+mod control;
+#[cfg(target_os = "linux")]
 mod draw;
 
 mod doctor;
@@ -19,6 +21,21 @@ fn main() -> std::process::ExitCode {
         }
         #[cfg(target_os = "linux")]
         Some("draw") => draw::run(),
+        #[cfg(target_os = "linux")]
+        Some(verb) if control::ControlCommand::parse(verb).is_some() => {
+            let command = control::ControlCommand::parse(verb).expect("just checked");
+            match control::send(command) {
+                Ok(reply) if reply == "ok" => std::process::ExitCode::SUCCESS,
+                Ok(reply) => {
+                    eprintln!("{reply}");
+                    std::process::ExitCode::FAILURE
+                }
+                Err(reason) => {
+                    eprintln!("{reason}");
+                    std::process::ExitCode::FAILURE
+                }
+            }
+        }
         Some("--version" | "version") => {
             println!("yappyink {}", env!("CARGO_PKG_VERSION"));
             std::process::ExitCode::SUCCESS
@@ -28,6 +45,13 @@ fn main() -> std::process::ExitCode {
                 eprintln!("unknown command: {command}");
             }
             eprintln!("usage: yappyink <draw|doctor|version>");
+            let verbs: Vec<&str> = control::ControlCommand::all()
+                .iter()
+                .map(|c| c.as_str())
+                .collect();
+            eprintln!("       yappyink <{}>", verbs.join("|"));
+            eprintln!("         sends a command to an overlay that is already running;");
+            eprintln!("         bind one to a chord in your desktop's keyboard settings.");
             eprintln!(
                 "draw starts the overlay on Wayland. doctor reports what this machine offers. \
                  Windows, macOS, and X11 have no backend yet (T003, T004, T005)."

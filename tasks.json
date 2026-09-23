@@ -207,7 +207,7 @@
     {
       "id": "T012",
       "phase": "M1",
-      "status": "not_started",
+      "status": "in_progress",
       "depends_on": [
         "T011"
       ],
@@ -218,7 +218,9 @@
       ],
       "title": "Implement activation, CLI control, and recovery",
       "work": "Register approved global actions with conflict feedback; add local single-user CLI IPC and settings/launcher recovery. Respect native event-loop ownership.",
-      "exit_criterion": "Activation works while another app is focused; denied/conflicting bindings are visible; no-tray operation and EmergencyHide are demonstrated."
+      "exit_criterion": "Activation works while another app is focused; denied/conflicting bindings are visible; no-tray operation and EmergencyHide are demonstrated.",
+      "evidence": "docs/evidence/E005-control-channel.md",
+      "remaining": "The GlobalShortcuts portal is not implemented and no D-Bus dependency is chosen. A user-bound desktop chord is untested. Shortcut conflict feedback and a non-terminal launcher/recovery path do not exist."
     },
     {
       "id": "T013",

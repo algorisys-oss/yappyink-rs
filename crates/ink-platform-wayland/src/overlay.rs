@@ -28,6 +28,7 @@ use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId};
 use ink_core::{Document, IdSource, LogicalPoint, LogicalSize, Object, OutputId, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
+use smithay_client_toolkit::activation::{ActivationHandler, ActivationState, RequestData};
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState, Region};
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
@@ -60,6 +61,15 @@ const BTN_LEFT: u32 = 0x110;
 /// channel and T014's demand-driven redraw.
 const POLL: std::time::Duration = std::time::Duration::from_millis(8);
 
+/// Something asked of the overlay from outside its event loop.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlayRequest {
+    /// A controller action: a mode change or a withdrawal.
+    Act(Action),
+    /// Stop running and withdraw.
+    Quit,
+}
+
 /// How the overlay is set up for a run.
 pub struct OverlayConfig {
     /// Style for new strokes. The tool palette is T015/T016.
@@ -67,13 +77,14 @@ pub struct OverlayConfig {
     /// Requested surface size in logical units. The compositor decides the
     /// real size, and the configure it sends is what is used.
     pub size: LogicalSize,
-    /// Receives an action from outside the Wayland event loop.
+    /// Requests from outside the Wayland event loop, normally the control
+    /// socket (T012, FR-005).
     ///
-    /// A stand-in for T012's control channel and global shortcut. It exists
-    /// because Hidden withdraws the surface, which takes the keyboard with it:
-    /// without some outside route there would be no way back, and FR-004's
-    /// "hide without clearing" could not be demonstrated at all.
-    pub recovery: Option<Receiver<Action>>,
+    /// Not a convenience. Once PassThrough works, the application underneath
+    /// owns the keyboard and nothing inside our surface can hear the user, so
+    /// an outside route is the only way back. Hidden makes it starker still:
+    /// there is no surface at all.
+    pub control: Option<Receiver<OverlayRequest>>,
 }
 
 /// Runs the overlay until it is asked to quit.
@@ -95,6 +106,9 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
         .map_err(|e| PlatformError::unsupported("xdg_wm_base", e.to_string()))?;
     let shm = Shm::bind(&globals, &qh)
         .map_err(|e| PlatformError::unsupported("wl_shm", e.to_string()))?;
+    // Optional. Without it the surface simply cannot raise itself, which is
+    // reported rather than treated as a failure to start.
+    let activation = ActivationState::bind::<Overlay>(&globals, &qh).ok();
 
     let width = config.size.width().round().max(1.0) as u32;
     let height = config.size.height().round().max(1.0) as u32;
@@ -115,6 +129,7 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
         pool,
         compositor,
         xdg_shell,
+        activation,
         window: None,
         keyboard: None,
         pointer: None,
@@ -155,14 +170,23 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
             overlay.apply(effects);
         }
 
-        if let Some(recovery) = &config.recovery {
-            match recovery.try_recv() {
-                Ok(action) => {
-                    let effects = overlay.controller.act(action);
-                    overlay.apply(effects);
+        if let Some(control) = &config.control {
+            loop {
+                match control.try_recv() {
+                    Ok(OverlayRequest::Act(action)) => {
+                        let effects = overlay.controller.act(action);
+                        overlay.apply(effects);
+                    }
+                    Ok(OverlayRequest::Quit) => {
+                        overlay.quit = true;
+                        break;
+                    }
+                    // Disconnected means the control thread is gone. The
+                    // overlay keeps running on its own keys rather than
+                    // exiting, so losing the socket never strands the user
+                    // with ink they cannot dismiss.
+                    Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
                 }
-                Err(TryRecvError::Empty) => {}
-                Err(TryRecvError::Disconnected) => {}
             }
         }
 
@@ -190,9 +214,9 @@ fn print_controls() {
          \x20 h    hide the ink, keeping it in memory\n\
          \x20 Esc  cancel a stroke, or leave draw mode\n\
          \x20 q    quit\n\n\
-         While hidden the overlay has no keyboard. Press Enter in this terminal\n\
-         to bring it back; that is a stand-in until T012 adds a real control\n\
-         channel and global shortcut.\n"
+         While hidden the overlay has no surface and no keyboard, so nothing you\n\
+         press can reach it. Run `yappyink toggle-draw` from anywhere, or bind\n\
+         that command to a chord in your desktop's keyboard settings.\n"
     );
 }
 
@@ -206,6 +230,7 @@ struct Overlay {
     pool: SlotPool,
     compositor: CompositorState,
     xdg_shell: XdgShell,
+    activation: Option<ActivationState>,
     window: Option<Window>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     pointer: Option<wl_pointer::WlPointer>,
@@ -252,7 +277,7 @@ impl Overlay {
             Mode::Hidden => {
                 self.withdraw();
                 eprintln!(
-                    "[mode] hidden. {} object(s) kept in memory. Press Enter here to show them.",
+                    "[mode] hidden. {} object(s) kept in memory. `yappyink toggle-draw` shows them.",
                     self.document.len()
                 );
             }
@@ -286,6 +311,10 @@ impl Overlay {
                         "pass-through"
                     }
                 );
+
+                if mode == Mode::Draw {
+                    self.request_raise();
+                }
             }
         }
 
@@ -400,6 +429,34 @@ impl Overlay {
         window.commit();
     }
 
+    /// Asks the compositor to raise and focus the surface.
+    ///
+    /// Only on an explicit request to Draw. That distinction is the whole
+    /// argument for doing this at all: `ux-state-machine.md` forbids the ink
+    /// surface *reactivating itself during PassThrough*, because that would
+    /// steal focus back from the application the user just clicked. Raising
+    /// because the user asked to draw is the opposite, and it is what
+    /// `xdg_activation_v1` exists for.
+    ///
+    /// Compositors are entitled to refuse, and Mutter is strict about
+    /// self-activation without a recent input serial. A refusal is not an
+    /// error: it means the user must still apply "Always on Top" themselves
+    /// (E002), which is what they have to do today anyway.
+    fn request_raise(&mut self) {
+        let (Some(activation), Some(window)) = (&self.activation, &self.window) else {
+            return;
+        };
+        activation.request_token::<Overlay, ()>(
+            &self.qh,
+            RequestData {
+                seat_and_serial: None,
+                surface: Some(window.wl_surface().clone()),
+                app_id: Some("dev.yappyink.Overlay".to_owned()),
+                udata: (),
+            },
+        );
+    }
+
     fn queue_handle(&self) -> QueueHandle<Self> {
         self.qh.clone()
     }
@@ -434,6 +491,17 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode) {
     canvas.fill_rect(width - thickness, 0, thickness, height, frame);
 
     canvas.fill_rect(10, 10, 18, 18, badge);
+}
+
+impl ActivationHandler for Overlay {
+    type RequestUdata = ();
+
+    fn new_token(&mut self, token: String, _data: &RequestData<()>) {
+        let (Some(activation), Some(window)) = (&self.activation, &self.window) else {
+            return;
+        };
+        activation.activate::<Overlay>(window.wl_surface(), token);
+    }
 }
 
 impl PointerHandler for Overlay {

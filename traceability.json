@@ -43,7 +43,11 @@
         "FR-005"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "apps/yappyink/src/control.rs"
+      ],
+      "note": "Socket route verified end to end (E005). No shortcut is registered, so conflict feedback is untested."
     },
     {
       "id": "AC-FR-006",
@@ -406,8 +410,9 @@
       "scenarios": [
         "AC-FR-005"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T012: a local Unix-socket control channel gives activation that does not depend on overlay focus. The GlobalShortcuts portal, conflict feedback, and a non-terminal recovery path are not done."
     },
     {
       "requirement": "FR-006",

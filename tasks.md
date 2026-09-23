@@ -132,13 +132,15 @@ Connect the reducer to native adapters, surface ownership, focus/hit-test change
 
 ## T012 [M1]: Implement activation, CLI control, and recovery
 
-Status: not_started. Dependencies: T011.
+Status: in_progress since 2026-09-23. Dependencies: T011.
 
 Requirements: FR-005, FR-020, NFR-005.
 
 Register approved global actions with conflict feedback; add local single-user CLI IPC and settings/launcher recovery. Respect native event-loop ownership.
 
 **Exit criterion:** Activation works while another app is focused; denied/conflicting bindings are visible; no-tray operation and EmergencyHide are demonstrated.
+
+**Progress:** a Unix-domain control socket in `XDG_RUNTIME_DIR`, chmod 0600, with a closed six-verb command set, bounded reads, stale-socket detection, and cleanup on exit. `yappyink toggle-draw` and friends drive a running overlay from any process. The full Draw/PassThrough/Hidden/Draw cycle was verified from a separate process on 2026-09-23; see `docs/evidence/E005-control-channel.md`. The adapter also requests `xdg_activation_v1` when entering Draw, which is untested. **Still required:** the GlobalShortcuts portal, a user-bound desktop chord tried by hand, shortcut conflict feedback, and a non-terminal recovery path.
 
 ## T013 [M1]: Implement the independent compact toolbar
 
