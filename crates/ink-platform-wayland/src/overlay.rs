@@ -22,8 +22,6 @@
 //! layer-shell backend (T006) or a GNOME companion (ADR-002) removes these
 //! limits; nothing in this file can.
 
-use std::sync::mpsc::{Receiver, TryRecvError};
-
 use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId};
 use ink_core::{Document, IdSource, LogicalPoint, LogicalSize, Object, OutputId, Shape, Style};
 use ink_platform::PlatformError;
@@ -31,6 +29,9 @@ use ink_render::{Canvas, Scale};
 use smithay_client_toolkit::activation::{ActivationHandler, ActivationState, RequestData};
 use smithay_client_toolkit::compositor::{CompositorHandler, CompositorState, Region};
 use smithay_client_toolkit::output::{OutputHandler, OutputState};
+use smithay_client_toolkit::reexports::calloop::channel::{Event as ChannelEvent, channel};
+use smithay_client_toolkit::reexports::calloop::{EventLoop, channel as calloop_channel};
+use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers,
@@ -52,15 +53,6 @@ use wayland_client::{Connection, QueueHandle};
 /// The left mouse button, as Wayland reports it.
 const BTN_LEFT: u32 = 0x110;
 
-/// How long the loop waits between polls.
-///
-/// A poll rather than a blocking dispatch, because the recovery channel is not
-/// a Wayland file descriptor and a blocking dispatch would not wake for it.
-/// NFR-002 wants no idle wakeups at all; making this event-driven, with the
-/// recovery channel folded into the event loop, belongs with T012's control
-/// channel and T014's demand-driven redraw.
-const POLL: std::time::Duration = std::time::Duration::from_millis(8);
-
 /// Something asked of the overlay from outside its event loop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OverlayRequest {
@@ -68,6 +60,42 @@ pub enum OverlayRequest {
     Act(Action),
     /// Stop running and withdraw.
     Quit,
+}
+
+/// Sends requests into a running overlay from another thread.
+#[derive(Clone)]
+pub struct ControlSender(calloop_channel::Sender<OverlayRequest>);
+
+/// The overlay is no longer running, so the request went nowhere.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct OverlayStopped;
+
+impl std::fmt::Display for OverlayStopped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("the overlay is no longer running")
+    }
+}
+
+impl std::error::Error for OverlayStopped {}
+
+impl ControlSender {
+    /// Returns [`OverlayStopped`] once the overlay has exited.
+    pub fn send(&self, request: OverlayRequest) -> Result<(), OverlayStopped> {
+        self.0.send(request).map_err(|_| OverlayStopped)
+    }
+}
+
+/// The receiving half, handed to [`OverlayConfig`].
+pub struct ControlChannel(calloop_channel::Channel<OverlayRequest>);
+
+/// Creates a control channel.
+///
+/// A calloop channel rather than `std::sync::mpsc` so it can be a source in
+/// the event loop. That is what lets the loop block until something actually
+/// happens instead of waking up to ask (NFR-002).
+pub fn control_channel() -> (ControlSender, ControlChannel) {
+    let (sender, receiver) = channel();
+    (ControlSender(sender), ControlChannel(receiver))
 }
 
 /// How the overlay is set up for a run.
@@ -84,7 +112,7 @@ pub struct OverlayConfig {
     /// owns the keyboard and nothing inside our surface can hear the user, so
     /// an outside route is the only way back. Hidden makes it starker still:
     /// there is no surface at all.
-    pub control: Option<Receiver<OverlayRequest>>,
+    pub control: Option<ControlChannel>,
 }
 
 /// Runs the overlay until it is asked to quit.
@@ -96,7 +124,7 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
     let conn = Connection::connect_to_env().map_err(|e| {
         PlatformError::disconnected(format!("could not connect to the compositor: {e}"))
     })?;
-    let (globals, mut queue) = registry_queue_init::<Overlay>(&conn)
+    let (globals, queue) = registry_queue_init::<Overlay>(&conn)
         .map_err(|e| PlatformError::disconnected(format!("the registry could not be read: {e}")))?;
     let qh = queue.handle();
 
@@ -154,44 +182,56 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
 
     print_controls();
 
-    while !overlay.quit {
-        std::thread::sleep(POLL);
-        queue.roundtrip(&mut overlay).map_err(|e| {
-            PlatformError::disconnected(format!("the compositor stopped responding: {e}"))
-        })?;
+    // An event loop rather than a poll. NFR-002 asks for no continuous wakeups
+    // when nothing is changing, and the Wayland queue and the control channel
+    // are both sources it can block on, so an idle overlay costs nothing.
+    let mut event_loop: EventLoop<Overlay> = EventLoop::try_new()
+        .map_err(|e| PlatformError::unsupported("event loop", e.to_string()))?;
+    let handle = event_loop.handle();
 
-        // A mode requested last iteration has now been committed and flushed,
-        // so the transition is genuinely complete and can be confirmed.
-        let confirmations = std::mem::take(&mut overlay.pending_confirmations);
-        for transition in confirmations {
-            let effects = overlay
-                .controller
-                .handle(PlatformEvent::ModeApplied { transition });
-            overlay.apply(effects);
-        }
+    WaylandSource::new(conn.clone(), queue)
+        .insert(handle.clone())
+        .map_err(|e| PlatformError::unsupported("wayland event source", e.to_string()))?;
 
-        if let Some(control) = &config.control {
-            loop {
-                match control.try_recv() {
-                    Ok(OverlayRequest::Act(action)) => {
-                        let effects = overlay.controller.act(action);
-                        overlay.apply(effects);
-                    }
-                    Ok(OverlayRequest::Quit) => {
-                        overlay.quit = true;
-                        break;
-                    }
-                    // Disconnected means the control thread is gone. The
-                    // overlay keeps running on its own keys rather than
-                    // exiting, so losing the socket never strands the user
-                    // with ink they cannot dismiss.
-                    Err(TryRecvError::Empty | TryRecvError::Disconnected) => break,
+    if let Some(ControlChannel(receiver)) = config.control {
+        handle
+            .insert_source(receiver, |event, _, overlay: &mut Overlay| match event {
+                ChannelEvent::Msg(OverlayRequest::Act(action)) => {
+                    let effects = overlay.controller.act(action);
+                    overlay.apply(effects);
                 }
+                ChannelEvent::Msg(OverlayRequest::Quit) => overlay.quit = true,
+                // The control thread has gone. The overlay keeps running on
+                // its own keys, so losing the socket never strands the user
+                // with ink they cannot dismiss.
+                ChannelEvent::Closed => {}
+            })
+            .map_err(|e| PlatformError::unsupported("control event source", e.to_string()))?;
+    }
+
+    while !overlay.quit {
+        // `None` means block until something happens. An overlay nobody is
+        // touching does not wake at all.
+        event_loop
+            .dispatch(None, &mut overlay)
+            .map_err(|e| PlatformError::disconnected(format!("the event loop failed: {e}")))?;
+
+        // A mode whose native work was issued during this dispatch has now had
+        // its commit sent, so the transition is genuinely complete.
+        let confirmations = std::mem::take(&mut overlay.pending_confirmations);
+        if !confirmations.is_empty() {
+            conn.flush().ok();
+            for transition in confirmations {
+                let effects = overlay
+                    .controller
+                    .handle(PlatformEvent::ModeApplied { transition });
+                overlay.apply(effects);
             }
         }
 
         if overlay.needs_redraw {
             overlay.draw();
+            conn.flush().ok();
         }
     }
 

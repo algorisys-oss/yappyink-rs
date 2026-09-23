@@ -154,13 +154,15 @@ Wire toolbar actions through AppCommand. Distinguish canvas/toolbar hit testing 
 
 ## T014 [M1]: Implement transparent scene rendering
 
-Status: not_started. Dependencies: T009, T011.
+Status: implemented on 2026-09-23. Dependencies: T009, T011.
 
 Requirements: FR-001, FR-007, NFR-001, NFR-002, NFR-003.
 
 Add the selected compatible renderer, explicit alpha convention, scene caches, and demand-driven redraw.
 
 **Exit criterion:** Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture.
+
+**Evidence:** `docs/evidence/E006-rendering-and-idle.md`. Transparency is pixel-tested. The event loop moved to `calloop` and blocks on its sources: measured 0 CPU ticks over 10 idle seconds with a surface mapped. The highlighter fixture found a real bug, a 50% highlighter rendering at alpha 255, fixed by compositing whole-object coverage once instead of blending sample by sample; separate strokes still accumulate, as FR-007 requires. 12 pixel tests. **Deferred with reasons:** the GPU renderer and geometry caching, because `architecture.md` warns against a second renderer or an optimisation before the first is profiled (T024). NFR-001 latency is unmeasured.
 
 ## T015 [M2]: Add pen and highlighter tools
 

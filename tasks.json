@@ -239,7 +239,7 @@
     {
       "id": "T014",
       "phase": "M1",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T009",
         "T011"
@@ -254,7 +254,8 @@
       "title": "Implement transparent scene rendering",
       "work": "Add the selected compatible renderer, explicit alpha convention, scene caches, and demand-driven redraw.",
       "exit_criterion": "Blank background is genuinely transparent; unchanged scenes do not continuously redraw; highlighter edge behavior has a test fixture.",
-      "note": "A minimal CPU rasteriser landed with T011 so the slice could paint. T014 still owns the real renderer, geometry caches, and demand-driven redraw. The premultiplied-alpha convention is pinned by crates/ink-render/tests/painting.rs."
+      "note": "Software renderer retained deliberately: architecture.md warns against a second renderer before the first is profiled. Geometry caching deferred to T024 for the same reason. NFR-001 latency is unmeasured.",
+      "evidence": "docs/evidence/E006-rendering-and-idle.md; crates/ink-render/tests/painting.rs (12 pixel tests)"
     },
     {
       "id": "T015",

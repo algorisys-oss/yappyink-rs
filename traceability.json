@@ -63,7 +63,11 @@
         "FR-007"
       ],
       "file": "tests/acceptance/drawing.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-render/tests/painting.rs"
+      ],
+      "note": "Whole-stroke opacity has fixtures. The pen and highlighter tools are T015."
     },
     {
       "id": "AC-FR-008",
@@ -267,7 +271,11 @@
         "NFR-002"
       ],
       "file": "tests/acceptance/quality.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "docs/evidence/E006-rendering-and-idle.md"
+      ],
+      "note": "Idle cost measured over 10s in Draw on one machine, debug build. Not the 60s Hidden measurement NFR-002 specifies."
     },
     {
       "id": "AC-NFR-003",
@@ -339,8 +347,9 @@
       "scenarios": [
         "AC-FR-001"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T011/T014: transparency is pixel-tested and observed on GNOME. Live overlay above other applications needs Always on Top there (E002)."
     },
     {
       "requirement": "FR-002",
@@ -438,8 +447,9 @@
       "scenarios": [
         "AC-FR-007"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T014: highlighter opacity applies to the whole stroke, with pixel fixtures. The pen/highlighter tools themselves are T015."
     },
     {
       "requirement": "FR-008",
@@ -759,8 +769,9 @@
       "scenarios": [
         "AC-NFR-002"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T014: the event loop blocks on sources rather than polling. Measured 0 CPU ticks over 10 idle seconds (E006)."
     },
     {
       "requirement": "NFR-003",

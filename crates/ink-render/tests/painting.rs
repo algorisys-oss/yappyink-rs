@@ -226,3 +226,109 @@ fn later_objects_paint_over_earlier_ones() {
         "the later object wins"
     );
 }
+
+// --- FR-007: highlighter opacity applies to the whole stroke ---------------
+
+fn highlighter_style() -> Style {
+    Style::new(
+        Rgb::new(255, 255, 0),
+        Width::new(12.0).unwrap(),
+        Opacity::new(0.5).unwrap(),
+    )
+}
+
+#[test]
+fn a_highlighter_stroke_has_one_alpha_along_its_whole_length() {
+    // The samples of a stroke overlap heavily, so blending them one at a time
+    // makes the stroke darker than the opacity the user chose. FR-007 requires
+    // the opacity to apply to the completed stroke as a whole.
+    let document = document_with(
+        Shape::stroke(
+            StrokeKind::Highlighter,
+            vec![point(10.0, 30.0), point(50.0, 30.0)],
+        )
+        .unwrap(),
+        highlighter_style(),
+    );
+    let mut pixels = vec![0u8; 80 * 60 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 80, 60).unwrap();
+
+    paint(&document, &mut canvas, Scale::ONE);
+
+    // Every painted pixel along the stroke must carry exactly the requested
+    // alpha, not an accumulation of it.
+    for x in 15..45 {
+        let pixel = canvas.pixel(x, 30).expect("inside the canvas");
+        assert_eq!(
+            pixel[3], 128,
+            "at x={x} the alpha is {} rather than 128; the stroke is compositing with itself",
+            pixel[3]
+        );
+    }
+}
+
+#[test]
+fn a_highlighter_stroke_crossing_itself_does_not_darken_at_the_crossing() {
+    // A stroke drawn back over its own path is still one stroke.
+    let document = document_with(
+        Shape::stroke(
+            StrokeKind::Highlighter,
+            vec![
+                point(30.0, 10.0),
+                point(30.0, 50.0),
+                point(10.0, 30.0),
+                point(50.0, 30.0),
+            ],
+        )
+        .unwrap(),
+        highlighter_style(),
+    );
+    let mut pixels = vec![0u8; 80 * 60 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 80, 60).unwrap();
+
+    paint(&document, &mut canvas, Scale::ONE);
+
+    let crossing = canvas.pixel(30, 30).expect("the crossing point");
+    let elsewhere = canvas.pixel(30, 20).expect("a point on one arm only");
+    assert_eq!(
+        crossing, elsewhere,
+        "the crossing is a different colour from the rest of the same stroke"
+    );
+}
+
+#[test]
+fn two_separate_highlighter_strokes_do_accumulate() {
+    // The distinction FR-007 draws: within one stroke, no build-up; between
+    // strokes, build-up is what the user asked for by drawing twice.
+    let output = OutputId::new("test");
+    let mut document = Document::new(output.clone(), LogicalSize::new(100.0, 100.0).unwrap());
+    let mut ids = IdSource::starting_at(1);
+    let shape = Shape::stroke(StrokeKind::Highlighter, vec![point(20.0, 30.0)]).unwrap();
+
+    document
+        .add(Object::new(
+            ids.next_id(),
+            output.clone(),
+            highlighter_style(),
+            shape.clone(),
+        ))
+        .unwrap();
+    document
+        .add(Object::new(
+            ids.next_id(),
+            output,
+            highlighter_style(),
+            shape,
+        ))
+        .unwrap();
+
+    let mut pixels = vec![0u8; 80 * 60 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 80, 60).unwrap();
+    paint(&document, &mut canvas, Scale::ONE);
+
+    let alpha = canvas.pixel(20, 30).unwrap()[3];
+    assert!(
+        alpha > 128,
+        "two passes should be denser than one, got {alpha}"
+    );
+}

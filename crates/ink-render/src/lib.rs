@@ -122,52 +122,231 @@ impl Scale {
     }
 }
 
-/// Paints every object in the document onto the canvas, in document order.
+/// Paints objects, reusing its scratch buffers between frames.
 ///
-/// The canvas is not cleared first: the caller decides whether this is a fresh
-/// frame or a layer over something else.
-pub fn paint(document: &Document, canvas: &mut Canvas, scale: Scale) {
-    for object in document.objects() {
-        paint_object(object, canvas, scale);
+/// Holding this across frames matters: the coverage mask is the size of the
+/// canvas, and allocating it per frame would show up in NFR-001's budget.
+#[derive(Default)]
+pub struct Painter {
+    /// Per-pixel coverage of the object being drawn, 0 to 255.
+    ///
+    /// This is what makes FR-007 work. The samples of a stroke overlap
+    /// heavily, so blending them one at a time makes a 50% highlighter come
+    /// out opaque. Coverage is accumulated for the whole object first and
+    /// composited once, so the opacity the user chose is the opacity they get,
+    /// however many samples the gesture took.
+    coverage: Vec<u8>,
+}
+
+impl Painter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Paints every object in the document, in document order.
+    ///
+    /// The canvas is not cleared first: the caller decides whether this is a
+    /// fresh frame or a layer over something else.
+    pub fn paint(&mut self, document: &Document, canvas: &mut Canvas, scale: Scale) {
+        for object in document.objects() {
+            self.paint_object(object, canvas, scale);
+        }
+    }
+
+    /// Paints one object.
+    ///
+    /// Also used for the transient gesture preview, which is not in the
+    /// document and must not be.
+    pub fn paint_object(&mut self, object: &Object, canvas: &mut Canvas, scale: Scale) {
+        let radius = (object.style().width.get() * scale.get() / 2.0).max(0.5);
+        let Some(rect) = mask_rect(object, canvas, scale, radius) else {
+            return;
+        };
+
+        let needed = canvas.width() as usize * canvas.height() as usize;
+        if self.coverage.len() < needed {
+            self.coverage.resize(needed, 0);
+        }
+        // Only the object's own rectangle is cleared, not the whole buffer, so
+        // a document of many small objects does not cost one full-canvas clear
+        // each.
+        clear_rect(&mut self.coverage, canvas.width(), rect);
+
+        self.mark(object, canvas.width(), rect, scale, radius);
+        composite(
+            &mut self.coverage,
+            canvas,
+            rect,
+            premultiplied(object.style()),
+        );
+    }
+
+    /// Rasterises the object's geometry into the coverage mask.
+    fn mark(&mut self, object: &Object, stride: u32, rect: PixelRect, scale: Scale, radius: f64) {
+        let mut pen = Pen {
+            coverage: &mut self.coverage,
+            stride,
+            rect,
+            radius,
+        };
+        match object.shape() {
+            Shape::Stroke { points, .. } => pen.polyline(points, scale),
+            Shape::Line { from, to } | Shape::Arrow { from, to } => {
+                // The arrowhead is T016's work. Drawing the shaft alone here
+                // would be a silent half-implementation, so an arrow is its
+                // line until T016 adds the head.
+                pen.polyline(&[*from, *to], scale);
+            }
+            Shape::Rectangle { a, b } => {
+                let (x0, y0) = scale.apply(*a);
+                let (x1, y1) = scale.apply(*b);
+                let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)];
+                for pair in corners.windows(2) {
+                    pen.segment(pair[0], pair[1]);
+                }
+            }
+            Shape::Ellipse { a, b } => {
+                let (x0, y0) = scale.apply(*a);
+                let (x1, y1) = scale.apply(*b);
+                let (cx, cy) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+                let (rx, ry) = ((x1 - x0).abs() / 2.0, (y1 - y0).abs() / 2.0);
+                // Enough segments to read as a curve at any size the limits
+                // allow. A proper curve renderer is a T014 follow-up.
+                let steps = 128;
+                let mut previous = (cx + rx, cy);
+                for step in 1..=steps {
+                    let angle = std::f64::consts::TAU * f64::from(step) / f64::from(steps);
+                    let next = (cx + rx * angle.cos(), cy + ry * angle.sin());
+                    pen.segment(previous, next);
+                    previous = next;
+                }
+            }
+        }
     }
 }
 
-/// Paints one object. Used for the transient gesture preview, which is not in
-/// the document yet and must not be.
-pub fn paint_object(object: &Object, canvas: &mut Canvas, scale: Scale) {
-    let colour = premultiplied(object.style());
-    let radius = (object.style().width.get() * scale.get() / 2.0).max(0.5);
+/// Paints a document with a throwaway painter.
+///
+/// Convenient for tests and one-off renders. A caller drawing frames should
+/// keep a [`Painter`] instead.
+pub fn paint(document: &Document, canvas: &mut Canvas, scale: Scale) {
+    Painter::new().paint(document, canvas, scale);
+}
 
-    match object.shape() {
-        Shape::Stroke { points, .. } => paint_polyline(points, canvas, scale, radius, colour),
-        Shape::Line { from, to } | Shape::Arrow { from, to } => {
-            // The arrowhead is T016's work. Painting the shaft alone here would
-            // be a silent half-implementation, so an arrow is drawn as its line
-            // and T016 adds the head.
-            paint_polyline(&[*from, *to], canvas, scale, radius, colour);
+/// Paints one object with a throwaway painter.
+pub fn paint_object(object: &Object, canvas: &mut Canvas, scale: Scale) {
+    Painter::new().paint_object(object, canvas, scale);
+}
+
+/// A rectangle of canvas pixels, `min` inclusive and `max` exclusive.
+#[derive(Clone, Copy, Debug)]
+struct PixelRect {
+    x0: u32,
+    y0: u32,
+    x1: u32,
+    y1: u32,
+}
+
+/// The canvas pixels an object can touch, or `None` if it misses entirely.
+fn mask_rect(object: &Object, canvas: &Canvas, scale: Scale, radius: f64) -> Option<PixelRect> {
+    let bounds = object.bounds();
+    let margin = radius.ceil() + 1.0;
+    let left = bounds.min.x * scale.get() - margin;
+    let top = bounds.min.y * scale.get() - margin;
+    let right = bounds.max.x * scale.get() + margin;
+    let bottom = bounds.max.y * scale.get() + margin;
+
+    if right < 0.0 || bottom < 0.0 {
+        return None;
+    }
+    let x0 = left.max(0.0).floor() as u32;
+    let y0 = top.max(0.0).floor() as u32;
+    let x1 = (right.ceil().max(0.0) as u32 + 1).min(canvas.width());
+    let y1 = (bottom.ceil().max(0.0) as u32 + 1).min(canvas.height());
+    if x0 >= x1 || y0 >= y1 {
+        return None;
+    }
+    Some(PixelRect { x0, y0, x1, y1 })
+}
+
+fn clear_rect(coverage: &mut [u8], stride: u32, rect: PixelRect) {
+    for y in rect.y0..rect.y1 {
+        let row = y as usize * stride as usize;
+        coverage[row + rect.x0 as usize..row + rect.x1 as usize].fill(0);
+    }
+}
+
+/// Blends the colour onto the canvas once, wherever the mask has coverage.
+fn composite(coverage: &mut [u8], canvas: &mut Canvas, rect: PixelRect, colour: [u8; 4]) {
+    for y in rect.y0..rect.y1 {
+        let row = y as usize * canvas.width() as usize;
+        for x in rect.x0..rect.x1 {
+            if coverage[row + x as usize] == 0 {
+                continue;
+            }
+            canvas.blend(i64::from(x), i64::from(y), colour);
         }
-        Shape::Rectangle { a, b } => {
-            let (x0, y0) = scale.apply(*a);
-            let (x1, y1) = scale.apply(*b);
-            let corners = [(x0, y0), (x1, y0), (x1, y1), (x0, y1), (x0, y0)];
-            for pair in corners.windows(2) {
-                paint_segment(pair[0], pair[1], canvas, radius, colour);
+    }
+}
+
+/// Writes coverage for thick geometry.
+///
+/// Deliberately hard-edged: coverage is 0 or 255, so strokes have aliased
+/// edges. Anti-aliasing is a quality improvement that belongs with the real
+/// renderer; getting the compositing model right comes first, because that is
+/// what the document format and FR-007 depend on.
+struct Pen<'a> {
+    coverage: &'a mut [u8],
+    stride: u32,
+    rect: PixelRect,
+    radius: f64,
+}
+
+impl Pen<'_> {
+    fn polyline(&mut self, points: &[LogicalPoint], scale: Scale) {
+        match points {
+            [] => {}
+            // A single sample is a dot, which FR-007 calls a valid gesture.
+            [only] => self.disc(scale.apply(*only)),
+            _ => {
+                for pair in points.windows(2) {
+                    self.segment(scale.apply(pair[0]), scale.apply(pair[1]));
+                }
             }
         }
-        Shape::Ellipse { a, b } => {
-            let (x0, y0) = scale.apply(*a);
-            let (x1, y1) = scale.apply(*b);
-            let (cx, cy) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
-            let (rx, ry) = ((x1 - x0).abs() / 2.0, (y1 - y0).abs() / 2.0);
-            // Enough segments that the outline reads as a curve at any size the
-            // limits allow. A proper curve renderer is T014.
-            let steps = 128;
-            let mut previous = (cx + rx, cy);
-            for step in 1..=steps {
-                let angle = std::f64::consts::TAU * f64::from(step) / f64::from(steps);
-                let next = (cx + rx * angle.cos(), cy + ry * angle.sin());
-                paint_segment(previous, next, canvas, radius, colour);
-                previous = next;
+    }
+
+    fn segment(&mut self, from: (f64, f64), to: (f64, f64)) {
+        let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+        let distance = (dx * dx + dy * dy).sqrt();
+        let steps = distance.ceil().max(1.0) as i64;
+        for step in 0..=steps {
+            let t = step as f64 / steps as f64;
+            self.disc((from.0 + dx * t, from.1 + dy * t));
+        }
+    }
+
+    fn disc(&mut self, centre: (f64, f64)) {
+        let limit = self.radius.ceil() as i64;
+        let (cx, cy) = (centre.0.round() as i64, centre.1.round() as i64);
+        let radius_squared = self.radius * self.radius;
+        for dy in -limit..=limit {
+            for dx in -limit..=limit {
+                if (dx * dx + dy * dy) as f64 > radius_squared {
+                    continue;
+                }
+                let (x, y) = (cx + dx, cy + dy);
+                if x < i64::from(self.rect.x0)
+                    || y < i64::from(self.rect.y0)
+                    || x >= i64::from(self.rect.x1)
+                    || y >= i64::from(self.rect.y1)
+                {
+                    continue;
+                }
+                // Coverage saturates rather than accumulating: overlapping
+                // samples within one object cover the pixel, they do not
+                // darken it.
+                self.coverage[y as usize * self.stride as usize + x as usize] = 255;
             }
         }
     }
@@ -183,61 +362,4 @@ fn premultiplied(style: Style) -> [u8; 4] {
         scale(style.color.r),
         (alpha * 255.0).round().clamp(0.0, 255.0) as u8,
     ]
-}
-
-fn paint_polyline(
-    points: &[LogicalPoint],
-    canvas: &mut Canvas,
-    scale: Scale,
-    radius: f64,
-    colour: [u8; 4],
-) {
-    match points {
-        [] => {}
-        [only] => paint_disc(scale.apply(*only), canvas, radius, colour),
-        _ => {
-            for pair in points.windows(2) {
-                paint_segment(
-                    scale.apply(pair[0]),
-                    scale.apply(pair[1]),
-                    canvas,
-                    radius,
-                    colour,
-                );
-            }
-        }
-    }
-}
-
-/// Draws a thick segment as a chain of discs.
-///
-/// Crude and deliberately so. Stroke tessellation with correct joins and the
-/// highlighter's single-alpha compositing are T014 and T015.
-fn paint_segment(
-    from: (f64, f64),
-    to: (f64, f64),
-    canvas: &mut Canvas,
-    radius: f64,
-    colour: [u8; 4],
-) {
-    let (dx, dy) = (to.0 - from.0, to.1 - from.1);
-    let distance = (dx * dx + dy * dy).sqrt();
-    let steps = distance.ceil().max(1.0) as i64;
-    for step in 0..=steps {
-        let t = step as f64 / steps as f64;
-        paint_disc((from.0 + dx * t, from.1 + dy * t), canvas, radius, colour);
-    }
-}
-
-fn paint_disc(centre: (f64, f64), canvas: &mut Canvas, radius: f64, colour: [u8; 4]) {
-    let limit = radius.ceil() as i64;
-    let (cx, cy) = (centre.0.round() as i64, centre.1.round() as i64);
-    let radius_squared = radius * radius;
-    for dy in -limit..=limit {
-        for dx in -limit..=limit {
-            if (dx * dx + dy * dy) as f64 <= radius_squared {
-                canvas.blend(cx + dx, cy + dy, colour);
-            }
-        }
-    }
 }

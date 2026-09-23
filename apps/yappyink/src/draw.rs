@@ -10,7 +10,7 @@
 use std::sync::mpsc;
 
 use ink_core::{LogicalSize, Opacity, Rgb, Style, Width};
-use ink_platform_wayland::overlay::{OverlayConfig, OverlayRequest};
+use ink_platform_wayland::overlay::{OverlayConfig, OverlayRequest, control_channel};
 
 use crate::control::{self, ControlCommand};
 
@@ -26,7 +26,7 @@ fn default_style() -> Style {
 pub fn run() -> std::process::ExitCode {
     let size = LogicalSize::new(1280.0, 720.0).expect("a positive default size");
 
-    let (sender, receiver) = mpsc::channel();
+    let (sender, receiver) = control_channel();
     let (commands, from_socket) = mpsc::channel::<ControlCommand>();
 
     let socket = match control::serve(commands) {
