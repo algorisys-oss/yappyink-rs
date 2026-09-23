@@ -31,6 +31,8 @@ const GAP: f64 = 4.0;
 const PADDING: f64 = 6.0;
 /// Distance from the surface's top-left corner.
 const ORIGIN: f64 = 10.0;
+/// Width of the grip used to drag the whole overlay.
+const GRIP: f64 = 16.0;
 
 /// What a button does, and how it is drawn.
 ///
@@ -106,7 +108,7 @@ impl Toolbar {
             .iter()
             .enumerate()
             .map(|(index, (icon, action))| {
-                let x = ORIGIN + PADDING + index as f64 * (BUTTON + GAP);
+                let x = ORIGIN + PADDING + GRIP + GAP + index as f64 * (BUTTON + GAP);
                 let y = ORIGIN + PADDING;
                 Button {
                     icon: *icon,
@@ -122,7 +124,7 @@ impl Toolbar {
             })
             .collect();
 
-        let width = entries.len() as f64 * (BUTTON + GAP) - GAP + PADDING * 2.0;
+        let width = GRIP + GAP + entries.len() as f64 * (BUTTON + GAP) - GAP + PADDING * 2.0;
         let bounds = LogicalRect {
             min: LogicalPoint {
                 x: ORIGIN,
@@ -148,6 +150,29 @@ impl Toolbar {
 
     pub fn buttons(&self) -> &[Button] {
         &self.buttons
+    }
+
+    /// The grip that drags the whole overlay.
+    ///
+    /// xdg-shell gives a client no way to place its own window, so the only
+    /// way to move an overlay is to ask the compositor to run the drag
+    /// (E003 finding 4). A grip is that request's handle.
+    pub fn grip(&self) -> LogicalRect {
+        LogicalRect {
+            min: LogicalPoint {
+                x: self.bounds.min.x + PADDING,
+                y: self.bounds.min.y + PADDING,
+            },
+            max: LogicalPoint {
+                x: self.bounds.min.x + PADDING + GRIP,
+                y: self.bounds.max.y - PADDING,
+            },
+        }
+    }
+
+    /// Whether a point is on the grip.
+    pub fn is_grip(&self, at: LogicalPoint) -> bool {
+        contains(self.grip(), at)
     }
 
     /// The whole toolbar's rectangle, including its padding.

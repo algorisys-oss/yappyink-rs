@@ -34,6 +34,7 @@ use smithay_client_toolkit::output::{OutputHandler, OutputState};
 use smithay_client_toolkit::reexports::calloop::channel::{Event as ChannelEvent, channel};
 use smithay_client_toolkit::reexports::calloop::{EventLoop, channel as calloop_channel};
 use smithay_client_toolkit::reexports::calloop_wayland_source::WaylandSource;
+use smithay_client_toolkit::reexports::protocols::xdg::shell::client::xdg_toplevel;
 use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers,
@@ -54,6 +55,13 @@ use wayland_client::{Connection, QueueHandle};
 
 /// The left mouse button, as Wayland reports it.
 const BTN_LEFT: u32 = 0x110;
+
+/// Which interactive operation the compositor is being asked to run.
+#[derive(Clone, Copy, Debug)]
+enum InteractiveGrab {
+    Move,
+    Resize,
+}
 
 /// Something asked of the overlay from outside its event loop.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -161,6 +169,8 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         window: None,
         keyboard: None,
         pointer: None,
+        seat: None,
+        last_press_serial: None,
         width,
         height,
         scale: Scale::ONE,
@@ -282,6 +292,11 @@ struct Overlay {
     window: Option<Window>,
     keyboard: Option<wl_keyboard::WlKeyboard>,
     pointer: Option<wl_pointer::WlPointer>,
+    /// The seat, kept because an interactive move or resize has to name one.
+    seat: Option<wl_seat::WlSeat>,
+    /// The serial of the most recent pointer press. The compositor requires it
+    /// to start a move or resize, and refuses a stale or invented one.
+    last_press_serial: Option<u32>,
     width: u32,
     height: u32,
     scale: Scale,
@@ -347,6 +362,8 @@ impl Overlay {
                     eprintln!("[cancelled] a gesture of {points} sample(s) was discarded");
                     self.needs_redraw = true;
                 }
+                Effect::BeginWindowDrag => self.begin_interactive(InteractiveGrab::Move),
+                Effect::BeginWindowResize => self.begin_interactive(InteractiveGrab::Resize),
                 Effect::Faulted { error } => {
                     eprintln!("[fault {}] {error}", error.class());
                 }
@@ -530,6 +547,9 @@ impl Overlay {
                 self.controller.tool(),
                 self.scale,
             );
+            if let Some(corner) = self.controller.resize_corner() {
+                paint_resize_corner(&mut canvas, corner, self.scale);
+            }
         }
 
         let surface = window.wl_surface();
@@ -567,6 +587,26 @@ impl Overlay {
                 udata: (),
             },
         );
+    }
+
+    /// Hands the pointer to the compositor to run a move or a resize.
+    ///
+    /// A Wayland client cannot place or size its own window, so this is the
+    /// only route (E003 finding 4). The compositor takes the pointer for the
+    /// duration, which is also why the controller leaves no gesture armed.
+    fn begin_interactive(&mut self, grab: InteractiveGrab) {
+        let (Some(window), Some(seat), Some(serial)) =
+            (&self.window, &self.seat, self.last_press_serial)
+        else {
+            eprintln!("[window] no recent press to start a drag from");
+            return;
+        };
+        match grab {
+            InteractiveGrab::Move => window.move_(seat, serial),
+            InteractiveGrab::Resize => {
+                window.resize(seat, serial, xdg_toplevel::ResizeEdge::BottomRight)
+            }
+        }
     }
 
     /// Everything the chrome is drawn from.
@@ -694,6 +734,17 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
     canvas.fill_rect(x0, y0, 1, height, edge);
     canvas.fill_rect(x0 + width - 1, y0, 1, height, edge);
 
+    // The grip: three ridges, the usual shorthand for "drag me".
+    let grip = toolbar.grip();
+    let gx = to_px(grip.min.x);
+    let gy = to_px(grip.min.y);
+    let gh = to_px(grip.max.y) - gy;
+    let gw = to_px(grip.max.x) - gx;
+    for ridge in 0..3 {
+        let x = gx + gw / 2 - 4 + i64::from(ridge) * 4;
+        canvas.fill_rect(x, gy + gh / 4, 2, gh / 2, edge);
+    }
+
     for button in toolbar.buttons() {
         let bx = to_px(button.bounds.min.x);
         let by = to_px(button.bounds.min.y);
@@ -796,6 +847,22 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
     }
 }
 
+/// Draws the resize grab area as a corner of diagonal ridges.
+///
+/// Chrome, like the toolbar: it exists so the grab area can be found, since an
+/// invisible one is indistinguishable from a bug.
+fn paint_resize_corner(canvas: &mut Canvas, corner: ink_core::LogicalRect, scale: Scale) {
+    let ink = [0x90, 0x90, 0x90, 0xB0];
+    let to_px = |value: f64| value * scale.get();
+    let (x1, y1) = (to_px(corner.max.x) - 3.0, to_px(corner.max.y) - 3.0);
+    let size = to_px(corner.max.x - corner.min.x) - 6.0;
+
+    for ridge in 1..=3 {
+        let offset = size * f64::from(ridge) / 3.5;
+        canvas.stroke_path(&[(x1 - offset, y1), (x1, y1 - offset)], 1.6, ink);
+    }
+}
+
 impl PointerHandler for Overlay {
     fn pointer_frame(
         &mut self,
@@ -818,7 +885,10 @@ impl PointerHandler for Overlay {
                 continue;
             };
             match event.kind {
-                PointerEventKind::Press { button, .. } if button == BTN_LEFT => {
+                PointerEventKind::Press { button, serial, .. } if button == BTN_LEFT => {
+                    // Kept for a move or resize, which the compositor will only
+                    // start from a recent, genuine input serial.
+                    self.last_press_serial = Some(serial);
                     produced.push(PlatformEvent::PointerDown { at });
                 }
                 PointerEventKind::Release { button, .. } if button == BTN_LEFT => {
@@ -964,6 +1034,7 @@ impl SeatHandler for Overlay {
         seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
+        self.seat = Some(seat.clone());
         if capability == Capability::Keyboard && self.keyboard.is_none() {
             self.keyboard = self.seat_state.get_keyboard(qh, &seat, None).ok();
         }

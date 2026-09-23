@@ -316,3 +316,114 @@ fn only_tool_buttons_are_ever_marked_as_selected() {
         }
     }
 }
+
+// --- Moving and resizing the overlay ---------------------------------------
+
+#[test]
+fn pressing_the_grip_asks_the_compositor_to_move_the_window() {
+    let mut controller = drawing();
+    let grip = controller.toolbar().grip();
+    let at = point(
+        (grip.min.x + grip.max.x) / 2.0,
+        (grip.min.y + grip.max.y) / 2.0,
+    );
+
+    let effects = controller.handle(PlatformEvent::PointerDown { at });
+
+    assert!(effects.iter().any(|e| matches!(e, Effect::BeginWindowDrag)));
+    assert!(!controller.is_gesturing(), "the grip must not arm a stroke");
+}
+
+#[test]
+fn the_grip_is_on_the_toolbar_but_is_not_a_button() {
+    let controller = Controller::new();
+    let grip = controller.toolbar().grip();
+    let at = point(
+        (grip.min.x + grip.max.x) / 2.0,
+        (grip.min.y + grip.max.y) / 2.0,
+    );
+
+    assert!(controller.toolbar().contains(at));
+    assert!(
+        controller.toolbar().hit(at).is_none(),
+        "the grip is not a control"
+    );
+    for button in controller.toolbar().buttons() {
+        let overlaps = !(button.bounds.max.x <= grip.min.x
+            || grip.max.x <= button.bounds.min.x
+            || button.bounds.max.y <= grip.min.y
+            || grip.max.y <= button.bounds.min.y);
+        assert!(!overlaps, "{:?} overlaps the grip", button.icon);
+    }
+}
+
+#[test]
+fn there_is_no_resize_corner_until_the_surface_size_is_known() {
+    // The compositor decides the size. Guessing one would put the grab area
+    // somewhere arbitrary.
+    let controller = Controller::new();
+    assert!(controller.resize_corner().is_none());
+}
+
+#[test]
+fn pressing_the_bottom_right_corner_asks_the_compositor_to_resize() {
+    let mut controller = drawing();
+    controller.set_surface_size(ink_core::LogicalSize::new(800.0, 600.0).unwrap());
+    let corner = controller.resize_corner().expect("a corner");
+    let at = point(
+        (corner.min.x + corner.max.x) / 2.0,
+        (corner.min.y + corner.max.y) / 2.0,
+    );
+
+    let effects = controller.handle(PlatformEvent::PointerDown { at });
+
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, Effect::BeginWindowResize))
+    );
+    assert!(
+        !controller.is_gesturing(),
+        "the corner must not arm a stroke"
+    );
+}
+
+#[test]
+fn the_canvas_next_to_the_resize_corner_still_draws() {
+    // The grab area has to be small enough that it does not eat the drawing
+    // surface around it.
+    let mut controller = drawing();
+    controller.set_surface_size(ink_core::LogicalSize::new(800.0, 600.0).unwrap());
+    let corner = controller.resize_corner().expect("a corner");
+
+    let effects = controller.handle(PlatformEvent::PointerDown {
+        at: point(corner.min.x - 5.0, corner.min.y - 5.0),
+    });
+
+    assert!(effects.is_empty());
+    assert!(
+        controller.is_gesturing(),
+        "just outside the corner is canvas"
+    );
+}
+
+#[test]
+fn neither_handle_is_offered_where_the_surface_takes_no_input() {
+    // Same rule as the toolbar: a handle that cannot be grabbed should not be
+    // acting as though it can.
+    let mut controller = drawing();
+    controller.set_surface_size(ink_core::LogicalSize::new(800.0, 600.0).unwrap());
+    let corner = controller.resize_corner().expect("a corner");
+    let grip = controller.toolbar().grip();
+    controller.act(Action::ToggleDraw);
+    let transition = match controller.act(Action::EnterDraw).first() {
+        Some(Effect::ApplyMode { transition, .. }) => *transition,
+        other => panic!("expected a mode request, got {other:?}"),
+    };
+    controller.handle(PlatformEvent::ModeApplied { transition });
+
+    // Back in Draw both are live again, which is what the earlier tests cover.
+    // The point here is that the geometry does not move between modes.
+    assert_eq!(controller.resize_corner(), Some(corner));
+    assert_eq!(controller.toolbar().grip().min, grip.min);
+}

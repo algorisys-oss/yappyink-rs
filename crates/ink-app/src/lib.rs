@@ -24,7 +24,8 @@ pub mod toolbar;
 pub use toolbar::{Button, Icon, Toolbar};
 
 use ink_core::{
-    DocumentError, LogicalPoint, Opacity, Rgb, Shape, StrokeKind, Style, Width, limits,
+    DocumentError, LogicalPoint, LogicalRect, LogicalSize, Opacity, Rgb, Shape, StrokeKind, Style,
+    Width, limits,
 };
 use ink_platform::PlatformError;
 
@@ -275,9 +276,25 @@ pub enum Effect {
     Redo,
     /// Remove everything, as one undoable edit.
     Clear,
+    /// Ask the compositor to move the overlay, following the pointer.
+    ///
+    /// The compositor runs the drag; a Wayland client cannot place its own
+    /// window (E003 finding 4). Issued on press, because that is when the
+    /// serial the compositor requires is available and when a drag begins.
+    BeginWindowDrag,
+    /// Ask the compositor to resize the overlay from its bottom-right corner.
+    ///
+    /// Worth having because this backend cannot go fullscreen without losing
+    /// transparency (E002 finding 1), so enlarging the window by hand is the
+    /// only way to annotate more of the screen.
+    BeginWindowResize,
     /// A transition failed. Always preceded by [`Effect::WithdrawImmediately`].
     Faulted { error: PlatformError },
 }
+
+/// Edge length of the resize grab area in the bottom-right corner, in logical
+/// units.
+const RESIZE_CORNER: f64 = 22.0;
 
 /// How far a sample must be from the previous one to be worth keeping, in
 /// logical units.
@@ -286,6 +303,10 @@ pub enum Effect {
 /// a pixel apart. Storing them costs memory and rendering time and changes
 /// nothing a person can see (NFR-003).
 const MIN_SAMPLE_DISTANCE: f64 = 0.5;
+
+fn rect_contains(rect: LogicalRect, at: LogicalPoint) -> bool {
+    at.x >= rect.min.x && at.x <= rect.max.x && at.y >= rect.min.y && at.y <= rect.max.y
+}
 
 /// What the pointer is doing.
 #[derive(Clone, Debug)]
@@ -345,6 +366,9 @@ pub struct Controller {
     button_held: bool,
     faulted: bool,
     toolbar: Toolbar,
+    /// The surface's size in logical units, once the compositor has said.
+    /// Needed to know where the resize corner is.
+    surface: Option<LogicalSize>,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -374,6 +398,7 @@ impl Controller {
             button_held: false,
             faulted: false,
             toolbar: Toolbar::new(),
+            surface: None,
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -397,6 +422,31 @@ impl Controller {
                 opacity: OPACITIES.len() - 1,
             },
         }
+    }
+
+    /// Tells the controller how big the surface is.
+    ///
+    /// The compositor decides the size, so this arrives with every configure.
+    pub fn set_surface_size(&mut self, size: LogicalSize) {
+        self.surface = Some(size);
+    }
+
+    /// The corner that starts a resize, if the surface size is known.
+    pub fn resize_corner(&self) -> Option<LogicalRect> {
+        let size = self.surface?;
+        let grab = RESIZE_CORNER
+            .min(size.width() / 2.0)
+            .min(size.height() / 2.0);
+        Some(LogicalRect {
+            min: LogicalPoint {
+                x: size.width() - grab,
+                y: size.height() - grab,
+            },
+            max: LogicalPoint {
+                x: size.width(),
+                y: size.height(),
+            },
+        })
     }
 
     /// The toolbar, for drawing it and for tests.
@@ -717,6 +767,12 @@ impl Controller {
         // controls, and the gaps between buttons are not holes to draw
         // through.
         if self.toolbar_visible() && self.toolbar.contains(at) {
+            if self.toolbar.is_grip(at) {
+                // The compositor takes the pointer for the duration of the
+                // drag, so nothing here must be left armed.
+                self.gesture = Gesture::IgnoringHeldButton;
+                return vec![Effect::BeginWindowDrag];
+            }
             let icon = self.toolbar.hit(at).map(|button| button.icon);
             self.gesture = match icon {
                 Some(icon) => Gesture::OnToolbar { icon },
@@ -725,6 +781,17 @@ impl Controller {
                 None => Gesture::IgnoringHeldButton,
             };
             return Vec::new();
+        }
+
+        // The resize corner is offered only where the surface takes input,
+        // for the same reason the toolbar is.
+        if self.toolbar_visible()
+            && self
+                .resize_corner()
+                .is_some_and(|corner| rect_contains(corner, at))
+        {
+            self.gesture = Gesture::IgnoringHeldButton;
+            return vec![Effect::BeginWindowResize];
         }
 
         let style = self.style();

@@ -63,6 +63,13 @@ seven tools, undo, redo, clear, and the two ways out. It disappears in
 pass-through, because there the surface takes no pointer input and a button you
 cannot click should not be on screen. The keys below do the same things.
 
+**Drag the ridged grip** at the left of the toolbar to move the overlay, and
+**drag the bottom-right corner** to resize it. Both ask the compositor to run
+the drag, which is the only way a Wayland client can move or size its own
+window. Resizing is worth knowing about: this backend cannot go fullscreen
+without losing transparency, so enlarging the window is how you annotate more
+of the screen.
+
 Keys, while the overlay has focus:
 
 | Key | Does |
