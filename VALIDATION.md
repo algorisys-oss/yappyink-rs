@@ -20,8 +20,10 @@ The actual run output is recorded in `validation-output.txt`. These are document
 
 ## Not implemented or verified
 
-As of 23 September 2026 a minimal Rust workspace and a `doctor` capability probe exist (T001, T002). No native overlay, renderer, shortcut integration, GNOME companion, capture implementation, installer, or executable acceptance-test runner is included. The 36 Gherkin scenarios are requirements examples awaiting step definitions/implementation and native execution.
+As of 23 September 2026 the repository contains a working Rust workspace: the document model, the interaction reducer, a software renderer, a Wayland overlay adapter, and a local control socket (T001, T002, T009, T010, and partially T007, T011, T012). No GNOME companion, capture implementation, installer, or executable acceptance-test runner is included, and there is no X11, Windows, or macOS backend. The 36 Gherkin scenarios are requirements examples awaiting step definitions/implementation and native execution.
 
-No claim is made that Windows, macOS, X11, layer-shell Wayland, or GNOME overlay behavior has been tested for this app: no surface has ever been created. No application performance measurements exist. Every task except T001 and T002 remains not_started, and no scenario has passed.
+No claim is made that Windows, macOS, X11, or layer-shell Wayland behavior has been tested: no surface has ever been created on any of them. GNOME Wayland behavior is recorded in `docs/evidence/`, including what was measured and what was not. No application performance measurements exist. No acceptance scenario has passed; several are partially covered by unit and contract tests, which `traceability.json` records individually.
 
-The underlay HTML page is a manual future test aid, not an implementation of screen annotation. Its existence does not establish any native app capability.
+The underlay HTML page is a manual test aid. Opening it establishes nothing about the application.
+
+Current status per task is in `tasks.md` and `tasks.json`; per requirement and scenario in `traceability.json`; per environment in `docs/evidence/`. Those four are the authority, not this file, which records only the specification kit's own reference checks.

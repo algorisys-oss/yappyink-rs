@@ -1,32 +1,146 @@
-# ScreenInk: specification-driven development kit
+# yappyink
 
-**Working repository name:** ScreenInk. Branding and name availability are not established.
-**Prepared for:** Rajesh Pillai.
-**Date:** 22 September 2026.
-**Status:** implementation specification, not an implemented or tested desktop application.
+Draw on top of your screen while the applications underneath keep working.
 
-## Product goal
+You circle a function in your editor, draw an arrow, and then keep scrolling and
+typing in that editor while your annotations stay on the screen. The ink belongs
+to the screen, not to the document underneath, so it does not scroll with the
+page.
 
-Build a Rust desktop application that lets a presenter draw directly above other applications on Linux, Windows, and macOS, then keep the ink visible while returning control to the underlying application.
+**Status: early. One backend, partly working, on one desktop environment.**
+Nothing here is a release, and the table below is the whole truth about what has
+been demonstrated.
 
-The app must not replace the live desktop with a screenshot as a shortcut to claiming overlay support. A separate freeze feature may be added later.
+Formerly specified under the name *ScreenInk*, which still appears throughout
+the specification documents. Same project.
 
-## Start here
+## What actually works today
 
-Read `constitution.md`, `product-spec.md`, `architecture.md`, and `platform-matrix.md`. Then implement `specs/000-platform-feasibility/` before building the complete tool palette. Follow `tasks.md` in dependency order. Use `AGENTS.md` as the coding-agent contract and `agent-start.md` as the first instruction.
+| Environment | State |
+|---|---|
+| Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
+| Linux, wlroots compositors (layer-shell) | not implemented |
+| Linux, X11 | not implemented |
+| Windows | not implemented, never built there |
+| macOS | not implemented, never built there |
 
-`requirements.json` and `traceability.json` index the requirement-to-task-to-scenario mapping. Gherkin files under `tests/acceptance/` are **scenario specifications, not wired-up tests**. No native application, Rust workspace, installer, backend, or capture integration is supplied in this kit.
+On GNOME specifically, measured rather than assumed
+([evidence](docs/evidence/)):
 
-## Critical decision
+- The overlay is a **floating window**, not a full-screen layer. Making it
+  cover the whole output makes Mutter stop compositing it, and the transparency
+  is lost.
+- It **cannot choose which monitor** it appears on. xdg-shell gives clients no
+  positioning at all.
+- It **cannot raise itself** reliably. You apply *Always on Top* from the window
+  menu (`Alt+Space`) once per launch, or the ink is covered as soon as you click
+  another window.
 
-Linux is not a single overlay platform. X11, layer-shell Wayland, and GNOME Wayland need separate acceptance evidence. Full GNOME parity remains a release gate. A fallback that hides the ink to let the user click does not satisfy visible pass-through.
+None of that is worked around by faking anything. See
+[ADR-002](docs/adr/ADR-002-gnome.md) for why GNOME is a limited preview and what
+a Shell extension would have to do to lift these limits.
 
-The main application and drawing engine are proposed in Rust. A GNOME companion, if the feasibility work selects one, may require a small GJS/JavaScript component. This is a decision to expose, not silently disguise as a pure-Rust standalone solution.
+## Try it
 
-## What is included
+Requires Rust 1.95 and a Wayland session.
 
-A product contract, architecture, platform capability matrix, UX state rules, three detailed feature specs, ADRs, prioritized tasks, acceptance scenarios, traceability metadata, quality/release gates, and source notes.
+```sh
+cargo build --workspace
+./target/debug/yappyink doctor   # what your machine actually offers
+./target/debug/yappyink draw     # run the overlay
+```
 
-## Verification in this kit
+Look for a **thin outlined rectangle with a small square in its corner**. That
+is the overlay; it is transparent everywhere else, so the outline is the only
+way to find it. The corner square is cyan in draw mode and amber in
+pass-through.
 
-`python tools/check_specs.py` checks internal IDs, links, task dependencies, and traceability references. It does not run desktop or Rust tests. `VALIDATION.md` records the exact verification performed on the kit.
+Press `Alt+Space` and choose **Always on Top**, then drag with the left mouse
+button to draw.
+
+Keys, while the overlay has focus: `d` draw, `p` pass through, `h` hide,
+`Esc` cancel a stroke or leave draw mode, `q` quit.
+
+### Reaching it when something else has focus
+
+Once pass-through is working, clicking the window underneath takes the keyboard
+with it, so the overlay cannot hear you. A running overlay listens on a socket:
+
+```sh
+yappyink toggle-draw     # from any terminal, whatever has focus
+yappyink pass-through
+yappyink hide
+yappyink emergency-hide
+yappyink quit
+```
+
+Bind `yappyink toggle-draw` to a chord in **Settings → Keyboard → Custom
+Shortcuts** and it works from anywhere. Wayland gives an ordinary application no
+way to register a global shortcut for itself; the GlobalShortcuts portal is the
+other route and is not implemented yet.
+
+## Not built yet
+
+Undo and redo, the eraser, shapes, a highlighter, a colour or width picker, a
+toolbar, saving to a file, image export, text, and multiple monitors at once.
+There is one pen, in one colour, and nothing is saved when you quit.
+
+Out of scope for a first release entirely: cloud sync, accounts, AI, OCR, video
+recording, and screen capture. Live drawing never reads your screen, and it
+never asks for a screenshot permission. Capture and freeze are a
+[separate, later feature](docs/adr/ADR-003-document-and-capture.md) with their
+own permission contract.
+
+## How this repository is built
+
+Specification first, and evidence before claims. The rules are in
+[constitution.md](constitution.md); the short version is that a task is not done
+because it compiles, a mock is not evidence about a desktop, and a capability
+nobody probed is reported as `unknown` rather than assumed to work.
+
+That is why [docs/evidence/](docs/evidence/) exists. Each file records what was
+run on a real machine, what happened, and what was *not* tested. Failures are
+kept: [E002](docs/evidence/E002-gnome-xdg-shell-experiment.md) is mostly the
+story of a route that did not work, and it is the most useful document here.
+
+```
+crates/ink-core              objects, geometry, documents — no OS, no GPU
+crates/ink-app               modes, transitions, gesture rules — no platform
+crates/ink-render            software rasteriser, pixel-tested headlessly
+crates/ink-platform          typed capability and error contracts
+crates/ink-platform-wayland  the Wayland surface and event loop
+apps/yappyink                the binary: doctor, draw, control commands
+experiments/                 throwaway probes; delete when their ADR closes
+```
+
+The dependency direction is one-way: `ink-core` knows nothing about a window,
+`ink-app` knows nothing about Wayland, and the adapter decides nothing about
+modes or documents. Everything except the adapter is testable without a display,
+which is why most of the test suite runs anywhere.
+
+Specifications: [product-spec.md](product-spec.md) for requirements,
+[architecture.md](architecture.md) for the design,
+[platform-matrix.md](platform-matrix.md) for what each backend must prove,
+[ux-state-machine.md](ux-state-machine.md) for the interaction contract, and
+[tasks.md](tasks.md) for what is done and what is not.
+
+## Checks
+
+```sh
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
+python tools/check_specs.py     # specification cross-references only
+```
+
+The last one validates requirement, task, and scenario references. It does not
+test the application, and it never will.
+
+The Gherkin files under `tests/acceptance/` are **scenario specifications, not
+executable tests**. No scenario has passed. Where a scenario is partly covered
+by real tests, [traceability.json](traceability.json) says which tests and what
+is still missing.
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).
