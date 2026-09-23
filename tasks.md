@@ -226,7 +226,7 @@ Show effective support state, errors, shortcuts, tool preferences, and compatibi
 
 ## T020 [M2]: Implement explicit vector save
 
-Status: not_started. Dependencies: T009, T017.
+Status: implemented on 2026-09-23. Dependencies: T009, T017.
 
 Requirements: FR-015, FR-017, NFR-003.
 
@@ -234,15 +234,19 @@ Serialize the versioned scene and apply bounded, failure-safe same-directory wri
 
 **Exit criterion:** Save/reopen roundtrip works and disk/access/interruption faults preserve the previous valid file.
 
+**Evidence:** `crates/ink-storage/`, 19 tests. The file format lives in its own `wire` types rather than deriving on the domain, so `ink-core` keeps its zero dependencies and the gap between the two is where validation happens. A save writes a temporary file in the destination directory, flushes and syncs it, then renames, so an interrupted save cannot destroy the previous file; failures clean up the temporary. Verified live against a running overlay. **Untested:** Windows replacement semantics, which `specs/003-local-storage` calls out specifically and which no backend exists to exercise.
+
 ## T021 [M2]: Implement validated load and output remapping
 
-Status: not_started. Dependencies: T020.
+Status: implemented on 2026-09-23. Dependencies: T020.
 
 Requirements: FR-015, FR-017.
 
 Stage validation/migration before document replacement; handle missing output bindings explicitly.
 
 **Exit criterion:** Malformed, oversized, nonfinite, or newer-schema inputs leave the current document unchanged.
+
+**Evidence:** the failure half of `crates/ink-storage/tests/roundtrip.rs`. Size is checked against the file's metadata before any parsing, so a hostile file cannot make the parser allocate first. A newer schema gets its own error class, because that is the one failure where the file is probably fine and the application is out of date. Every shape goes through the domain's own constructors, so a file cannot smuggle in a degenerate rectangle or an empty stroke that the application would have refused to create. An unknown shape tag fails to parse rather than being skipped. The loaded document is built whole before the caller adopts it, so a refusal cannot leave a half-loaded state. **Partial:** an output mismatch is reported and the annotations keep their saved coordinates, but there is no remap UI; that needs T019's settings surface.
 
 ## T022 [M2]: Audit permissions, content logging, and network behavior
 

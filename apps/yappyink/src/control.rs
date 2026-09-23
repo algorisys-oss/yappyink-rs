@@ -45,6 +45,10 @@ pub enum ControlCommand {
     Hide,
     /// Withdraw everything at once, cancelling any gesture.
     EmergencyHide,
+    /// Write the document to the session file.
+    Save,
+    /// Replace the document with the session file's contents.
+    Load,
     /// Ask the running overlay to exit.
     Quit,
 }
@@ -58,6 +62,8 @@ impl ControlCommand {
             "pass-through" => Some(Self::PassThrough),
             "hide" => Some(Self::Hide),
             "emergency-hide" => Some(Self::EmergencyHide),
+            "save" => Some(Self::Save),
+            "load" => Some(Self::Load),
             "quit" => Some(Self::Quit),
             _ => None,
         }
@@ -70,6 +76,8 @@ impl ControlCommand {
             Self::PassThrough => "pass-through",
             Self::Hide => "hide",
             Self::EmergencyHide => "emergency-hide",
+            Self::Save => "save",
+            Self::Load => "load",
             Self::Quit => "quit",
         }
     }
@@ -82,18 +90,22 @@ impl ControlCommand {
             Self::PassThrough => Some(Action::ToggleDraw),
             Self::Hide => Some(Action::ToggleVisibility),
             Self::EmergencyHide => Some(Action::EmergencyHide),
+            Self::Save => Some(Action::Save),
+            Self::Load => Some(Action::Load),
             Self::Quit => None,
         }
     }
 
     /// Every verb. Used for help text and to keep the tests exhaustive.
-    pub const fn all() -> [Self; 6] {
+    pub const fn all() -> [Self; 8] {
         [
             Self::ToggleDraw,
             Self::Draw,
             Self::PassThrough,
             Self::Hide,
             Self::EmergencyHide,
+            Self::Save,
+            Self::Load,
             Self::Quit,
         ]
     }

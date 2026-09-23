@@ -96,6 +96,7 @@ Keys, while the overlay has focus:
 | `t` | window menu, where *Always on Top* lives |
 | `Del` | delete what is selected |
 | `u` / `r` | undo / redo |
+| `w` / `o` | write / open the session file |
 | `x` | clear everything |
 | `c` | next colour |
 | `[` / `]` | thinner / thicker |
@@ -139,6 +140,8 @@ yappyink toggle-draw     # from any terminal, whatever has focus
 yappyink pass-through
 yappyink hide
 yappyink emergency-hide
+yappyink save
+yappyink load
 yappyink quit
 ```
 
@@ -147,9 +150,26 @@ Shortcuts** and it works from anywhere. Wayland gives an ordinary application no
 way to register a global shortcut for itself; the GlobalShortcuts portal is the
 other route and is not implemented yet.
 
+## Saving
+
+`w` writes your annotations, `o` reads them back. One file, at
+`$XDG_DATA_HOME/yappyink/session.json` or `~/.local/share/yappyink/session.json`
+— there is no file picker yet, because choosing a path needs the desktop's file
+portal.
+
+The file is plain JSON holding vector objects and styles. **No pixels, ever.**
+Live drawing never reads your screen, so saving annotations needs no screen
+capture permission and cannot contain what was behind them.
+
+A save writes to a temporary file alongside the target and renames it into
+place, so an interrupted save leaves your previous file intact. A load validates
+the whole file into objects before replacing anything: a corrupt, oversized or
+newer-schema file is refused and what is on screen is untouched. Autosave is
+off, and there is no autosave to turn on.
+
 ## Not built yet
 
-Saving to a file, image export, text, and multiple monitors at once. Selection
+A file picker, image export, text, and multiple monitors at once. Selection
 picks objects by their bounding box rather than their exact outline, and there
 is no multi-select and no rotation.
 **Nothing is saved when you quit.**

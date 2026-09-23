@@ -163,7 +163,11 @@
         "FR-015"
       ],
       "file": "tests/acceptance/storage.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-storage/tests/roundtrip.rs"
+      ],
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; there is no Windows backend."
     },
     {
       "id": "AC-FR-016",
@@ -179,7 +183,11 @@
         "FR-017"
       ],
       "file": "tests/acceptance/storage.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-storage/tests/roundtrip.rs"
+      ],
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; there is no Windows backend."
     },
     {
       "id": "AC-FR-018",
@@ -587,8 +595,9 @@
       "scenarios": [
         "AC-FR-015"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T020/T021: versioned JSON, one session file. Loading validates fully before adopting anything, and an output mismatch is reported rather than the annotations being stretched or moved. No file picker yet."
     },
     {
       "requirement": "FR-016",
@@ -615,8 +624,9 @@
       "scenarios": [
         "AC-FR-017"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T020: same-directory temporary file, flushed and synced, then renamed, so a failed save keeps the previous file. Size, schema, coordinates, width, opacity, shape variants and object counts are all validated before replacement."
     },
     {
       "requirement": "FR-018",

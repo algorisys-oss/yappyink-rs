@@ -12,6 +12,7 @@ ink-app.workspace = true
 ink-core.workspace = true
 ink-platform.workspace = true
 ink-render.workspace = true
+ink-storage.workspace = true
 smithay-client-toolkit = "0.21.1"
 # Default features only: this uses the pure-Rust wayland backend, so the probe
 # does not link libwayland-client.so. Pinned by Cargo.lock; see

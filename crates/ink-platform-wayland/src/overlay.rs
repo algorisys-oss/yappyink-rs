@@ -291,6 +291,7 @@ fn print_controls() {
          \x20 8 or s select: click an object, drag to move, corners to resize\n\
          \x20 Del    delete what is selected\n\
          \x20 u / r  undo / redo\n\
+         \x20 w / o  write / open the session file\n\
          \x20 x      clear everything, undoably\n\
          \x20 c      next colour\n\
          \x20 [ / ]  thinner / thicker\n\
@@ -412,6 +413,8 @@ impl Overlay {
                     }
                     Err(error) => eprintln!("[rejected] {error}"),
                 },
+                Effect::Save => self.save_session(),
+                Effect::Load => self.load_session(),
                 Effect::ShowWindowMenu { at } => self.show_window_menu(at),
                 Effect::BeginWindowDrag => self.begin_interactive(InteractiveGrab::Move),
                 Effect::BeginWindowResize => self.begin_interactive(InteractiveGrab::Resize),
@@ -668,6 +671,69 @@ impl Overlay {
                 udata: (),
             },
         );
+    }
+
+    /// Writes the document to the session file.
+    fn save_session(&mut self) {
+        let path = match ink_storage::default_session_path() {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("[save] {error}");
+                return;
+            }
+        };
+        match ink_storage::save(self.session.document(), &path) {
+            Ok(()) => eprintln!(
+                "[save] {} object(s) written to {}",
+                self.session.document().len(),
+                path.display()
+            ),
+            // The previous file is untouched on any failure, which is the
+            // whole point of the atomic write (FR-017).
+            Err(error) => eprintln!("[save {}] {error}", error.class()),
+        }
+    }
+
+    /// Replaces the document with the session file's contents.
+    ///
+    /// A failed load changes nothing: the file is fully validated into domain
+    /// objects before anything is adopted, so there is no half-loaded state to
+    /// recover from.
+    fn load_session(&mut self) {
+        let path = match ink_storage::default_session_path() {
+            Ok(path) => path,
+            Err(error) => {
+                eprintln!("[load] {error}");
+                return;
+            }
+        };
+        let loaded = match ink_storage::load(&path) {
+            Ok(loaded) => loaded,
+            Err(error) => {
+                eprintln!("[load {}] {error}", error.class());
+                eprintln!("[load] what is on screen is unchanged");
+                return;
+            }
+        };
+
+        // FR-015: output bindings are hints. A document saved on another
+        // monitor is reported rather than stretched or moved to fit this one.
+        let current = self.session.document().output().clone();
+        if loaded.saved_output != current && current.as_str() != "pending" {
+            eprintln!(
+                "[load] this was saved on {} and the overlay is on {}. The annotations keep \
+                 their saved coordinates; remapping between outputs is T021's remap UI.",
+                loaded.saved_output, current
+            );
+        }
+
+        let count = loaded.document.len();
+        self.session.adopt(loaded.document);
+        // Past every id in the file, or a new object would collide with a
+        // loaded one and the eraser would take the wrong thing.
+        self.ids = IdSource::starting_at(loaded.next_object_id);
+        self.needs_redraw = true;
+        eprintln!("[load] {count} object(s) from {}", path.display());
     }
 
     /// Opens the compositor's own window menu.
@@ -1218,6 +1284,8 @@ impl KeyboardHandler for Overlay {
             // Single keys rather than Ctrl chords, because modifier tracking
             // is not wired up yet. Local editing shortcuts with the platform's
             // proper modifier belong with the toolbar (T013).
+            Keysym::w | Keysym::W => Some(Action::Save),
+            Keysym::o | Keysym::O => Some(Action::Load),
             Keysym::t | Keysym::T => Some(Action::ShowWindowMenu),
             Keysym::_8 | Keysym::s | Keysym::S => Some(Action::SelectTool(Tool::Select)),
             Keysym::Delete | Keysym::BackSpace => Some(Action::DeleteSelection),

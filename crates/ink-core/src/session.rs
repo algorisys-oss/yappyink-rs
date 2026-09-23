@@ -190,6 +190,17 @@ impl Session {
         self.history.can_redo()
     }
 
+    /// Replaces the document with one that was loaded from a file.
+    ///
+    /// History is discarded rather than kept. `specs/003-local-storage` says a
+    /// load creates a fresh baseline, and it has to: the undo stack refers to
+    /// objects in the document being replaced, so keeping it would let undo
+    /// reinsert something that no longer belongs.
+    pub fn adopt(&mut self, document: Document) {
+        self.document = document;
+        self.history = History::new();
+    }
+
     /// Rebinds to a different output, discarding history.
     ///
     /// Only valid while empty. History refers to objects on the old output, so

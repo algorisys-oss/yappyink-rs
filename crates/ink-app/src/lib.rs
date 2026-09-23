@@ -276,6 +276,10 @@ pub enum Action {
     Clear,
     /// Remove whatever is selected.
     DeleteSelection,
+    /// Write the document to the session file.
+    Save,
+    /// Replace the document with the session file's contents.
+    Load,
     /// Open the compositor's own window menu.
     ///
     /// The only honest route to "Always on Top" from inside the application:
@@ -368,6 +372,11 @@ pub enum Effect {
     },
     /// Delete the selected objects, as one undoable edit.
     DeleteSelection { ids: Vec<ObjectId> },
+    /// Write the document out. The path is the caller's business.
+    Save,
+    /// Read the document back in, replacing what is open. The caller refuses
+    /// the load if the file is bad, so this never damages the open document.
+    Load,
     /// Ask the compositor to show its own window menu at this point.
     ShowWindowMenu { at: LogicalPoint },
     /// Ask the compositor to move the overlay, following the pointer.
@@ -890,6 +899,12 @@ impl Controller {
                 let ids = std::mem::take(&mut self.selection);
                 self.with_gesture_cancelled(Effect::DeleteSelection { ids })
             }
+            // Both cancel a gesture first: writing or replacing the document
+            // half-way through a stroke would save something the user has not
+            // finished, or leave a preview belonging to a document that is
+            // gone.
+            Action::Save => self.with_gesture_cancelled(Effect::Save),
+            Action::Load => self.with_gesture_cancelled(Effect::Load),
             Action::ShowWindowMenu => {
                 // Under the button that asked for it, so the menu appears
                 // where the user is looking.
