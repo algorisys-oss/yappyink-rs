@@ -10,3 +10,11 @@ pub const MAX_OBJECTS_PER_OUTPUT: usize = 10_000;
 
 /// Sampled points a single stroke may hold.
 pub const MAX_STROKE_POINTS: usize = 100_000;
+
+/// Undo transactions kept.
+///
+/// `product-spec.md` proposes 1,000 transactions or a 64 MiB history budget,
+/// whichever comes first, as a defensive default rather than a measured one.
+/// Only the count is enforced today; the byte budget needs a measurement, and
+/// T024 owns it.
+pub const MAX_UNDO_TRANSACTIONS: usize = 1_000;

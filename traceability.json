@@ -89,7 +89,12 @@
         "FR-009"
       ],
       "file": "tests/acceptance/drawing.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-core/tests/history.rs",
+        "crates/ink-app/tests/tools.rs"
+      ],
+      "note": "The spec core sequence in specs/002-drawing-history passes headlessly. Native use has not been observed."
     },
     {
       "id": "AC-FR-010",
@@ -97,7 +102,12 @@
         "FR-010"
       ],
       "file": "tests/acceptance/drawing.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-core/tests/history.rs",
+        "crates/ink-app/tests/tools.rs"
+      ],
+      "note": "The spec core sequence in specs/002-drawing-history passes headlessly. Native use has not been observed."
     },
     {
       "id": "AC-FR-011",
@@ -481,8 +491,9 @@
       "scenarios": [
         "AC-FR-009"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T017: swept-geometry hit testing over segments, not samples, with a tolerance that includes half the object width. Whole objects only. One sweep is one transaction."
     },
     {
       "requirement": "FR-010",
@@ -494,8 +505,9 @@
       "scenarios": [
         "AC-FR-010"
       ],
-      "implementation_status": "not_started",
-      "verification_status": "not_tested"
+      "implementation_status": "in_progress",
+      "verification_status": "not_tested",
+      "notes": "T017: undo, redo and clear over inverse commands that restore position and style exactly. No-ops record nothing; a new edit truncates redo; history is bounded at 1,000 transactions and reports truncation."
     },
     {
       "requirement": "FR-011",

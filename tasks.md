@@ -190,13 +190,15 @@ Implement shared drag lifecycle, preview geometry, explicit degenerate-shape thr
 
 ## T017 [M2]: Implement object erasing and command history
 
-Status: not_started. Dependencies: T015, T016.
+Status: implemented on 2026-09-23. Dependencies: T015, T016.
 
 Requirements: FR-009, FR-010.
 
 Add swept-geometry hit testing, grouped deletion, inverse commands, redo branching, clear, and history budgets.
 
 **Exit criterion:** The drawing-history spec sequence passes headlessly with exact document restoration.
+
+**Evidence:** `crates/ink-core/tests/history.rs::core_test_sequence` is the sequence from `specs/002-drawing-history/spec.md` written out step by step, and it passes. `ink-core` gains `Command`, `History` and `Session`: three commands that are each other's inverses, with `Clear` expressed as a removal of everything so an empty clear is naturally a no-op. Inverses carry whole objects and their positions, so undo restores order and style exactly. Eraser hit testing is segment-to-segment against the object's outline, so a fast sweep cannot skip between samples, and the tolerance includes half the object's width so a thick line is hit where it looks hit. History is bounded at 1,000 transactions and reports when it truncated. **Not observed on screen.** The 64 MiB byte budget from `product-spec.md` is not enforced; T024 owns measuring it.
 
 ## T018 [M2]: Complete selected-output and DPI behavior
 

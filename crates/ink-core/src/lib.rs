@@ -12,17 +12,23 @@
 
 #![forbid(unsafe_code)]
 
+pub mod command;
 pub mod document;
 pub mod error;
 pub mod geometry;
+pub mod history;
 pub mod id;
 pub mod limits;
 pub mod object;
+pub mod session;
 pub mod style;
 
+pub use command::Command;
 pub use document::Document;
 pub use error::DocumentError;
 pub use geometry::{LogicalPoint, LogicalRect, LogicalSize};
+pub use history::History;
 pub use id::{IdSource, ObjectId, OutputId};
 pub use object::{Object, Shape, StrokeKind};
+pub use session::Session;
 pub use style::{Opacity, Rgb, Style, Width};

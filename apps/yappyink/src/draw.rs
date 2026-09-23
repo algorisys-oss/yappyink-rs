@@ -67,8 +67,11 @@ pub fn run() -> std::process::ExitCode {
     }
 
     match result {
-        Ok(document) => {
-            eprintln!("\n[exit] {} object(s) were drawn.", document.len());
+        Ok(session) => {
+            eprintln!(
+                "\n[exit] {} object(s) were on screen.",
+                session.document().len()
+            );
             eprintln!(
                 "[exit] They are not saved: explicit local files are T020, and this build has \
                  nowhere to put them."

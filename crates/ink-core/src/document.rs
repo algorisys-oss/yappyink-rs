@@ -66,6 +66,57 @@ impl Document {
         Ok(id)
     }
 
+    /// Removes the named objects and returns them with the positions they
+    /// occupied, in ascending order.
+    ///
+    /// The positions are what make undo exact: reinserting them in this order
+    /// reproduces the original sequence, so a restored object is painted where
+    /// it was rather than on top (FR-010).
+    pub fn remove_with_positions(&mut self, ids: &[ObjectId]) -> Vec<(usize, Object)> {
+        let mut removed = Vec::new();
+        let mut index = 0;
+        self.objects.retain(|object| {
+            let keep = !ids.contains(&object.id());
+            if !keep {
+                removed.push((index, object.clone()));
+            }
+            index += 1;
+            keep
+        });
+        removed
+    }
+
+    /// Puts objects back at the given positions.
+    ///
+    /// Positions must be ascending, which is how [`Self::remove_with_positions`]
+    /// produces them. A position past the end of the document is refused
+    /// rather than silently appended, because that would mean history and the
+    /// document disagree about what happened.
+    pub fn insert_at(&mut self, objects: Vec<(usize, Object)>) -> Result<(), DocumentError> {
+        if self.objects.len() + objects.len() > limits::MAX_OBJECTS_PER_OUTPUT {
+            return Err(DocumentError::ObjectLimitReached {
+                limit: limits::MAX_OBJECTS_PER_OUTPUT,
+            });
+        }
+        for (index, object) in objects {
+            if object.output() != &self.output {
+                return Err(DocumentError::OutputMismatch {
+                    object: object.id(),
+                    expected: self.output.clone(),
+                    found: object.output().clone(),
+                });
+            }
+            if index > self.objects.len() {
+                return Err(DocumentError::InvalidPosition {
+                    index,
+                    length: self.objects.len(),
+                });
+            }
+            self.objects.insert(index, object);
+        }
+        Ok(())
+    }
+
     /// Removes the named objects and returns them in document order.
     ///
     /// Ids that are not present are ignored. The returned objects are what an

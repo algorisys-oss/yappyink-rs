@@ -109,3 +109,55 @@ impl LogicalRect {
         self.max.y - self.min.y
     }
 }
+
+/// The shortest distance between two line segments.
+///
+/// Used for eraser hit testing. Segment-to-segment rather than point-to-point
+/// because a fast sweep produces widely spaced samples: testing only those
+/// points would let the eraser skip straight over a stroke between two
+/// reports, which `specs/002-drawing-history/spec.md` calls out by name.
+pub fn segment_distance(
+    a0: LogicalPoint,
+    a1: LogicalPoint,
+    b0: LogicalPoint,
+    b1: LogicalPoint,
+) -> f64 {
+    // A crossing means distance zero, and the four endpoint-to-segment
+    // distances below would not find it.
+    if segments_cross(a0, a1, b0, b1) {
+        return 0.0;
+    }
+    let candidates = [
+        point_segment_distance(a0, b0, b1),
+        point_segment_distance(a1, b0, b1),
+        point_segment_distance(b0, a0, a1),
+        point_segment_distance(b1, a0, a1),
+    ];
+    candidates.into_iter().fold(f64::INFINITY, f64::min)
+}
+
+/// The shortest distance from a point to a segment.
+pub fn point_segment_distance(p: LogicalPoint, a: LogicalPoint, b: LogicalPoint) -> f64 {
+    let (dx, dy) = (b.x - a.x, b.y - a.y);
+    let length_squared = dx * dx + dy * dy;
+    if length_squared <= f64::EPSILON {
+        // A degenerate segment is a point, which is what a single-sample
+        // gesture produces.
+        return ((p.x - a.x).powi(2) + (p.y - a.y).powi(2)).sqrt();
+    }
+    let t = (((p.x - a.x) * dx + (p.y - a.y) * dy) / length_squared).clamp(0.0, 1.0);
+    let (cx, cy) = (a.x + t * dx, a.y + t * dy);
+    ((p.x - cx).powi(2) + (p.y - cy).powi(2)).sqrt()
+}
+
+fn orientation(a: LogicalPoint, b: LogicalPoint, c: LogicalPoint) -> f64 {
+    (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+}
+
+fn segments_cross(a0: LogicalPoint, a1: LogicalPoint, b0: LogicalPoint, b1: LogicalPoint) -> bool {
+    let d1 = orientation(a0, a1, b0);
+    let d2 = orientation(a0, a1, b1);
+    let d3 = orientation(b0, b1, a0);
+    let d4 = orientation(b0, b1, a1);
+    ((d1 > 0.0) != (d2 > 0.0)) && ((d3 > 0.0) != (d4 > 0.0))
+}

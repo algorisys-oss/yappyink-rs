@@ -24,6 +24,9 @@ pub enum DocumentError {
     },
     /// The document is full (NFR-003).
     ObjectLimitReached { limit: usize },
+    /// An object was to be restored to a position that does not exist, which
+    /// would mean history and the document disagree about what happened.
+    InvalidPosition { index: usize, length: usize },
 }
 
 impl fmt::Display for DocumentError {
@@ -53,6 +56,10 @@ impl fmt::Display for DocumentError {
                     "this output already holds the maximum of {limit} objects"
                 )
             }
+            Self::InvalidPosition { index, length } => write!(
+                f,
+                "position {index} is past the end of a document of {length} objects"
+            ),
         }
     }
 }

@@ -605,3 +605,164 @@ fn every_tool_reports_a_gesture_in_flight_while_dragging() {
         );
     }
 }
+
+// --- T017: the eraser and history actions ----------------------------------
+
+#[test]
+fn an_eraser_sweep_becomes_one_erase_effect() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Eraser));
+
+    let effects = drag(&mut controller, (10.0, 10.0), (80.0, 60.0));
+
+    let erases: Vec<&Effect> = effects
+        .iter()
+        .filter(|e| matches!(e, Effect::EraseAlong { .. }))
+        .collect();
+    assert_eq!(erases.len(), 1, "one gesture is one transaction");
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, Effect::CommitObject { .. })),
+        "the eraser draws nothing"
+    );
+}
+
+#[test]
+fn the_eraser_keeps_its_whole_path_so_a_fast_sweep_can_be_tested() {
+    // FR-009 and the spec both require swept geometry rather than isolated
+    // samples, which means the path has to survive to the effect.
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Eraser));
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(40.0, 40.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(70.0, 10.0),
+    });
+    let effects = controller.handle(PlatformEvent::PointerUp {
+        at: point(90.0, 50.0),
+    });
+
+    match effects
+        .iter()
+        .find(|e| matches!(e, Effect::EraseAlong { .. }))
+    {
+        Some(Effect::EraseAlong { path, radius }) => {
+            assert_eq!(path.len(), 4, "every corner of the sweep is kept");
+            assert!(*radius > 0.0);
+        }
+        other => panic!("expected an erase, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_eraser_radius_is_half_its_width() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Eraser));
+    let width = controller.style().width.get();
+
+    let effects = drag(&mut controller, (10.0, 10.0), (80.0, 60.0));
+
+    match effects
+        .iter()
+        .find(|e| matches!(e, Effect::EraseAlong { .. }))
+    {
+        Some(Effect::EraseAlong { radius, .. }) => assert_eq!(*radius, width / 2.0),
+        other => panic!("expected an erase, got {other:?}"),
+    }
+}
+
+#[test]
+fn an_eraser_sweep_previews_what_it_is_about_to_take() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Eraser));
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(80.0, 60.0),
+    });
+
+    assert!(matches!(controller.preview(), Some(Preview::Erase { .. })));
+}
+
+#[test]
+fn cancelling_an_eraser_sweep_erases_nothing() {
+    let mut controller = drawing();
+    controller.act(Action::SelectTool(Tool::Eraser));
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(10.0, 10.0),
+    });
+    controller.handle(PlatformEvent::PointerMoved {
+        at: point(80.0, 60.0),
+    });
+
+    let effects = controller.act(Action::Escape);
+
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, Effect::EraseAlong { .. }))
+    );
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, Effect::GestureCancelled { .. }))
+    );
+}
+
+#[test]
+fn history_actions_cancel_a_gesture_before_they_run() {
+    // Undoing mid-stroke would otherwise leave a preview on screen belonging
+    // to a document state that no longer exists.
+    for (action, wanted) in [
+        (Action::Undo, "undo"),
+        (Action::Redo, "redo"),
+        (Action::Clear, "clear"),
+    ] {
+        let mut controller = drawing();
+        controller.handle(PlatformEvent::PointerDown {
+            at: point(10.0, 10.0),
+        });
+        controller.handle(PlatformEvent::PointerMoved {
+            at: point(40.0, 40.0),
+        });
+
+        let effects = controller.act(action);
+
+        assert!(
+            effects
+                .iter()
+                .any(|e| matches!(e, Effect::GestureCancelled { .. })),
+            "{wanted} left a gesture in flight"
+        );
+        assert!(
+            !controller.is_gesturing(),
+            "{wanted} left a gesture in flight"
+        );
+        let asked = effects
+            .iter()
+            .any(|e| matches!(e, Effect::Undo | Effect::Redo | Effect::Clear));
+        assert!(asked, "{wanted} produced no effect: {effects:?}");
+    }
+}
+
+#[test]
+fn the_eraser_has_its_own_width_separate_from_the_pen() {
+    let mut controller = Controller::new();
+    let pen = controller.style().width;
+
+    controller.act(Action::SelectTool(Tool::Eraser));
+    controller.act(Action::AdjustWidth(2));
+    let eraser = controller.style().width;
+
+    controller.act(Action::SelectTool(Tool::Pen));
+    assert_eq!(controller.style().width, pen, "the pen is untouched");
+    assert_ne!(eraser, pen);
+}

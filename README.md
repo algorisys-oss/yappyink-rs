@@ -67,6 +67,9 @@ Keys, while the overlay has focus:
 | `h` | hide the ink, keeping it in memory |
 | `1` / `2` | pen / highlighter |
 | `3` – `6` | line / arrow / rectangle / ellipse |
+| `7` or `e` | eraser |
+| `u` / `r` | undo / redo |
+| `x` | clear everything |
 | `c` | next colour |
 | `[` / `]` | thinner / thicker |
 | `-` / `=` | less / more opaque |
@@ -81,6 +84,12 @@ Shapes are dragged from one corner to the other, and a drag that goes nowhere
 creates nothing rather than an invisible object you could never select or
 erase. Rectangles and ellipses are outlines, not fills, because an annotation
 frames what is underneath rather than hiding it.
+
+The eraser removes whole objects its sweep touches, never parts of them, and
+one sweep is one undoable action however many objects it took. It tests the
+path between pointer samples rather than the samples alone, so a fast flick
+does not skip over a stroke it passed straight through. `x` clears everything
+and `u` brings it all back.
 
 A highlighter's opacity applies to the completed stroke as a whole: scribbling
 back and forth over one spot gives an even wash rather than a dark smear.
@@ -107,9 +116,11 @@ other route and is not implemented yet.
 
 ## Not built yet
 
-Undo and redo, the eraser, a toolbar, saving to a file, image export, text, and
-multiple monitors at once. **Nothing is saved when you quit**, and there is no
-way to remove a stroke short of restarting.
+A toolbar, saving to a file, image export, text, and multiple monitors at once.
+**Nothing is saved when you quit.**
+
+Undo and redo are bound to plain `u` and `r` rather than the usual Ctrl chords,
+because modifier tracking is not wired up yet.
 
 Out of scope for a first release entirely: cloud sync, accounts, AI, OCR, video
 recording, and screen capture. Live drawing never reads your screen, and it

@@ -23,7 +23,7 @@
 //! limits; nothing in this file can.
 
 use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Preview, Tool, TransitionId};
-use ink_core::{Document, IdSource, LogicalPoint, LogicalSize, Object, OutputId, Shape, Style};
+use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
 use smithay_client_toolkit::activation::{ActivationHandler, ActivationState, RequestData};
@@ -118,7 +118,7 @@ pub struct OverlayConfig {
 /// Returns when the user quits or the compositor disconnects. The surface is
 /// withdrawn on every exit path, including the error paths: FR-019 does not
 /// allow a failure to leave an invisible surface intercepting input.
-pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
+pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     let conn = Connection::connect_to_env().map_err(|e| {
         PlatformError::disconnected(format!("could not connect to the compositor: {e}"))
     })?;
@@ -165,7 +165,7 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
         configured: false,
         needs_redraw: false,
         controller: Controller::new(),
-        document: Document::new(output, config.size),
+        session: Session::new(output, config.size),
         ids: IdSource::starting_at(1),
         painter: ink_render::Painter::new(),
         pending_confirmations: Vec::new(),
@@ -236,7 +236,7 @@ pub fn run(config: OverlayConfig) -> Result<Document, PlatformError> {
     // Withdrawal on the way out, not as a side effect of the process dying.
     overlay.withdraw();
     conn.roundtrip().ok();
-    Ok(overlay.document)
+    Ok(overlay.session)
 }
 
 fn print_controls() {
@@ -252,6 +252,9 @@ fn print_controls() {
          \x20 h      hide the ink, keeping it in memory\n\
          \x20 1 / 2  pen / highlighter\n\
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
+         \x20 7 or e eraser: removes whole objects its sweep touches\n\
+         \x20 u / r  undo / redo\n\
+         \x20 x      clear everything, undoably\n\
          \x20 c      next colour\n\
          \x20 [ / ]  thinner / thicker\n\
          \x20 - / =  less / more opaque\n\
@@ -283,7 +286,7 @@ struct Overlay {
     configured: bool,
     needs_redraw: bool,
     controller: Controller,
-    document: Document,
+    session: Session,
     ids: IdSource,
     painter: ink_render::Painter,
     /// Transitions whose native work has been issued and will be confirmed on
@@ -304,6 +307,34 @@ impl Overlay {
                 Effect::ApplyMode { mode, transition } => self.apply_mode(mode, transition),
                 Effect::WithdrawImmediately => self.withdraw(),
                 Effect::CommitObject { shape, style } => self.commit(shape, style),
+                Effect::EraseAlong { path, radius } => {
+                    match self.session.erase_along(&path, radius) {
+                        Ok(0) => eprintln!("[erase] the sweep touched nothing"),
+                        Ok(count) => {
+                            eprintln!("[erase] removed {count} object(s) as one undoable action");
+                            self.needs_redraw = true;
+                        }
+                        Err(error) => eprintln!("[rejected] {error}"),
+                    }
+                }
+                Effect::Undo => match self.session.undo() {
+                    Ok(true) => self.needs_redraw = true,
+                    Ok(false) => eprintln!("[undo] nothing left to undo"),
+                    Err(error) => eprintln!("[rejected] {error}"),
+                },
+                Effect::Redo => match self.session.redo() {
+                    Ok(true) => self.needs_redraw = true,
+                    Ok(false) => eprintln!("[redo] nothing left to redo"),
+                    Err(error) => eprintln!("[rejected] {error}"),
+                },
+                Effect::Clear => match self.session.clear() {
+                    Ok(0) => eprintln!("[clear] there was nothing to clear"),
+                    Ok(count) => {
+                        eprintln!("[clear] removed {count} object(s); undo brings them back");
+                        self.needs_redraw = true;
+                    }
+                    Err(error) => eprintln!("[rejected] {error}"),
+                },
                 Effect::GestureDiscarded { reason } => {
                     // The user finished this gesture and nothing appeared, so
                     // they are told why rather than left guessing (FR-008).
@@ -327,7 +358,7 @@ impl Overlay {
                 self.withdraw();
                 eprintln!(
                     "[mode] hidden. {} object(s) kept in memory. `yappyink toggle-draw` shows them.",
-                    self.document.len()
+                    self.session.document().len()
                 );
             }
             Mode::Draw | Mode::PassThrough => {
@@ -377,11 +408,11 @@ impl Overlay {
     fn commit(&mut self, shape: Shape, style: Style) {
         let object = Object::new(
             self.ids.next_id(),
-            self.document.output().clone(),
+            self.session.document().output().clone(),
             style,
             shape,
         );
-        match self.document.add(object) {
+        match self.session.add(object) {
             Ok(_) => self.needs_redraw = true,
             // A full document or an output mismatch is reported, never
             // swallowed: the user's gesture did not become ink and they need
@@ -444,7 +475,8 @@ impl Overlay {
             return;
         };
         canvas.clear();
-        self.painter.paint(&self.document, &mut canvas, self.scale);
+        self.painter
+            .paint(self.session.document(), &mut canvas, self.scale);
 
         // The gesture in flight is drawn but not in the document, which is the
         // whole point of keeping the preview separate from committed state.
@@ -458,11 +490,24 @@ impl Overlay {
                     .ok()
                     .map(|shape| (shape, style)),
                 Preview::Shape { shape, style } => Some((shape, style)),
+                // The eraser's sweep is drawn as a faint grey trail so the
+                // user can see what it is about to take. It is chrome: never
+                // in the document, and it commits nothing.
+                Preview::Erase { path, radius } => {
+                    Shape::stroke(ink_core::StrokeKind::Pen, path.to_vec())
+                        .ok()
+                        .and_then(|shape| {
+                            let width = ink_core::Width::new(radius * 2.0)?;
+                            let faint = ink_core::Opacity::new(0.35)?;
+                            let grey = ink_core::Rgb::new(200, 200, 200);
+                            Some((shape, Style::new(grey, width, faint)))
+                        })
+                }
             };
             if let Some((shape, style)) = built {
                 let object = Object::new(
                     ink_core::ObjectId::from_raw(u64::MAX),
-                    self.document.output().clone(),
+                    self.session.document().output().clone(),
                     style,
                     shape,
                 );
@@ -577,6 +622,7 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
         Tool::Arrow => 3,
         Tool::Rectangle => 4,
         Tool::Ellipse => 5,
+        Tool::Eraser => 6,
     };
     for pip in 0..pips {
         canvas.fill_rect(80 + i64::from(pip) * 12, 14, 8, 8, ink);
@@ -689,6 +735,13 @@ impl KeyboardHandler for Overlay {
             Keysym::_4 => Some(Action::SelectTool(Tool::Arrow)),
             Keysym::_5 => Some(Action::SelectTool(Tool::Rectangle)),
             Keysym::_6 => Some(Action::SelectTool(Tool::Ellipse)),
+            Keysym::_7 | Keysym::e | Keysym::E => Some(Action::SelectTool(Tool::Eraser)),
+            // Single keys rather than Ctrl chords, because modifier tracking
+            // is not wired up yet. Local editing shortcuts with the platform's
+            // proper modifier belong with the toolbar (T013).
+            Keysym::u | Keysym::U => Some(Action::Undo),
+            Keysym::r | Keysym::R => Some(Action::Redo),
+            Keysym::x | Keysym::X => Some(Action::Clear),
             Keysym::c | Keysym::C => Some(Action::CycleColor),
             Keysym::bracketleft => Some(Action::AdjustWidth(-1)),
             Keysym::bracketright => Some(Action::AdjustWidth(1)),
@@ -831,11 +884,10 @@ impl CompositorHandler for Overlay {
         let Some(name) = self.output_state.info(output).and_then(|info| info.name) else {
             return;
         };
-        if self.document.output().as_str() == name {
+        if self.session.document().output().as_str() == name {
             return;
         }
-        if self.document.is_empty() {
-            self.document = Document::new(OutputId::new(&name), self.document.output_size());
+        if self.session.rebind(OutputId::new(&name)) {
             eprintln!("[output] bound to {name}");
         } else {
             // Rebinding a document that already holds ink would silently move
@@ -843,8 +895,8 @@ impl CompositorHandler for Overlay {
             eprintln!(
                 "[output] now on {name}, but {} object(s) are bound to {}. They stay where they \
                  are; moving a document between outputs is T027.",
-                self.document.len(),
-                self.document.output()
+                self.session.document().len(),
+                self.session.document().output()
             );
         }
     }

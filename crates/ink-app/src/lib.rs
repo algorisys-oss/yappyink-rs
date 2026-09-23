@@ -38,6 +38,12 @@ pub enum Preview<'a> {
     },
     /// Already-built geometry. Cheap, because a shape is two points.
     Shape { shape: Shape, style: Style },
+    /// The path an eraser has swept so far, so the user can see what it is
+    /// about to take.
+    Erase {
+        path: &'a [LogicalPoint],
+        radius: f64,
+    },
 }
 
 /// A drawing tool (FR-007, FR-008).
@@ -54,13 +60,15 @@ pub enum Tool {
     Arrow,
     Rectangle,
     Ellipse,
+    /// Removes whole objects its sweep touches (FR-009).
+    Eraser,
 }
 
 impl Tool {
     /// Whether this tool follows the pointer, rather than being defined by
     /// where a drag started and ended.
     pub fn is_freehand(self) -> bool {
-        matches!(self, Self::Pen | Self::Highlighter)
+        matches!(self, Self::Pen | Self::Highlighter | Self::Eraser)
     }
 
     /// How a stroke drawn with this tool is stored, for the freehand tools.
@@ -84,7 +92,7 @@ impl Tool {
             Self::Rectangle => Shape::rectangle(from, to),
             Self::Ellipse => Shape::ellipse(from, to),
             // A freehand tool is not defined by its endpoints.
-            Self::Pen | Self::Highlighter => Err(DocumentError::EmptyStroke),
+            Self::Pen | Self::Highlighter | Self::Eraser => Err(DocumentError::EmptyStroke),
         }
     }
 }
@@ -187,6 +195,12 @@ pub enum Action {
     AdjustWidth(i32),
     /// Step the current tool's opacity up or down the table.
     AdjustOpacity(i32),
+    /// Undo the last committed edit.
+    Undo,
+    /// Redo the last undone edit.
+    Redo,
+    /// Remove every object on the active output, as one undoable edit.
+    Clear,
 }
 
 /// Something that happened outside the controller.
@@ -244,6 +258,19 @@ pub enum Effect {
     /// went nowhere. Distinct from a cancellation: the user completed this
     /// one, so they may need telling why nothing appeared (FR-008).
     GestureDiscarded { reason: DocumentError },
+    /// An eraser sweep finished. The session resolves which objects it
+    /// touched, because that needs the document, and one gesture becomes one
+    /// undoable transaction however many objects it removed (FR-009).
+    EraseAlong {
+        path: Vec<LogicalPoint>,
+        radius: f64,
+    },
+    /// Undo the last committed edit.
+    Undo,
+    /// Redo the last undone edit.
+    Redo,
+    /// Remove everything, as one undoable edit.
+    Clear,
     /// A transition failed. Always preceded by [`Effect::WithdrawImmediately`].
     Faulted { error: PlatformError },
 }
@@ -267,6 +294,12 @@ enum Gesture {
         points: Vec<LogicalPoint>,
         kind: StrokeKind,
         style: Style,
+    },
+    /// An eraser sweep. The path is kept so that the segments between samples
+    /// can be tested, not only the samples themselves.
+    Sweeping {
+        path: Vec<LogicalPoint>,
+        radius: f64,
     },
     /// A shape being dragged out. Only the two endpoints matter, so a long
     /// drag costs nothing to keep.
@@ -309,6 +342,8 @@ pub struct Controller {
     /// switching between a rectangle and an arrow should not change the
     /// colour under the user.
     shape: ToolState,
+    /// Only the width is meaningful: an eraser has no colour of its own.
+    eraser: ToolState,
 }
 
 impl Default for Controller {
@@ -345,6 +380,11 @@ impl Controller {
                 width: 2,
                 opacity: OPACITIES.len() - 1,
             },
+            eraser: ToolState {
+                colour: 0,
+                width: 4,
+                opacity: OPACITIES.len() - 1,
+            },
         }
     }
 
@@ -362,6 +402,7 @@ impl Controller {
         match self.tool {
             Tool::Pen => &self.pen,
             Tool::Highlighter => &self.highlighter,
+            Tool::Eraser => &self.eraser,
             _ => &self.shape,
         }
     }
@@ -370,6 +411,7 @@ impl Controller {
         match self.tool {
             Tool::Pen => &mut self.pen,
             Tool::Highlighter => &mut self.highlighter,
+            Tool::Eraser => &mut self.eraser,
             _ => &mut self.shape,
         }
     }
@@ -425,6 +467,10 @@ impl Controller {
                 points,
                 kind: *kind,
                 style: *style,
+            }),
+            Gesture::Sweeping { path, radius } => Some(Preview::Erase {
+                path,
+                radius: *radius,
             }),
             Gesture::Dragging {
                 tool,
@@ -489,6 +535,12 @@ impl Controller {
                 self.tool_state_mut().opacity = ToolState::step(current, steps, OPACITIES.len());
                 Vec::new()
             }
+            // History actions cancel a gesture in flight first. Undoing while
+            // half-way through a stroke would otherwise leave a preview on
+            // screen belonging to a document state that no longer exists.
+            Action::Undo => self.with_gesture_cancelled(Effect::Undo),
+            Action::Redo => self.with_gesture_cancelled(Effect::Redo),
+            Action::Clear => self.with_gesture_cancelled(Effect::Clear),
         }
     }
 
@@ -509,6 +561,13 @@ impl Controller {
     }
 
     // --- mode changes ------------------------------------------------------
+
+    /// Emits an effect, cancelling any gesture in flight first.
+    fn with_gesture_cancelled(&mut self, effect: Effect) -> Vec<Effect> {
+        let mut effects: Vec<Effect> = self.cancel_gesture().into_iter().collect();
+        effects.push(effect);
+        effects
+    }
 
     /// Requests a mode, cancelling any gesture in flight.
     ///
@@ -633,19 +692,27 @@ impl Controller {
             return Vec::new();
         }
         let style = self.style();
-        self.gesture = match self.tool.stroke_kind() {
-            Some(kind) => Gesture::Drawing {
-                points: vec![at],
-                kind,
-                style,
+        self.gesture = match self.tool {
+            // The eraser's width is the diameter of what it takes, so the
+            // radius is half of it, matching what the user sees.
+            Tool::Eraser => Gesture::Sweeping {
+                path: vec![at],
+                radius: style.width.get() / 2.0,
             },
-            // A shape is defined by where the drag started and where it ends,
-            // so the samples in between are not kept at all.
-            None => Gesture::Dragging {
-                tool: self.tool,
-                from: at,
-                to: at,
-                style,
+            tool => match tool.stroke_kind() {
+                Some(kind) => Gesture::Drawing {
+                    points: vec![at],
+                    kind,
+                    style,
+                },
+                // A shape is defined by where the drag started and where it
+                // ends, so the samples in between are not kept at all.
+                None => Gesture::Dragging {
+                    tool,
+                    from: at,
+                    to: at,
+                    style,
+                },
             },
         };
         Vec::new()
@@ -654,6 +721,18 @@ impl Controller {
     fn pointer_moved(&mut self, at: LogicalPoint) -> Vec<Effect> {
         if let Gesture::Dragging { to, .. } = &mut self.gesture {
             *to = at;
+            return Vec::new();
+        }
+        if let Gesture::Sweeping { path, .. } = &mut self.gesture {
+            // Bounded and thinned like a stroke: the sweep is geometry too.
+            if path.len() < limits::MAX_STROKE_POINTS
+                && path.last().is_none_or(|last| {
+                    (at.x - last.x).abs() >= MIN_SAMPLE_DISTANCE
+                        || (at.y - last.y).abs() >= MIN_SAMPLE_DISTANCE
+                })
+            {
+                path.push(at);
+            }
             return Vec::new();
         }
         let Gesture::Drawing { points, .. } = &mut self.gesture else {
@@ -715,6 +794,15 @@ impl Controller {
                     Err(reason) => vec![Effect::GestureDiscarded { reason }],
                 }
             }
+            Gesture::Sweeping { mut path, radius } => {
+                if path.last().is_none_or(|last| {
+                    (at.x - last.x).abs() >= MIN_SAMPLE_DISTANCE
+                        || (at.y - last.y).abs() >= MIN_SAMPLE_DISTANCE
+                }) {
+                    path.push(at);
+                }
+                vec![Effect::EraseAlong { path, radius }]
+            }
             // The release that ends an ignored drag. Nothing is committed, and
             // the next press starts clean.
             Gesture::IgnoringHeldButton | Gesture::Idle => Vec::new(),
@@ -728,6 +816,7 @@ impl Controller {
                 points: points.len(),
             }),
             Gesture::Dragging { .. } => Some(Effect::GestureCancelled { points: 2 }),
+            Gesture::Sweeping { path, .. } => Some(Effect::GestureCancelled { points: path.len() }),
             Gesture::IgnoringHeldButton | Gesture::Idle => None,
         }
     }

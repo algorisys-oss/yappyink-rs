@@ -294,7 +294,7 @@
     {
       "id": "T017",
       "phase": "M2",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T015",
         "T016"
@@ -305,7 +305,9 @@
       ],
       "title": "Implement object erasing and command history",
       "work": "Add swept-geometry hit testing, grouped deletion, inverse commands, redo branching, clear, and history budgets.",
-      "exit_criterion": "The drawing-history spec sequence passes headlessly with exact document restoration."
+      "exit_criterion": "The drawing-history spec sequence passes headlessly with exact document restoration.",
+      "evidence": "crates/ink-core/tests/history.rs (12 tests, including the spec core sequence verbatim); crates/ink-app/tests/tools.rs",
+      "remaining": "Not observed on screen. The 64 MiB history byte budget is not enforced; only the 1,000-transaction count is (T024)."
     },
     {
       "id": "T018",
