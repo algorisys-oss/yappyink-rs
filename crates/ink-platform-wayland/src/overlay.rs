@@ -71,8 +71,56 @@ struct VisualState {
     gesturing: bool,
     hovered: Option<Icon>,
     picker_open: bool,
+    /// The caret hint follows the pointer, so its position is part of what is
+    /// drawn.
+    caret_hint: Option<ink_core::LogicalPoint>,
     selection: Vec<ink_core::ObjectId>,
     selection_drag: Option<ink_app::SelectionDrag>,
+}
+
+/// Picks a cursor theme that actually has cursors in it.
+///
+/// `XCURSOR_THEME` first, as the user's explicit choice. Otherwise the
+/// candidates below, each checked for a real `cursors` directory rather than
+/// trusted by name. That check is the point: on Ubuntu the theme called
+/// "default" is an `index.theme` containing nothing but `Inherits=`, with no
+/// cursors of its own, so asking for it by name yields nothing and the cursor
+/// silently never changes.
+fn cursor_theme() -> (String, u32) {
+    let size = std::env::var("XCURSOR_SIZE")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(24);
+
+    let roots: Vec<std::path::PathBuf> = [
+        std::env::var_os("XDG_DATA_HOME").map(std::path::PathBuf::from),
+        std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".icons")),
+        Some(std::path::PathBuf::from("/usr/share/icons")),
+        Some(std::path::PathBuf::from("/usr/local/share/icons")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+
+    let has_cursors = |name: &str| {
+        roots
+            .iter()
+            .any(|root| root.join(name).join("cursors").is_dir())
+    };
+
+    if let Ok(chosen) = std::env::var("XCURSOR_THEME")
+        && has_cursors(&chosen)
+    {
+        return (chosen, size);
+    }
+    for candidate in ["Yaru", "Adwaita", "breeze_cursors", "DMZ-White", "default"] {
+        if has_cursors(candidate) {
+            return (candidate.to_owned(), size);
+        }
+    }
+    // Nothing found. Named anyway, so the failure is reported by set_cursor
+    // rather than guessed at here.
+    ("default".to_owned(), size)
 }
 
 /// Which interactive operation the compositor is being asked to run.
@@ -192,6 +240,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         seat: None,
         themed_pointer: None,
         cursor: None,
+        cursor_failures: std::collections::HashSet::new(),
         last_pointer: None,
         last_press_serial: None,
         width,
@@ -357,6 +406,8 @@ struct Overlay {
     themed_pointer: Option<ThemedPointer>,
     /// The cursor currently applied, so it is only set when it changes.
     cursor: Option<CursorIcon>,
+    /// Cursors that could not be set, so each is complained about once.
+    cursor_failures: std::collections::HashSet<CursorIcon>,
     /// Where the pointer was last seen, in logical units.
     ///
     /// Kept because the right cursor depends on the tool as well as the
@@ -579,8 +630,23 @@ impl Overlay {
         let Some(themed) = &self.themed_pointer else {
             return;
         };
-        if themed.set_cursor(conn, icon).is_ok() {
-            self.cursor = Some(icon);
+        match themed.set_cursor(conn, icon) {
+            Ok(()) => {
+                // Logged on every change. They are rare, only happening when
+                // the pointer crosses between chrome and canvas or the tool
+                // changes, and without them a cursor that never updates and
+                // one that updates to the wrong thing look identical.
+                eprintln!("[cursor] {icon:?}");
+                self.cursor = Some(icon);
+            }
+            Err(error) => {
+                // Reported once per icon rather than on every motion event.
+                // Swallowing it entirely is what let a missing cursor theme
+                // look like a bug in this application for two rounds.
+                if self.cursor_failures.insert(icon) {
+                    eprintln!("[cursor] {icon:?} could not be set: {error}");
+                }
+            }
         }
     }
 
@@ -749,6 +815,8 @@ impl Overlay {
             self.controller.style(),
             self.controller.tool(),
         );
+        paint_caret_hint(&mut canvas, &self.controller, self.last_pointer, self.scale);
+
         paint_selection(
             &mut canvas,
             &self.controller,
@@ -943,6 +1011,9 @@ impl Overlay {
             gesturing: self.controller.is_gesturing(),
             hovered: self.controller.hovered_button().map(|button| button.icon),
             picker_open: self.controller.picker_open(),
+            caret_hint: (self.controller.tool() == Tool::Text)
+                .then_some(self.last_pointer)
+                .flatten(),
             selection: self.controller.selection().to_vec(),
             selection_drag: self.controller.selection_drag(),
         }
@@ -1337,6 +1408,71 @@ fn paint_toolbar(
     }
 }
 
+/// Draws a caret where a text click would land.
+///
+/// The system cursor already becomes an I-beam over the canvas, but only once
+/// the pointer has moved: selecting the text tool and clicking straight away
+/// gives the compositor no motion event to hang a new cursor on, so that first
+/// click happens under the old pointer. This is drawn by us, from state we
+/// already have, so it is correct the moment the tool changes.
+///
+/// It is also a better answer to the question than a cursor is. An I-beam says
+/// "text goes somewhere near here"; a caret at the exact height of the text
+/// says where the line will sit.
+fn paint_caret_hint(
+    canvas: &mut Canvas,
+    controller: &Controller,
+    pointer: Option<ink_core::LogicalPoint>,
+    scale: Scale,
+) {
+    // Only while the tool is armed and nothing is being typed yet: once an
+    // editor is open its own caret is in the preview, and two would be one too
+    // many.
+    if controller.tool() != Tool::Text
+        || controller.is_editing_text()
+        || !Toolbar::canvas_is_interactive(controller.mode())
+    {
+        return;
+    }
+    let Some(at) = pointer else { return };
+    // Not over the chrome: the caret would be promising text where a button is.
+    if controller.toolbar().contains(at)
+        || controller.swatches().iter().any(|(_, _, rect)| {
+            at.x >= rect.min.x && at.x <= rect.max.x && at.y >= rect.min.y && at.y <= rect.max.y
+        })
+    {
+        return;
+    }
+
+    let style = controller.style();
+    let alpha = 0.6;
+    let channel = |value: u8| (f64::from(value) * alpha).round() as u8;
+    let ink = [
+        channel(style.color.b),
+        channel(style.color.g),
+        channel(style.color.r),
+        (alpha * 255.0).round() as u8,
+    ];
+
+    // The height a line of text would occupy, so the caret shows the size as
+    // well as the position.
+    let height = style.width.get() * 2.5 * scale.get();
+    let x = (at.x * scale.get()).round() as i64;
+    let y = (at.y * scale.get()).round() as i64;
+    let thickness = (scale.get().round() as i64).max(1);
+    let serif = (height / 6.0).round() as i64;
+
+    canvas.fill_rect(x, y, thickness, height.round() as i64, ink);
+    canvas.fill_rect(x - serif, y, serif * 2 + thickness, thickness, ink);
+    canvas.fill_rect(
+        x - serif,
+        y + height.round() as i64 - thickness,
+        serif * 2 + thickness,
+        thickness,
+        ink,
+    );
+}
+
 /// Draws the colour swatch row, when it is open.
 ///
 /// Chrome. The row sits under the colour button, and the current colour gets a
@@ -1463,7 +1599,18 @@ impl PointerHandler for Overlay {
             // What the pointer should look like here. Recomputed per event
             // rather than per frame so that entering the surface, moving over
             // the toolbar, and moving back onto the canvas all update it.
+            // Compared before the position is overwritten: the caret hint
+            // follows the pointer, and the redraw check later in this function
+            // runs after `last_pointer` has already moved, so it would see no
+            // change. This is the same trap as the other repaint bugs, one
+            // level further in.
+            let hint_moved = self.controller.tool() == Tool::Text
+                && Toolbar::canvas_is_interactive(self.controller.mode())
+                && self.last_pointer != Some(at);
             self.last_pointer = Some(at);
+            if hint_moved {
+                self.needs_redraw = true;
+            }
             wanted_cursor = Some(self.controller.cursor_at(at));
 
             match event.kind {
@@ -1660,12 +1807,14 @@ impl SeatHandler for Overlay {
             // cannot set a cursor and the overlay would keep showing whatever
             // the last window chose.
             let surface = self.compositor.create_surface(qh);
+            let (theme, size) = cursor_theme();
+            eprintln!("[cursor] theme {theme:?} at size {size}");
             match self.seat_state.get_pointer_with_theme::<_, ()>(
                 qh,
                 &seat,
                 self.shm.wl_shm(),
                 surface,
-                ThemeSpec::default(),
+                ThemeSpec::Named { name: &theme, size },
             ) {
                 Ok(themed) => {
                     self.pointer = Some(themed.pointer().clone());

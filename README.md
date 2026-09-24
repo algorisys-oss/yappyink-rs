@@ -75,7 +75,8 @@ The pointer tells you what a click will do: an I-beam for text, a crosshair for
 the drawing tools, an arrow over the toolbar and in pass-through, and move or
 resize cursors over the grip and the corner.
 
-With the **text** tool, click to place a caret and type. `Esc` discards what
+With the **text** tool, a caret follows the pointer showing exactly where the
+line will sit and how tall it will be. Click to place it and type. `Esc` discards what
 you typed, clicking elsewhere keeps it and starts a new one, and picking
 another tool keeps it too. Text moves and resizes with the select tool like any
 other object. It is **Latin only** for now: there is no input-method support,
