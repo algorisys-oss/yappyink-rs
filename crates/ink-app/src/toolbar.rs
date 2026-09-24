@@ -56,6 +56,10 @@ pub enum Icon {
     Clear,
     PassThrough,
     Hide,
+    /// Shrinks the overlay to just this toolbar, and back.
+    Park,
+    /// Leaves the application.
+    Quit,
 }
 
 /// One control.
@@ -88,7 +92,9 @@ impl Button {
             Icon::Redo => "REDO (R)",
             Icon::Clear => "CLEAR ALL (X)",
             Icon::PassThrough => "PASS THROUGH (P)",
+            Icon::Park => "SHRINK TO TOOLBAR (G)",
             Icon::Hide => "HIDE (H)",
+            Icon::Quit => "SAVE AND QUIT (Q)",
         }
     }
 
@@ -133,7 +139,9 @@ impl Toolbar {
             (Icon::Clear, Action::Clear),
             (Icon::WindowMenu, Action::ShowWindowMenu),
             (Icon::PassThrough, Action::ToggleDraw),
+            (Icon::Park, Action::TogglePark),
             (Icon::Hide, Action::ToggleVisibility),
+            (Icon::Quit, Action::Quit),
         ];
 
         let buttons: Vec<Button> = entries
@@ -173,10 +181,35 @@ impl Toolbar {
 
     /// Whether the toolbar is offered in this mode.
     ///
-    /// Draw only. In PassThrough the surface accepts no pointer input, so
-    /// showing controls there would be showing something that cannot be
-    /// clicked, which is the specific thing FR-006 forbids.
+    /// Draw and PassThrough, not Hidden.
+    ///
+    /// It used to be Draw only, because PassThrough gave the surface an empty
+    /// input region and a control that cannot be clicked is the specific thing
+    /// FR-006 forbids. The fix was not to keep hiding it but to make the claim
+    /// true: in PassThrough the input region is now the toolbar's own
+    /// rectangle rather than nothing, so the buttons really are clickable and
+    /// everything else really does pass through.
+    ///
+    /// `ux-state-machine.md` anticipated this: "The independent toolbar may
+    /// later be user-pinned in PassThrough. That feature must specify that the
+    /// toolbar rectangle is interactive while the canvas is not."
     pub fn is_visible(mode: Mode) -> bool {
+        matches!(mode, Mode::Draw | Mode::PassThrough | Mode::Parked)
+    }
+
+    /// Whether the document's ink is drawn in this mode.
+    ///
+    /// Parked shrinks the surface to the toolbar, so there is nowhere to draw
+    /// it. The document is kept, exactly as in Hidden.
+    pub fn ink_is_visible(mode: Mode) -> bool {
+        matches!(mode, Mode::Draw | Mode::PassThrough)
+    }
+
+    /// Whether the canvas takes pointer input in this mode.
+    ///
+    /// The other half of the same rule. In PassThrough the toolbar is live and
+    /// the canvas is not, so a press outside the toolbar is not ours at all.
+    pub fn canvas_is_interactive(mode: Mode) -> bool {
         mode == Mode::Draw
     }
 

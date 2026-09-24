@@ -231,6 +231,16 @@ pub enum Mode {
     /// Ink stays visible; pointer, wheel, and keyboard belong to the
     /// applications underneath (FR-003).
     PassThrough,
+    /// The overlay shrinks to just its toolbar. Ink is not shown and the
+    /// document is kept, as in Hidden, but the controls stay reachable.
+    ///
+    /// A fourth stable mode, which `ux-state-machine.md` did not have. It
+    /// earns its place for a reason that is not cosmetic: a transparent window
+    /// covering an entire output, kept above everything, can stop the
+    /// compositor unredirecting a fullscreen application underneath, which
+    /// costs that application performance. Shrinking to the toolbar gives the
+    /// screen back without losing the session or the controls.
+    Parked,
 }
 
 /// Identifies one attempt to change mode.
@@ -287,6 +297,10 @@ pub enum Action {
     /// client ask for the menu where the user can. It is the compositor's
     /// menu, not an imitation of one.
     ShowWindowMenu,
+    /// Leave the application, saving first.
+    Quit,
+    /// Shrink to the toolbar, or come back from it.
+    TogglePark,
 }
 
 /// Something that happened outside the controller.
@@ -377,6 +391,8 @@ pub enum Effect {
     /// Read the document back in, replacing what is open. The caller refuses
     /// the load if the file is bad, so this never damages the open document.
     Load,
+    /// Leave. The caller saves before it goes.
+    Quit,
     /// Ask the compositor to show its own window menu at this point.
     ShowWindowMenu { at: LogicalPoint },
     /// Ask the compositor to move the overlay, following the pointer.
@@ -850,11 +866,17 @@ impl Controller {
             Action::EnterDraw => self.request(Mode::Draw),
             Action::ToggleDraw => match self.desired {
                 Mode::Draw => self.request(Mode::PassThrough),
-                Mode::Hidden | Mode::PassThrough => self.request(Mode::Draw),
+                Mode::Hidden | Mode::PassThrough | Mode::Parked => self.request(Mode::Draw),
             },
             Action::ToggleVisibility => match self.desired {
                 Mode::Hidden => self.request(Mode::PassThrough),
-                Mode::Draw | Mode::PassThrough => self.request(Mode::Hidden),
+                Mode::Draw | Mode::PassThrough | Mode::Parked => self.request(Mode::Hidden),
+            },
+            // Parked and back. Returning goes to Draw, because the reason to
+            // come back is to draw; PassThrough is one more key away.
+            Action::TogglePark => match self.desired {
+                Mode::Parked => self.request(Mode::Draw),
+                _ => self.request(Mode::Parked),
             },
             // Tool changes never touch a gesture in flight. The stroke keeps
             // the tool and style it was started with, so a setting changed
@@ -903,6 +925,13 @@ impl Controller {
             // half-way through a stroke would save something the user has not
             // finished, or leave a preview belonging to a document that is
             // gone.
+            // Saves on the way out, because the button sits next to Hide and
+            // PassThrough and a misclick should not cost a session's work.
+            Action::Quit => {
+                let mut effects = self.with_gesture_cancelled(Effect::Save);
+                effects.push(Effect::Quit);
+                effects
+            }
             Action::Save => self.with_gesture_cancelled(Effect::Save),
             Action::Load => self.with_gesture_cancelled(Effect::Load),
             Action::ShowWindowMenu => {
@@ -1076,10 +1105,9 @@ impl Controller {
     fn pointer_down(&mut self, at: LogicalPoint) -> Vec<Effect> {
         self.button_held = true;
 
-        if self.effective != Mode::Draw || self.is_transitioning() {
-            // Not ours to draw with. In PassThrough we should not be receiving
-            // this at all, and mid-transition we refuse to start something the
-            // next state would have to throw away.
+        if self.is_transitioning() {
+            // Mid-transition we refuse to start anything the next state would
+            // have to throw away.
             return Vec::new();
         }
         if matches!(self.gesture, Gesture::IgnoringHeldButton) {
@@ -1090,7 +1118,9 @@ impl Controller {
         // FR-006: a press on the toolbar belongs to the toolbar. This is
         // checked before anything else, so no tool can ever draw over its own
         // controls, and the gaps between buttons are not holes to draw
-        // through.
+        // through. It is also checked before the canvas test below, because in
+        // PassThrough the toolbar is the only part of the surface that is
+        // ours.
         if self.toolbar_visible() && self.toolbar.contains(at) {
             if self.toolbar.is_grip(at) {
                 // The compositor takes the pointer for the duration of the
@@ -1152,6 +1182,13 @@ impl Controller {
                     self.gesture = Gesture::Idle;
                 }
             }
+            return Vec::new();
+        }
+
+        // In PassThrough the canvas belongs to whatever is underneath. A
+        // pointer event out here should not reach us at all, and if one does
+        // it must not become ink.
+        if !Toolbar::canvas_is_interactive(self.effective) {
             return Vec::new();
         }
 

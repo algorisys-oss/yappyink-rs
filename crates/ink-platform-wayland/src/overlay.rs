@@ -174,6 +174,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
 
     let mut overlay = Overlay {
         qh: qh.clone(),
+        restore_size: None,
         registry_state: RegistryState::new(&globals),
         output_state: OutputState::new(&globals, &qh),
         seat_state: SeatState::new(&globals, &qh),
@@ -285,6 +286,7 @@ fn print_controls() {
          \x20 d      draw\n\
          \x20 p      pass through: ink stays, input goes to what is underneath\n\
          \x20 h      hide the ink, keeping it in memory\n\
+         \x20 g      shrink to just the toolbar, and back\n\
          \x20 1 / 2  pen / highlighter\n\
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 7 or e eraser: removes whole objects its sweep touches\n\
@@ -307,6 +309,8 @@ fn print_controls() {
 struct Overlay {
     /// Kept so the surface can be recreated after Hidden withdrew it.
     qh: QueueHandle<Overlay>,
+    /// The size to go back to when leaving Parked.
+    restore_size: Option<(u32, u32)>,
     registry_state: RegistryState,
     output_state: OutputState,
     seat_state: SeatState,
@@ -413,6 +417,7 @@ impl Overlay {
                     }
                     Err(error) => eprintln!("[rejected] {error}"),
                 },
+                Effect::Quit => self.quit = true,
                 Effect::Save => self.save_session(),
                 Effect::Load => self.load_session(),
                 Effect::ShowWindowMenu { at } => self.show_window_menu(at),
@@ -434,7 +439,7 @@ impl Overlay {
                     self.session.document().len()
                 );
             }
-            Mode::Draw | Mode::PassThrough => {
+            Mode::Draw | Mode::PassThrough | Mode::Parked => {
                 self.ensure_window();
                 let Some(window) = &self.window else { return };
                 match mode {
@@ -446,22 +451,59 @@ impl Overlay {
                         let Ok(region) = Region::new(&self.compositor) else {
                             return;
                         };
-                        // A region with no rectangles is empty, so the
-                        // compositor delivers pointer input to whatever is
-                        // underneath. Nothing is forwarded or synthesised.
+                        // The toolbar's rectangle, and nothing else. Everywhere
+                        // outside it the compositor delivers pointer input to
+                        // whatever is underneath; nothing is forwarded or
+                        // synthesised. This is what makes the pinned toolbar
+                        // honest rather than a picture of buttons: the pixels
+                        // that look clickable are the pixels we asked for.
+                        let bounds = self.controller.toolbar().bounds();
+                        let scale = self.scale.get();
+                        let to_px = |v: f64| (v * scale).round() as i32;
+                        region.add(
+                            to_px(bounds.min.x),
+                            to_px(bounds.min.y),
+                            to_px(bounds.max.x) - to_px(bounds.min.x),
+                            to_px(bounds.max.y) - to_px(bounds.min.y),
+                        );
                         window
                             .wl_surface()
                             .set_input_region(Some(region.wl_region()));
                     }
                 }
+                // Parked pins the surface to the toolbar's size. Min and max
+                // together are the protocol's way of saying "exactly this",
+                // and they are cleared on the way out or the window would stay
+                // small for ever.
+                if mode == Mode::Parked {
+                    let bounds = self.controller.toolbar().bounds();
+                    let scale = self.scale.get();
+                    let size = (
+                        ((bounds.max.x - bounds.min.x + bounds.min.x * 2.0) * scale).round() as u32,
+                        ((bounds.max.y - bounds.min.y + bounds.min.y * 2.0) * scale).round() as u32,
+                    );
+                    if self.restore_size.is_none() {
+                        self.restore_size = Some((self.width, self.height));
+                    }
+                    window.set_min_size(Some(size));
+                    window.set_max_size(Some(size));
+                    self.width = size.0;
+                    self.height = size.1;
+                } else if let Some((width, height)) = self.restore_size.take() {
+                    window.set_min_size(None);
+                    window.set_max_size(None);
+                    self.width = width;
+                    self.height = height;
+                }
+
                 window.commit();
                 self.needs_redraw = true;
                 eprintln!(
                     "[mode] {}",
-                    if mode == Mode::Draw {
-                        "draw"
-                    } else {
-                        "pass-through"
+                    match mode {
+                        Mode::Draw => "draw",
+                        Mode::PassThrough => "pass-through",
+                        _ => "parked, showing only the toolbar",
                     }
                 );
 
@@ -562,8 +604,10 @@ impl Overlay {
             return;
         };
         canvas.clear();
-        self.painter
-            .paint(self.session.document(), &mut canvas, self.scale);
+        if Toolbar::ink_is_visible(self.controller.mode()) {
+            self.painter
+                .paint(self.session.document(), &mut canvas, self.scale);
+        }
 
         // The gesture in flight is drawn but not in the document, which is the
         // whole point of keeping the preview separate from committed state.
@@ -826,6 +870,9 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
         Mode::Draw => [0x30, 0x30, 0x00, 0x30],
         // Amber: your pointer belongs to whatever is underneath.
         Mode::PassThrough => [0x00, 0x20, 0x30, 0x30],
+        // Parked is nothing but toolbar, so a frame around the whole surface
+        // would just be a second border around it.
+        Mode::Parked => return,
         // Unreachable while a frame is being painted: Hidden has no surface.
         Mode::Hidden => return,
     };
@@ -841,7 +888,7 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
     let mode_colour = match mode {
         Mode::Draw => [0xC0, 0xC0, 0x00, 0xC0],
         Mode::PassThrough => [0x00, 0x80, 0xC0, 0xC0],
-        Mode::Hidden => return,
+        Mode::Parked | Mode::Hidden => return,
     };
     canvas.fill_rect(10, 10, 18, 18, mode_colour);
 
@@ -1029,6 +1076,18 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
         };
 
         match button.icon {
+            // A box with an arrow pointing into it.
+            Icon::Park => {
+                draw(&[(0.0, 0.55), (0.0, 1.0), (1.0, 1.0), (1.0, 0.55)]);
+                draw(&[(0.5, 0.0), (0.5, 0.62)]);
+                draw(&[(0.28, 0.4), (0.5, 0.62), (0.72, 0.4)]);
+            }
+            // A door with an arrow leaving through it.
+            Icon::Quit => {
+                draw(&[(0.55, 0.0), (0.0, 0.0), (0.0, 1.0), (0.55, 1.0)]);
+                draw(&[(0.35, 0.5), (1.0, 0.5)]);
+                draw(&[(0.75, 0.28), (1.0, 0.5), (0.75, 0.72)]);
+            }
             // A window with a pin through it.
             Icon::WindowMenu => {
                 draw(&[
@@ -1284,6 +1343,7 @@ impl KeyboardHandler for Overlay {
             // Single keys rather than Ctrl chords, because modifier tracking
             // is not wired up yet. Local editing shortcuts with the platform's
             // proper modifier belong with the toolbar (T013).
+            Keysym::g | Keysym::G => Some(Action::TogglePark),
             Keysym::w | Keysym::W => Some(Action::Save),
             Keysym::o | Keysym::O => Some(Action::Load),
             Keysym::t | Keysym::T => Some(Action::ShowWindowMenu),

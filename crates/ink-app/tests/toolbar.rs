@@ -215,10 +215,75 @@ fn the_history_buttons_ask_for_the_same_effects_as_the_keys() {
 #[test]
 fn the_toolbar_is_offered_only_where_it_can_be_clicked() {
     // FR-006 forbids a control that looks interactive on a surface that takes
-    // no input. PassThrough takes none, and Hidden has no surface.
+    // no input. The toolbar is now pinned in PassThrough, and it is honest
+    // there because the input region is the toolbar's own rectangle: the
+    // buttons really are clickable. Hidden has no surface at all.
     assert!(Toolbar::is_visible(Mode::Draw));
-    assert!(!Toolbar::is_visible(Mode::PassThrough));
+    assert!(Toolbar::is_visible(Mode::PassThrough));
     assert!(!Toolbar::is_visible(Mode::Hidden));
+}
+
+#[test]
+fn the_canvas_is_live_only_in_draw() {
+    // The other half of the pinned toolbar: in PassThrough the toolbar is
+    // ours and the canvas is not.
+    assert!(Toolbar::canvas_is_interactive(Mode::Draw));
+    assert!(!Toolbar::canvas_is_interactive(Mode::PassThrough));
+    assert!(!Toolbar::canvas_is_interactive(Mode::Hidden));
+}
+
+#[test]
+fn the_toolbar_still_works_in_passthrough() {
+    // The point of pinning it: switching tools and undoing without having to
+    // leave PassThrough, which today means reaching for a terminal because the
+    // application underneath has the keyboard.
+    let mut controller = drawing();
+    controller.act(Action::ToggleDraw);
+    let transition = match controller.act(Action::ToggleDraw).first() {
+        Some(Effect::ApplyMode { transition, .. }) => *transition,
+        _ => panic!("expected a mode request"),
+    };
+    controller.handle(PlatformEvent::ModeApplied { transition });
+    // Two toggles from Draw land back in Draw, so go to PassThrough once more.
+    let transition = match controller.act(Action::ToggleDraw).first() {
+        Some(Effect::ApplyMode { transition, .. }) => *transition,
+        _ => panic!("expected a mode request"),
+    };
+    controller.handle(PlatformEvent::ModeApplied { transition });
+    assert_eq!(controller.mode(), Mode::PassThrough);
+
+    let undo = controller
+        .toolbar()
+        .buttons()
+        .iter()
+        .position(|b| b.action == Action::Undo)
+        .expect("an undo button");
+    let at = button_centre(&controller, undo);
+    controller.handle(PlatformEvent::PointerDown { at });
+    let effects = controller.handle(PlatformEvent::PointerUp { at });
+
+    assert!(effects.iter().any(|e| matches!(e, Effect::Undo)));
+}
+
+#[test]
+fn the_canvas_draws_nothing_in_passthrough() {
+    let mut controller = drawing();
+    let transition = match controller.act(Action::ToggleDraw).first() {
+        Some(Effect::ApplyMode { transition, .. }) => *transition,
+        _ => panic!("expected a mode request"),
+    };
+    controller.handle(PlatformEvent::ModeApplied { transition });
+    assert_eq!(controller.mode(), Mode::PassThrough);
+
+    controller.handle(PlatformEvent::PointerDown { at: on_canvas() });
+    let effects = controller.handle(PlatformEvent::PointerUp { at: on_canvas() });
+
+    assert!(!controller.is_gesturing());
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
+    );
 }
 
 #[test]
@@ -529,4 +594,104 @@ fn the_window_menu_opens_under_the_button_that_asked_for_it() {
         }
         other => panic!("expected a menu request, got {other:?}"),
     }
+}
+
+// --- Parked: shrink to the toolbar -----------------------------------------
+
+fn settle(controller: &mut Controller, action: Action) {
+    let effects = controller.act(action);
+    if let Some(Effect::ApplyMode { transition, .. }) = effects
+        .iter()
+        .find(|e| matches!(e, Effect::ApplyMode { .. }))
+    {
+        let transition = *transition;
+        controller.handle(PlatformEvent::ModeApplied { transition });
+    }
+}
+
+#[test]
+fn parking_keeps_the_toolbar_and_drops_the_ink() {
+    let mut controller = drawing();
+
+    settle(&mut controller, Action::TogglePark);
+
+    assert_eq!(controller.mode(), Mode::Parked);
+    assert!(
+        Toolbar::is_visible(Mode::Parked),
+        "the controls stay reachable"
+    );
+    assert!(
+        !Toolbar::ink_is_visible(Mode::Parked),
+        "there is nowhere to draw it"
+    );
+    assert!(!Toolbar::canvas_is_interactive(Mode::Parked));
+}
+
+#[test]
+fn coming_back_from_parked_goes_to_draw() {
+    // The reason to come back is to draw. PassThrough is one more press away.
+    let mut controller = drawing();
+    settle(&mut controller, Action::TogglePark);
+
+    settle(&mut controller, Action::TogglePark);
+
+    assert_eq!(controller.mode(), Mode::Draw);
+}
+
+#[test]
+fn the_toolbar_still_works_while_parked() {
+    let mut controller = drawing();
+    settle(&mut controller, Action::TogglePark);
+
+    let undo = controller
+        .toolbar()
+        .buttons()
+        .iter()
+        .position(|b| b.action == Action::Undo)
+        .expect("an undo button");
+    let at = button_centre(&controller, undo);
+    controller.handle(PlatformEvent::PointerDown { at });
+    let effects = controller.handle(PlatformEvent::PointerUp { at });
+
+    assert!(effects.iter().any(|e| matches!(e, Effect::Undo)));
+}
+
+#[test]
+fn parking_does_not_touch_the_document() {
+    // Same promise as Hidden: the annotations are still there when you come
+    // back, they are simply not on screen.
+    let mut controller = drawing();
+    controller.handle(PlatformEvent::PointerDown { at: on_canvas() });
+    let committed = controller.handle(PlatformEvent::PointerUp { at: on_canvas() });
+    assert!(
+        committed
+            .iter()
+            .any(|e| matches!(e, Effect::CommitObject { .. }))
+    );
+
+    let effects = controller.act(Action::TogglePark);
+
+    assert!(
+        !effects
+            .iter()
+            .any(|e| matches!(e, Effect::Clear | Effect::DeleteSelection { .. })),
+        "parking removed something: {effects:?}"
+    );
+}
+
+#[test]
+fn quitting_saves_first() {
+    // The quit button sits beside hide and pass-through. A misclick should not
+    // cost a session's work.
+    let mut controller = drawing();
+
+    let effects = controller.act(Action::Quit);
+
+    let save = effects.iter().position(|e| matches!(e, Effect::Save));
+    let quit = effects.iter().position(|e| matches!(e, Effect::Quit));
+    assert!(
+        save.is_some() && quit.is_some(),
+        "expected both: {effects:?}"
+    );
+    assert!(save < quit, "the save must be ordered before the exit");
 }
