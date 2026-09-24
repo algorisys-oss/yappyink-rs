@@ -192,6 +192,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         seat: None,
         themed_pointer: None,
         cursor: None,
+        last_pointer: None,
         last_press_serial: None,
         width,
         height,
@@ -273,6 +274,15 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             }
         }
 
+        // The cursor depends on the tool and the mode, both of which change
+        // without the pointer moving. Re-evaluated every iteration from the
+        // last known position; `apply_cursor` does nothing when it is already
+        // right, so this costs a comparison.
+        if let Some(at) = overlay.last_pointer {
+            let wanted = overlay.controller.cursor_at(at);
+            overlay.apply_cursor(wanted, &conn);
+        }
+
         if overlay.needs_redraw {
             // The scene summary is cheap and the document may have changed in
             // any of a dozen ways this iteration. Recomputing it here once is
@@ -347,6 +357,14 @@ struct Overlay {
     themed_pointer: Option<ThemedPointer>,
     /// The cursor currently applied, so it is only set when it changes.
     cursor: Option<CursorIcon>,
+    /// Where the pointer was last seen, in logical units.
+    ///
+    /// Kept because the right cursor depends on the tool as well as the
+    /// position, and the tool changes without the pointer moving: a key press
+    /// or a toolbar click leaves it exactly where it was. Without this the
+    /// cursor stays stale until the next motion, so selecting the text tool
+    /// and clicking straight away showed the old pointer for that first click.
+    last_pointer: Option<LogicalPoint>,
     /// The serial of the most recent pointer press. The compositor requires it
     /// to start a move or resize, and refuses a stale or invented one.
     last_press_serial: Option<u32>,
@@ -1445,6 +1463,7 @@ impl PointerHandler for Overlay {
             // What the pointer should look like here. Recomputed per event
             // rather than per frame so that entering the surface, moving over
             // the toolbar, and moving back onto the canvas all update it.
+            self.last_pointer = Some(at);
             wanted_cursor = Some(self.controller.cursor_at(at));
 
             match event.kind {
@@ -1461,6 +1480,7 @@ impl PointerHandler for Overlay {
                     produced.push(PlatformEvent::PointerMoved { at });
                 }
                 PointerEventKind::Leave { .. } => {
+                    self.last_pointer = None;
                     produced.push(PlatformEvent::PointerCancelled);
                 }
                 _ => {}

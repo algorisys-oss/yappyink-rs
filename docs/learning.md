@@ -201,6 +201,28 @@ try harder. Section 1's fix was a struct the compiler forces you to fill in;
 this one is a validator that fails. Both replace an intention with something
 mechanical, which is the only kind of fix that survives being tired.
 
+## 12. The fifth repaint bug, wearing a cursor
+
+**What happened.** The cursor was computed only inside the pointer-event
+handler. Changing tool by pressing a key or clicking a toolbar button does not
+move the pointer, so no pointer event arrived and the cursor stayed as it was.
+Selecting the text tool and clicking straight away showed the old pointer for
+that first click.
+
+**Why it is the same bug as section 1.** Both are "the state changed and the
+screen did not", and both came from attaching an update to the wrong trigger.
+Section 1's fix was to compare a snapshot of everything drawn; this is the same
+shape of mistake in a thing that is *not* drawn by us, so the snapshot did not
+cover it.
+
+**What changed.** The last pointer position is kept, and the cursor is
+re-evaluated every loop iteration rather than only on pointer events. Applying
+it is a no-op when it has not changed, so the cost is a comparison.
+
+**The general lesson.** "Recompute it every iteration and make the write cheap"
+beats "work out exactly when it can change" for anything small enough to afford
+it. The clever version is what produced five bugs.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.
