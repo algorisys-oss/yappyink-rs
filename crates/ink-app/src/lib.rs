@@ -175,7 +175,7 @@ impl Tool {
 /// A starting set, not a designed one. Real colour configuration is T019, and
 /// a picker belongs on the toolbar (T013). These are chosen to stay legible
 /// over both dark and light windows.
-const PALETTE: [Rgb; 6] = [
+pub const PALETTE: [Rgb; 6] = [
     Rgb::new(255, 0, 255),
     Rgb::new(255, 64, 64),
     Rgb::new(255, 208, 0),
@@ -301,6 +301,10 @@ pub enum Action {
     Quit,
     /// Shrink to the toolbar, or come back from it.
     TogglePark,
+    /// Show or hide the row of colour swatches.
+    ToggleColorPicker,
+    /// Choose a palette entry by position. Out-of-range values are ignored.
+    PickColor(usize),
 }
 
 /// Something that happened outside the controller.
@@ -508,6 +512,9 @@ enum Gesture {
     /// button is meant to behave and also why a drag starting on the toolbar
     /// cannot leave ink (FR-006).
     OnToolbar { icon: crate::toolbar::Icon },
+    /// The pointer went down on a colour swatch. Acts on release, like a
+    /// toolbar button.
+    OnSwatch { index: usize },
     /// A button was already down when Draw became effective. Everything from
     /// it is ignored until it is released, so a drag begun in another mode
     /// cannot turn into ink (`ux-state-machine.md`, "Pointer sequence safety").
@@ -548,6 +555,8 @@ pub struct Controller {
     selection: Vec<ObjectId>,
     /// The button the pointer is resting on, for the tooltip.
     hovered: Option<crate::toolbar::Icon>,
+    /// Whether the swatch row is showing.
+    picker_open: bool,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -581,6 +590,7 @@ impl Controller {
             scene: Vec::new(),
             selection: Vec::new(),
             hovered: None,
+            picker_open: false,
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -729,6 +739,39 @@ impl Controller {
         })
     }
 
+    /// Whether the swatch row is showing.
+    pub fn picker_open(&self) -> bool {
+        self.picker_open
+    }
+
+    /// The swatches and where they are, empty when the picker is closed.
+    pub fn swatches(&self) -> Vec<(usize, Rgb, LogicalRect)> {
+        if !self.picker_open {
+            return Vec::new();
+        }
+        self.toolbar.swatches()
+    }
+
+    /// Everything the surface must accept pointer input over.
+    ///
+    /// The toolbar, plus the swatch row when it is open. In PassThrough this
+    /// is exactly what the input region is set to, so a swatch that is on
+    /// screen is a swatch that can be clicked.
+    pub fn interactive_bounds(&self) -> LogicalRect {
+        let bounds = self.toolbar.bounds();
+        if !self.picker_open {
+            return bounds;
+        }
+        let row = self.toolbar.swatch_row();
+        LogicalRect {
+            min: bounds.min,
+            max: LogicalPoint {
+                x: bounds.max.x.max(row.max.x),
+                y: bounds.max.y.max(row.max.y),
+            },
+        }
+    }
+
     /// The button the pointer is resting on, if any.
     ///
     /// Only while the toolbar is offered: a tooltip for a control that is not
@@ -817,7 +860,10 @@ impl Controller {
             | Gesture::Sweeping { .. }
             | Gesture::MovingSelection { .. }
             | Gesture::ScalingSelection { .. } => true,
-            Gesture::Idle | Gesture::IgnoringHeldButton | Gesture::OnToolbar { .. } => false,
+            Gesture::Idle
+            | Gesture::IgnoringHeldButton
+            | Gesture::OnToolbar { .. }
+            | Gesture::OnSwatch { .. } => false,
         }
     }
 
@@ -893,6 +939,19 @@ impl Controller {
                 // substituted with something else.
                 if let Some(index) = PALETTE.iter().position(|entry| *entry == colour) {
                     self.tool_state_mut().colour = index;
+                }
+                Vec::new()
+            }
+            Action::ToggleColorPicker => {
+                self.picker_open = !self.picker_open;
+                Vec::new()
+            }
+            Action::PickColor(index) => {
+                if index < PALETTE.len() {
+                    self.tool_state_mut().colour = index;
+                    // Closing on choice: a picker that stays open covers the
+                    // canvas underneath it and has to be dismissed separately.
+                    self.picker_open = false;
                 }
                 Vec::new()
             }
@@ -1121,6 +1180,16 @@ impl Controller {
         // through. It is also checked before the canvas test below, because in
         // PassThrough the toolbar is the only part of the surface that is
         // ours.
+        if self.toolbar_visible()
+            && let Some((index, _, _)) = self
+                .swatches()
+                .into_iter()
+                .find(|(_, _, rect)| rect_contains(*rect, at))
+        {
+            self.gesture = Gesture::OnSwatch { index };
+            return Vec::new();
+        }
+
         if self.toolbar_visible() && self.toolbar.contains(at) {
             if self.toolbar.is_grip(at) {
                 // The compositor takes the pointer for the duration of the
@@ -1344,6 +1413,17 @@ impl Controller {
                 }
                 vec![Effect::EraseAlong { path, radius }]
             }
+            Gesture::OnSwatch { index } => {
+                let still_there = self
+                    .swatches()
+                    .into_iter()
+                    .find(|(_, _, rect)| rect_contains(*rect, at))
+                    .map(|(picked, _, _)| picked);
+                match still_there.filter(|picked| *picked == index) {
+                    Some(picked) => self.act(Action::PickColor(picked)),
+                    None => Vec::new(),
+                }
+            }
             Gesture::OnToolbar { icon } => {
                 // Only if the pointer is still on the button it went down on,
                 // which is how a user cancels a press by sliding off it.
@@ -1375,6 +1455,7 @@ impl Controller {
             // selection itself survives: cancelling a drag should put the
             // objects back, not deselect them.
             Gesture::OnToolbar { .. }
+            | Gesture::OnSwatch { .. }
             | Gesture::MovingSelection { .. }
             | Gesture::ScalingSelection { .. } => None,
             Gesture::IgnoringHeldButton | Gesture::Idle => None,

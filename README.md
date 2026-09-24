@@ -71,6 +71,10 @@ A toolbar sits in the top-left of the overlay: the tools, delete, undo, redo,
 clear, and the ways out. Rest the pointer on a button for a tooltip naming it
 and its key.
 
+The colour button shows the colour you are about to draw with; click it for a
+row of swatches, and clicking one picks it and closes the row. `c` cycles
+through the same palette without opening anything.
+
 **It stays in pass-through**, so you can switch tools, undo and come back to
 drawing while working in another application. It works there because the
 overlay tells the compositor that only the toolbar's rectangle accepts pointer

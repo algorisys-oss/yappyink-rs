@@ -68,6 +68,7 @@ struct VisualState {
     mode: Mode,
     gesturing: bool,
     hovered: Option<Icon>,
+    picker_open: bool,
     selection: Vec<ink_core::ObjectId>,
     selection_drag: Option<ink_app::SelectionDrag>,
 }
@@ -457,7 +458,7 @@ impl Overlay {
                         // synthesised. This is what makes the pinned toolbar
                         // honest rather than a picture of buttons: the pixels
                         // that look clickable are the pixels we asked for.
-                        let bounds = self.controller.toolbar().bounds();
+                        let bounds = self.controller.interactive_bounds();
                         let scale = self.scale.get();
                         let to_px = |v: f64| (v * scale).round() as i32;
                         region.add(
@@ -665,11 +666,13 @@ impl Overlay {
                 &mut canvas,
                 self.controller.toolbar(),
                 self.controller.tool(),
+                self.controller.style().color,
                 self.scale,
             );
             if let Some(corner) = self.controller.resize_corner() {
                 paint_resize_corner(&mut canvas, corner, self.scale);
             }
+            paint_swatches(&mut canvas, &self.controller, self.scale);
             if let Some(button) = self.controller.hovered_button() {
                 paint_tooltip(
                     &mut canvas,
@@ -843,6 +846,7 @@ impl Overlay {
             mode: self.controller.mode(),
             gesturing: self.controller.is_gesturing(),
             hovered: self.controller.hovered_button().map(|button| button.icon),
+            picker_open: self.controller.picker_open(),
             selection: self.controller.selection().to_vec(),
             selection_drag: self.controller.selection_drag(),
         }
@@ -1018,7 +1022,13 @@ fn paint_selection(
 /// text stack here and a toolbar does not need one. Each icon is described in a
 /// unit square and scaled into its button, so the layout in `ink-app` stays the
 /// only place that knows about sizes.
-fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scale) {
+fn paint_toolbar(
+    canvas: &mut Canvas,
+    toolbar: &Toolbar,
+    tool: Tool,
+    colour: ink_core::Rgb,
+    scale: Scale,
+) {
     // Premultiplied, memory order B, G, R, A.
     let panel = [0x1E, 0x1A, 0x18, 0xD8];
     let edge = [0x50, 0x48, 0x44, 0xE0];
@@ -1075,7 +1085,23 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
             canvas.stroke_path(&points, thickness, ink);
         };
 
+        // The colour button shows the colour instead of an icon: it is the
+        // clearest possible answer to what you are about to draw with.
+        if button.icon == Icon::Color {
+            let inset = to_px(4.0);
+            canvas.fill_rect(
+                bx + inset,
+                by + inset,
+                size - inset * 2,
+                size - inset * 2,
+                [colour.b, colour.g, colour.r, 0xFF],
+            );
+            continue;
+        }
+
         match button.icon {
+            // Drawn above as a filled swatch, never as a glyph.
+            Icon::Color => {}
             // A box with an arrow pointing into it.
             Icon::Park => {
                 draw(&[(0.0, 0.55), (0.0, 1.0), (1.0, 1.0), (1.0, 0.55)]);
@@ -1180,6 +1206,49 @@ fn paint_toolbar(canvas: &mut Canvas, toolbar: &Toolbar, tool: Tool, scale: Scal
                 draw(&[(0.15, 0.7), (0.05, 0.95)]);
                 draw(&[(0.85, 0.7), (0.95, 0.95)]);
             }
+        }
+    }
+}
+
+/// Draws the colour swatch row, when it is open.
+///
+/// Chrome. The row sits under the colour button, and the current colour gets a
+/// mark as well as a ring: NFR-006 forbids a selected state carried by colour
+/// alone, which matters more here than anywhere, since every swatch differs
+/// only by colour.
+fn paint_swatches(canvas: &mut Canvas, controller: &Controller, scale: Scale) {
+    let swatches = controller.swatches();
+    if swatches.is_empty() {
+        return;
+    }
+    let panel = [0x1E, 0x1A, 0x18, 0xD8];
+    let edge = [0x50, 0x48, 0x44, 0xE0];
+    let mark = [0xF0, 0xF0, 0xF0, 0xFF];
+
+    let to_px = |value: f64| (value * scale.get()).round() as i64;
+    let row = controller.toolbar().swatch_row();
+    let (x0, y0) = (to_px(row.min.x), to_px(row.min.y));
+    let (width, height) = (to_px(row.max.x) - x0, to_px(row.max.y) - y0);
+    canvas.fill_rect(x0, y0, width, height, panel);
+    canvas.fill_rect(x0, y0, width, 1, edge);
+    canvas.fill_rect(x0, y0 + height - 1, width, 1, edge);
+    canvas.fill_rect(x0, y0, 1, height, edge);
+    canvas.fill_rect(x0 + width - 1, y0, 1, height, edge);
+
+    let current = controller.style().color;
+    for (_, colour, rect) in swatches {
+        let sx = to_px(rect.min.x);
+        let sy = to_px(rect.min.y);
+        let size = to_px(rect.max.x) - sx;
+        // Swatches are shown at full strength whatever the tool's opacity, so
+        // the row is about hue rather than about the current alpha.
+        canvas.fill_rect(sx, sy, size, size, [colour.b, colour.g, colour.r, 0xFF]);
+
+        if colour == current {
+            canvas.fill_rect(sx - 2, sy - 2, size + 4, 2, mark);
+            canvas.fill_rect(sx - 2, sy + size, size + 4, 2, mark);
+            canvas.fill_rect(sx - 2, sy - 2, 2, size + 4, mark);
+            canvas.fill_rect(sx + size, sy - 2, 2, size + 4, mark);
         }
     }
 }

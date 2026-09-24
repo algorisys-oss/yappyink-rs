@@ -21,7 +21,7 @@
 
 use ink_core::{LogicalPoint, LogicalRect};
 
-use crate::{Action, Mode, Tool};
+use crate::{Action, Mode, PALETTE, Tool};
 
 /// Button edge length, in logical units.
 const BUTTON: f64 = 30.0;
@@ -33,6 +33,8 @@ const PADDING: f64 = 6.0;
 const ORIGIN: f64 = 10.0;
 /// Width of the grip used to drag the whole overlay.
 const GRIP: f64 = 16.0;
+/// Edge length of a colour swatch.
+const SWATCH: f64 = 22.0;
 
 /// What a button does, and how it is drawn.
 ///
@@ -60,6 +62,9 @@ pub enum Icon {
     Park,
     /// Leaves the application.
     Quit,
+    /// Shows the row of colour swatches. Drawn in the current colour, so the
+    /// button is itself the answer to "what am I drawing with?".
+    Color,
 }
 
 /// One control.
@@ -87,6 +92,7 @@ impl Button {
             Icon::Rectangle => "RECTANGLE (5)",
             Icon::Ellipse => "ELLIPSE (6)",
             Icon::Eraser => "ERASER (E)",
+            Icon::Color => "COLOUR (C CYCLES)",
             Icon::Delete => "DELETE SELECTED (DEL)",
             Icon::Undo => "UNDO (U)",
             Icon::Redo => "REDO (R)",
@@ -133,6 +139,7 @@ impl Toolbar {
             (Icon::Rectangle, Action::SelectTool(Tool::Rectangle)),
             (Icon::Ellipse, Action::SelectTool(Tool::Ellipse)),
             (Icon::Eraser, Action::SelectTool(Tool::Eraser)),
+            (Icon::Color, Action::ToggleColorPicker),
             (Icon::Delete, Action::DeleteSelection),
             (Icon::Undo, Action::Undo),
             (Icon::Redo, Action::Redo),
@@ -215,6 +222,51 @@ impl Toolbar {
 
     pub fn buttons(&self) -> &[Button] {
         &self.buttons
+    }
+
+    /// The swatch row's rectangle, directly below the toolbar.
+    ///
+    /// Computed whether or not the picker is open, because the controller
+    /// needs the geometry to decide what the input region should cover.
+    pub fn swatch_row(&self) -> LogicalRect {
+        let left = self
+            .buttons
+            .iter()
+            .find(|button| button.icon == Icon::Color)
+            .map_or(self.bounds.min.x, |button| button.bounds.min.x);
+        let width = PALETTE.len() as f64 * (SWATCH + GAP) - GAP + PADDING * 2.0;
+        let top = self.bounds.max.y + GAP;
+        LogicalRect {
+            min: LogicalPoint { x: left, y: top },
+            max: LogicalPoint {
+                x: left + width,
+                y: top + SWATCH + PADDING * 2.0,
+            },
+        }
+    }
+
+    /// Each swatch, with its palette position and colour.
+    pub fn swatches(&self) -> Vec<(usize, crate::Rgb, LogicalRect)> {
+        let row = self.swatch_row();
+        PALETTE
+            .iter()
+            .enumerate()
+            .map(|(index, colour)| {
+                let x = row.min.x + PADDING + index as f64 * (SWATCH + GAP);
+                let y = row.min.y + PADDING;
+                (
+                    index,
+                    *colour,
+                    LogicalRect {
+                        min: LogicalPoint { x, y },
+                        max: LogicalPoint {
+                            x: x + SWATCH,
+                            y: y + SWATCH,
+                        },
+                    },
+                )
+            })
+            .collect()
     }
 
     /// The grip that drags the whole overlay.
