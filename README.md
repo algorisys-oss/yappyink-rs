@@ -67,13 +67,24 @@ That is the compositor's own menu. Mutter gives an application no way to set
 Always on Top for itself, so asking for the menu is as close as a Wayland client
 can get. The [GNOME extension](integrations/gnome/) removes the step entirely.
 
-A toolbar sits in the top-left of the overlay while you are in draw mode: the
-tools, delete, undo, redo, clear, and the two ways out. Rest the pointer on a
-button for a tooltip naming it and its key. It disappears in pass-through,
-because there the surface takes no pointer input and a button you cannot click
-should not be on screen — which also means **in pass-through the only way back
-is `yappyink toggle-draw`**, since the application underneath has the keyboard
-too.
+A toolbar sits in the top-left of the overlay: the tools, delete, undo, redo,
+clear, and the ways out. Rest the pointer on a button for a tooltip naming it
+and its key.
+
+**It stays in pass-through**, so you can switch tools, undo and come back to
+drawing while working in another application. It works there because the
+overlay tells the compositor that only the toolbar's rectangle accepts pointer
+input: the buttons really are clickable, and every other pixel really does pass
+through to whatever is underneath. Without that the toolbar would be a picture
+of buttons, which is worse than no toolbar.
+
+**`g` shrinks the overlay to just the toolbar.** The ink goes away, the document
+is kept, and the controls stay put. Worth using when you have finished
+annotating for a while: a transparent window covering a whole screen and held
+above everything can stop the compositor unredirecting a fullscreen application
+underneath, which costs that application performance.
+
+`q` saves and quits.
 
 **Drag the ridged grip** at the left of the toolbar to move the overlay, and
 **drag the bottom-right corner** to resize it. Both ask the compositor to run
