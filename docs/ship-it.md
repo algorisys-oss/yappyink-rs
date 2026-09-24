@@ -52,7 +52,7 @@ cargo test --workspace
 python3 tools/check_specs.py
 
 git commit -am "..." && git push
-git tag v0.4.0 && git push origin v0.4.0
+git tag v0.5.0 && git push origin v0.5.0
 ```
 
 The tag is the trigger and the tag is the record. Do not move one that has been

@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24. Windows backend with the shared toolbar, unrun.
+**Last updated:** 2026-09-24, release 0.5.0. Windows backend with the shared toolbar, unrun.
 
 ## What this is
 

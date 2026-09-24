@@ -47,7 +47,7 @@ use windows_sys::Win32::Graphics::Gdi::{
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::HiDpi::{
-    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext,
+    DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, GetDpiForWindow, SetProcessDpiAwarenessContext,
 };
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, RegisterHotKey, ReleaseCapture, SetCapture,
@@ -58,9 +58,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetSystemMetrics, GetWindowLongPtrW, IDC_CROSS, LoadCursorW, MSG, PostQuitMessage,
     RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_HIDE, SW_SHOW, SetWindowLongPtrW, ShowWindow,
     TranslateMessage, ULW_ALPHA, UpdateLayeredWindow, WM_CAPTURECHANGED, WM_CHAR, WM_DESTROY,
-    WM_DISPLAYCHANGE, WM_HOTKEY, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP,
-    WM_MOUSEMOVE, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
-    WS_POPUP,
+    WM_DISPLAYCHANGE, WM_DPICHANGED, WM_HOTKEY, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN,
+    WM_LBUTTONUP, WM_MOUSEMOVE, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 use crate::keys;
@@ -187,10 +187,21 @@ fn create(width: u32, height: u32) -> Result<(), PlatformError> {
 
     let (bitmap, memory_dc, pixels) = create_dib(width, height)?;
 
+    // The window is in physical pixels, because this process is
+    // per-monitor-v2 aware, so the document's logical size is that divided by
+    // the scale. On a 150% display, which is ordinary on Windows, getting this
+    // wrong makes every logical coordinate two thirds of what it should be,
+    // and the symptom is a toolbar drawn at the wrong size rather than an
+    // error anyone would notice in a log.
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    let factor = surface::scale_for_dpi(dpi);
+    let scale = Scale::new(factor).unwrap_or(Scale::ONE);
+    eprintln!("[dpi] {dpi} dpi, scale {factor}");
+
     let output = OutputId::new("primary");
-    let size = LogicalSize::new(f64::from(width), f64::from(height)).ok_or_else(|| {
-        PlatformError::unsupported("size the overlay", "the monitor reported a size of zero")
-    })?;
+    let size = LogicalSize::new(f64::from(width) / factor, f64::from(height) / factor).ok_or_else(
+        || PlatformError::unsupported("size the overlay", "the monitor reported a size of zero"),
+    )?;
 
     let painter = match ink_render::text::TextFont::discover() {
         Ok(font) => {
@@ -215,7 +226,7 @@ fn create(width: u32, height: u32) -> Result<(), PlatformError> {
             pixels,
             bitmap,
             memory_dc,
-            scale: Scale::ONE,
+            scale,
             controller: Controller::new(),
             session: Session::new(output, size),
             ids: IdSource::starting_at(1),
@@ -371,6 +382,14 @@ unsafe extern "system" fn window_proc(
             }
             0
         }
+        // The window moved to a monitor with a different scale. The pixels
+        // stay the same size; what changes is how many logical units they
+        // are, so only the scale is updated. Not resizing the surface with it
+        // is a known gap, recorded rather than papered over.
+        WM_DPICHANGED => {
+            on_dpi_changed(hwnd);
+            0
+        }
         // FR-019/FR-022: the monitor arrangement changed under us. Reported
         // rather than guessed at, because resizing the surface is real work
         // and pretending otherwise would draw at the wrong size.
@@ -393,13 +412,41 @@ unsafe extern "system" fn window_proc(
     }
 }
 
-/// Window-relative pixels, signed so a drag off the left edge is negative
-/// rather than 65000.
+/// Window-relative pixels, turned into logical units.
+///
+/// Signed, so a drag off the left edge is negative rather than 65000. Divided
+/// by the scale, because Win32 reports physical pixels and everything above
+/// the adapter works in logical units. Skipping that puts the pointer in the
+/// wrong place on any scaled display, and the toolbar stops being clickable
+/// where it is drawn.
 fn point(lparam: LPARAM) -> LogicalPoint {
     let x = f64::from((lparam & 0xFFFF) as i16);
     let y = f64::from(((lparam >> 16) & 0xFFFF) as i16);
-    // Both came from an i16, so both are finite and this cannot fail.
-    LogicalPoint::new(x, y).expect("a coordinate from an i16 is always finite")
+    let factor = OVERLAY.with(|slot| {
+        slot.borrow()
+            .as_ref()
+            .map_or(1.0, |overlay| overlay.scale.get())
+    });
+    // Both came from an i16 and the scale is finite and positive, so this
+    // cannot fail.
+    LogicalPoint::new(x / factor, y / factor).expect("a finite coordinate")
+}
+
+/// The window moved to a monitor with a different scale.
+fn on_dpi_changed(hwnd: HWND) {
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    let factor = surface::scale_for_dpi(dpi);
+    OVERLAY.with(|slot| {
+        let mut borrowed = slot.borrow_mut();
+        let Some(overlay) = borrowed.as_mut() else {
+            return;
+        };
+        overlay.scale = Scale::new(factor).unwrap_or(Scale::ONE);
+        overlay.needs_redraw = true;
+    });
+    eprintln!("[dpi] changed to {dpi} dpi, scale {factor}");
+    eprintln!("[dpi] the surface keeps its pixel size; resizing with the move is T018");
+    flush();
 }
 
 fn on_key(hwnd: HWND, virtual_key: u32) {

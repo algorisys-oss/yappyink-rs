@@ -56,7 +56,18 @@ One finding worth recording: the renderer's premultiplied ARGB8888 little-endian
 
 The refactor paid for itself immediately in a way that matters more than the sharing: **the chrome is testable for the first time.** Inside the adapter it could not be reached without a compositor, which is why every bug in `docs/learning.md` §1 was in this layer and every one was found by a person. There are now 8 tests, written against the failures that actually happened — the invisible overlay, the mode that looked the same in both states, the toolbar highlight that did not follow the selected tool. The last of those was checked by deliberately removing the highlight, and it fails.
 
-Still missing on Windows: the preedit underline, and input methods entirely.
+**What the Windows backend still does not do, 2026-09-24.** Written out because "the backend exists" and "the backend is finished" are different claims and the first was starting to be read as the second:
+
+- **Nobody has run it.** Every capability is `unknown`. This is the only item that matters until it changes.
+- **No input methods.** Not one `WM_IME_*` message is handled. Latin text works through `WM_CHAR`; composing in Devanagari, CJK or anything else does not, and there is no preedit underline. Wayland has `zwp_text_input_v3`; this has nothing.
+- **One monitor.** The window is created on the primary display and the adapter never enumerates the others, even though the probe does and Windows makes it easy. FR-015 is unaddressed here.
+- **Parked does not shrink the window.** The mode is accepted and the surface stays full size, so parking hides the ink without giving the desktop back. On Wayland the surface actually shrinks to the toolbar.
+- **No cursor per tool.** `IDC_CROSS` is set once on the window class. Wayland changes the pointer for text, selection, move and resize.
+- **The CLI control verbs do not exist.** `yappyink toggle-draw` and friends are Linux-only, because the control socket is. `RegisterHotKey` covers the case the socket was invented for, but the verbs are still missing and the usage text does not offer them.
+- **Window drag and resize are no-ops.** `BeginWindowDrag` and `BeginWindowResize` do nothing, which is right for a full-screen overlay and wrong once it is not one.
+- **A DPI change updates the scale but not the surface.** Moving the window between monitors of different scales redraws at the new scale into a bitmap that is still the old size.
+
+A DPI defect was found and fixed while writing this list: `surface::scale_for_dpi` existed with four passing tests and **was never called**, because the adapter hardcoded `Scale::ONE` and never divided pointer coordinates by the scale. On a 150% display — ordinary on Windows — every logical coordinate would have been two thirds of what it should be. Tested code that nothing calls is not tested behaviour, and the tests were perfectly green throughout.
 
 **What has actually been verified: that it compiles, and nothing else.** `cargo check` and `cargo clippy -D warnings` pass against `x86_64-pc-windows-gnu` from the development machine, and CI lints it on a real Windows runner. **No part of it has been run, and a CI runner cannot answer any of the six questions, because every one of them is about what a person sees on a screen.** Every Windows capability stays `unknown` until the owner runs it and reports. This status is `in_progress` and not `implemented` for exactly that reason.
 

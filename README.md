@@ -9,7 +9,7 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early (0.4.0). One backend, partly working, on one desktop
+**Status: early (0.5.0). One backend, partly working, on one desktop
 environment.** Nothing here is finished, and the table below is the whole truth
 about what has been demonstrated. Versions are explained in
 [docs/ship-it.md](docs/ship-it.md); the leading zero is about the platform
@@ -112,7 +112,12 @@ One small thing fell out nicely: the renderer's premultiplied ARGB8888 is
 byte-identical to what a 32-bit DIB wants, so the canvas is built straight over
 the bitmap's memory with no copy and no conversion.
 
-**None of it has been run.** It compiles, CI lints and tests it on a Windows
+**The Windows backend is not finished**, and `tasks.md` under T003 lists what
+it does not do. The short version: no input methods at all, one monitor only,
+Parked does not shrink the window, no per-tool cursor, and the `yappyink
+toggle-draw` style verbs are Linux-only.
+
+**And none of it has been run.** It compiles, CI lints and tests it on a Windows
 runner, and that is the entire extent of what is known — a compiler cannot tell
 you whether a window appears. Every Windows capability is `unknown`, not
 `unavailable` and certainly not working, and `yappyink doctor` says so on
