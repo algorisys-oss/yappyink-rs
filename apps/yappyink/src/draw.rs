@@ -72,10 +72,26 @@ pub fn run() -> std::process::ExitCode {
                 "\n[exit] {} object(s) were on screen.",
                 session.document().len()
             );
-            eprintln!(
-                "[exit] They are not saved: explicit local files are T020, and this build has \
-                 nowhere to put them."
-            );
+            // This used to say saving did not exist, and kept saying it for
+            // several commits after `w` started working. A parting message is
+            // read at exactly the moment it is too late to act on, so it has
+            // to be true.
+            match ink_storage::default_session_path() {
+                Ok(path) if path.exists() => {
+                    eprintln!("[exit] The session file is {}.", path.display());
+                }
+                Ok(path) => {
+                    eprintln!(
+                        "[exit] Nothing was written. `w` saves to {}, and quitting does not.",
+                        path.display()
+                    );
+                }
+                Err(reason) => {
+                    eprintln!(
+                        "[exit] Nothing was written, and there is nowhere to write: {reason}"
+                    );
+                }
+            }
             std::process::ExitCode::SUCCESS
         }
         Err(error) => {

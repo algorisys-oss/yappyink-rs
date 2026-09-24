@@ -199,6 +199,12 @@ other route and is not implemented yet.
 — there is no file picker yet, because choosing a path needs the desktop's file
 portal.
 
+Both print the full path they used, and it is worth reading. A terminal inside
+a snap — VS Code's, for one — sets `XDG_DATA_HOME` to somewhere under
+`~/snap/`, so a session saved from there will not be found by a yappyink
+launched from anywhere else. The path is honoured deliberately; it is printed
+so the surprise happens where you can see it.
+
 The file is plain JSON holding vector objects and styles. **No pixels, ever.**
 Live drawing never reads your screen, so saving annotations needs no screen
 capture permission and cannot contain what was behind them.

@@ -50,16 +50,25 @@ impl Dispatch2<ZwpTextInputV3, Overlay> for TextInputData {
         _qh: &QueueHandle<Overlay>,
     ) {
         match event {
+            // Every event from the engine is logged, including the empty ones.
+            // Silence here and silence from a disengaged engine look identical
+            // otherwise, and telling them apart is the whole question when
+            // text comes out in the wrong script. See learning.md §8 and §13.
             TextInputEvent::PreeditString { text, .. } => {
-                state.ime_pending.preedit = Some(text.unwrap_or_default());
+                let text = text.unwrap_or_default();
+                eprintln!("[ime] preedit {text:?}");
+                state.ime_pending.preedit = Some(text);
             }
             TextInputEvent::CommitString { text } => {
-                state.ime_pending.commit = Some(text.unwrap_or_default());
+                let text = text.unwrap_or_default();
+                eprintln!("[ime] commit {text:?}");
+                state.ime_pending.commit = Some(text);
             }
             TextInputEvent::DeleteSurroundingText {
                 before_length,
                 after_length,
             } => {
+                eprintln!("[ime] delete {before_length} before, {after_length} after");
                 state.ime_pending.delete = Some((before_length, after_length));
             }
             TextInputEvent::Done { .. } => {

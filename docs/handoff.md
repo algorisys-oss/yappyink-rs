@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after the font-fallback commit.
+**Last updated:** 2026-09-24, after the IME-diagnostics commit.
 
 ## What this is
 
@@ -18,7 +18,7 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 | File | Why |
 |---|---|
 | `AGENTS.md` | the contract: what may and may not be claimed |
-| `docs/learning.md` | fourteen mistakes made so far, and what changed because of them |
+| `docs/learning.md` | fourteen mistakes so far, one of them twice, and what changed |
 | `docs/evidence/` | what was actually run on a real machine, including failures |
 | `tasks.md` | per-task status, with evidence and what is still missing |
 
@@ -171,10 +171,16 @@ reorders or joins them, so Devanagari matras sit after their consonant and
 Arabic does not connect. That needs a shaping engine, which would mean a new
 dependency and therefore an ADR; `AGENTS.md` does not allow one without.
 
-None of the non-Latin path has been watched working. The diagnostics for that
-are in place: startup logs every loaded face, and every key arriving at an open
-editor logs its keysym and UTF-8 bytes, so one run says whether the keyboard is
-even producing the right characters.
+None of the non-Latin path has been watched working. **The one run so far was
+Latin throughout** — every key arrived as a plain keysym and the engine sent no
+preedit, no commit and no delete, which means it was not engaged for that
+window. Whether that is the engine, the compositor or us is still open.
+
+The diagnostics are in place to settle it in one more run: startup logs every
+loaded face, every key at an open editor logs its keysym and UTF-8 bytes, and
+every event from the input method is logged including the empty ones. A run
+that shows `[ime] preedit` lines puts the fault in our rendering; a run with
+none puts it outside this codebase.
 
 Also missing within text: caret movement inside a run, selecting part of one,
 and re-editing a committed text object.

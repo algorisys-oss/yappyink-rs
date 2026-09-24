@@ -1,6 +1,6 @@
 [package]
 name = "yappyink"
-description = "ScreenInk / yappyink-rs spike binary. T001 scaffolding only; no overlay yet."
+description = "yappyink: a screen-annotation overlay. Binary entry point; the overlay lives in the ink-platform-* crates."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,6 +15,7 @@ path = "src/main.rs"
 ink-app.workspace = true
 ink-core.workspace = true
 ink-platform.workspace = true
+ink-storage.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ink-platform-wayland.workspace = true

@@ -651,6 +651,7 @@ dependencies = [
  "ink-core",
  "ink-platform",
  "ink-platform-wayland",
+ "ink-storage",
 ]
 
 [[package]]

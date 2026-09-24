@@ -175,6 +175,16 @@ so, and prints a note when it detects a snap. It is worth noticing that the
 symptom was silence again, as in section 8: a successful copy into the wrong
 place looks exactly like a successful install.
 
+**It recurred, 2026-09-24.** The session file resolves through the same
+variable, so annotations saved from the VS Code terminal land under `~/snap/`
+and a yappyink launched from anywhere else finds nothing. Here, unlike the
+extension, honouring the variable is the correct behaviour — the app both reads
+and writes it, so it is consistent within a launch — and the fault is purely
+that the user cannot tell where their file went. Save and load already print
+the path, the README now warns about it, and nothing about the semantics
+changed. Not every instance of a recurring mistake has the same fix: this one
+needed visibility, not a different answer.
+
 ## 11. The same silent edit, twice more, and the fix that should have been first
 
 **What happened.** Section 3 recorded three source edits that silently did
