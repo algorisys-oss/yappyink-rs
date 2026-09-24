@@ -14,6 +14,11 @@ ink-platform.workspace = true
 ink-render.workspace = true
 ink-storage.workspace = true
 smithay-client-toolkit = "0.21.1"
+# The text-input protocol, for input methods. Needed because composing in
+# Devanagari, CJK and similar scripts does not produce one character per key
+# press: the keystrokes belong to the input method, which hands back finished
+# text. `unstable` is where text-input-v3 lives; it is what Mutter advertises.
+wayland-protocols = { version = "0.32.13", features = ["client", "unstable"] }
 # Default features only: this uses the pure-Rust wayland backend, so the probe
 # does not link libwayland-client.so. Pinned by Cargo.lock; see
 # docs/toolchain-and-dependencies.md.

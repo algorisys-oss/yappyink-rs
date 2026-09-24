@@ -113,6 +113,9 @@ pub enum Preview<'a> {
     Text {
         at: LogicalPoint,
         content: &'a str,
+        /// What an input method is composing, drawn after the content and
+        /// underlined so the user can see what is still provisional.
+        preedit: &'a str,
         size: f64,
         style: Style,
     },
@@ -323,6 +326,7 @@ pub enum Action {
     NewlineText,
     /// Finish the open editor, keeping what was typed.
     CommitText,
+
     /// Show or hide the row of colour swatches.
     ToggleColorPicker,
     /// Choose a palette entry by position. Out-of-range values are ignored.
@@ -355,6 +359,27 @@ pub enum PlatformEvent {
     PointerCancelled,
     /// The output the overlay lives on went away (FR-019, FR-022).
     OutputLost,
+    /// An input method replaced the composition in progress. Empty clears it.
+    ///
+    /// Arrives many times per word as the user composes. These are platform
+    /// events rather than actions because they come from the input method, not
+    /// from the user operating a control.
+    Preedit(String),
+    /// An input method committed finished text.
+    ///
+    /// Distinct from [`Action::TypeText`], which is one key producing one
+    /// character. A commit can be several characters at once, and can arrive
+    /// with no key press at all, for instance from a candidate chosen with the
+    /// mouse.
+    CommitPreedit(String),
+    /// An input method asked for text around the caret to be removed, in
+    /// bytes. Engines use this to rewrite what has already been committed,
+    /// which is ordinary in scripts where a later keystroke changes an earlier
+    /// glyph.
+    DeleteSurrounding {
+        before: u32,
+        after: u32,
+    },
 }
 
 /// Work for an adapter to carry out.
@@ -519,7 +544,16 @@ pub enum Cursor {
 #[derive(Clone, Debug)]
 struct TextEdit {
     at: LogicalPoint,
+    /// What the user has committed. This is what becomes an object.
     content: String,
+    /// What an input method is currently composing, if anything.
+    ///
+    /// Not part of the text yet. Typing "namaste" with a Devanagari engine
+    /// produces a running preedit that is replaced, not appended to, on every
+    /// keystroke, and only becomes content when the engine commits it. Storing
+    /// it separately is the whole difference between supporting an input
+    /// method and mangling its intermediate output into the document.
+    preedit: String,
     size: f64,
     style: Style,
 }
@@ -962,6 +996,7 @@ impl Controller {
                 Some(Preview::Text {
                     at: edit.at,
                     content: &edit.content,
+                    preedit: &edit.preedit,
                     size: edit.size,
                     style: edit.style,
                 })
@@ -1140,6 +1175,48 @@ impl Controller {
                 self.cancel_gesture().into_iter().collect()
             }
             PlatformEvent::OutputLost => self.output_lost(),
+            PlatformEvent::Preedit(text) => {
+                if let Some(edit) = &mut self.editing {
+                    edit.preedit = text;
+                }
+                Vec::new()
+            }
+            PlatformEvent::CommitPreedit(text) => {
+                if let Some(edit) = &mut self.editing {
+                    // The composition is finished, so it stops being
+                    // provisional and becomes text. Cleared here rather than
+                    // waiting for the engine to send an empty preedit, which
+                    // would otherwise show the same characters twice for a
+                    // frame.
+                    edit.preedit.clear();
+                    let room = limits::MAX_TEXT_CHARS.saturating_sub(edit.content.chars().count());
+                    edit.content.extend(text.chars().take(room));
+                }
+                Vec::new()
+            }
+            PlatformEvent::DeleteSurrounding { before, after } => {
+                if let Some(edit) = &mut self.editing {
+                    // Byte counts, as the protocol specifies, and only whole
+                    // characters are removed: truncating a multi-byte
+                    // character would leave the string invalid, and these are
+                    // exactly the scripts whose characters are several bytes
+                    // long.
+                    let before = before as usize;
+                    let cut = edit
+                        .content
+                        .char_indices()
+                        .map(|(index, _)| index)
+                        .rev()
+                        .find(|index| edit.content.len() - index >= before)
+                        .unwrap_or(0);
+                    edit.content.truncate(cut);
+                    // `after` is text following the caret. The caret is always
+                    // at the end here, because there is no caret movement yet,
+                    // so there is nothing after it to delete.
+                    let _ = after;
+                }
+                Vec::new()
+            }
         }
     }
 
@@ -1209,6 +1286,33 @@ impl Controller {
         self.editing.is_some()
     }
 
+    /// Where the caret is, for telling an input method where to put its
+    /// candidate window.
+    ///
+    /// Without this the list of suggestions appears wherever the compositor
+    /// guesses, which for a full-screen overlay is nowhere useful.
+    pub fn caret_rectangle(&self) -> Option<(LogicalPoint, f64, f64)> {
+        let edit = self.editing.as_ref()?;
+        // Approximate, like all text measurement in the domain: the renderer
+        // has the font and this does not. It puts the candidate window near
+        // the end of the line rather than exactly on it.
+        // Counted from newlines rather than from `lines()`, which yields one
+        // line for "hello\n" and would leave the caret on the line above the
+        // one the user is actually typing on.
+        let current_line = edit.content.rsplit('\n').next().unwrap_or("");
+        let line = current_line.chars().count() + edit.preedit.chars().count();
+        let advance = edit.size * 0.55;
+        let down = edit.content.matches('\n').count() as f64 * edit.size * 1.25;
+        Some((
+            LogicalPoint {
+                x: edit.at.x + line as f64 * advance,
+                y: edit.at.y + down,
+            },
+            advance,
+            edit.size,
+        ))
+    }
+
     /// Finishes the open editor, keeping what was typed.
     ///
     /// Empty or whitespace-only text commits nothing, because `Shape::text`
@@ -1217,6 +1321,10 @@ impl Controller {
         let Some(edit) = self.editing.take() else {
             return Vec::new();
         };
+        // A composition in progress is discarded rather than committed. It is
+        // not text the user has chosen yet, and an engine that was midway
+        // through a word would otherwise leave its working state in the
+        // document.
         match Shape::text(edit.at, edit.content, edit.size) {
             Ok(shape) => vec![Effect::CommitObject {
                 shape,
@@ -1428,6 +1536,7 @@ impl Controller {
             self.editing = Some(TextEdit {
                 at,
                 content: String::new(),
+                preedit: String::new(),
                 size: self.style().width.get() * TEXT_SIZE_RATIO,
                 style: self.style(),
             });

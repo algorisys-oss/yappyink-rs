@@ -10,6 +10,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod ime;
 pub mod overlay;
 
 use ink_platform::{

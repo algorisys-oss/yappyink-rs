@@ -128,9 +128,11 @@ impl Shape {
 
     /// The approximate extent of a text run, in logical units.
     fn text_extent(content: &str, size: f64) -> (f64, f64) {
-        let lines = content.lines().count().max(1);
+        // Counted from newlines, because `lines()` reports one line for
+        // "a\n" and the bounds would then be a line short of the text.
+        let lines = content.matches('\n').count() + 1;
         let widest = content
-            .lines()
+            .split('\n')
             .map(|line| line.chars().count())
             .max()
             .unwrap_or(0);

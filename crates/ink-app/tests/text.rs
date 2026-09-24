@@ -426,3 +426,193 @@ fn the_text_size_is_its_own_setting() {
         "the rectangle got thicker"
     );
 }
+
+// --- Input methods: preedit ------------------------------------------------
+
+fn preview_parts(controller: &Controller) -> (String, String) {
+    match controller.preview() {
+        Some(Preview::Text {
+            content, preedit, ..
+        }) => (content.to_owned(), preedit.to_owned()),
+        other => panic!("expected a text preview, got {other:?}"),
+    }
+}
+
+#[test]
+fn a_composition_is_shown_but_is_not_content_yet() {
+    // The whole point of preedit. "namaste" mid-composition is the engine's
+    // working state, not something the user has chosen.
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+
+    controller.handle(PlatformEvent::Preedit("नम".to_owned()));
+
+    let (content, preedit) = preview_parts(&controller);
+    assert!(content.is_empty(), "a composition leaked into the content");
+    assert_eq!(preedit, "नम");
+}
+
+#[test]
+fn each_composition_replaces_the_last_rather_than_appending() {
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+
+    controller.handle(PlatformEvent::Preedit("न".to_owned()));
+    controller.handle(PlatformEvent::Preedit("नम".to_owned()));
+    controller.handle(PlatformEvent::Preedit("नमस".to_owned()));
+
+    assert_eq!(preview_parts(&controller).1, "नमस");
+}
+
+#[test]
+fn committing_a_composition_turns_it_into_content() {
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    controller.handle(PlatformEvent::Preedit("नमस".to_owned()));
+
+    controller.handle(PlatformEvent::CommitPreedit("नमस्ते".to_owned()));
+
+    let (content, preedit) = preview_parts(&controller);
+    assert_eq!(content, "नमस्ते");
+    assert!(preedit.is_empty(), "the composition was shown twice");
+}
+
+#[test]
+fn a_committed_composition_survives_into_the_object() {
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    controller.handle(PlatformEvent::CommitPreedit("नमस्ते".to_owned()));
+
+    let effects = controller.act(Action::CommitText);
+
+    assert_eq!(
+        committed_text(&effects).map(|(text, _)| text),
+        Some("नमस्ते".to_owned())
+    );
+}
+
+#[test]
+fn an_unfinished_composition_is_discarded_rather_than_committed() {
+    // It is the engine's working state, not the user's text. Putting it in the
+    // document would store something they never chose.
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    type_word(&mut controller, "ok ");
+    controller.handle(PlatformEvent::Preedit("नम".to_owned()));
+
+    let effects = controller.act(Action::CommitText);
+
+    assert_eq!(
+        committed_text(&effects).map(|(text, _)| text),
+        Some("ok ".to_owned())
+    );
+}
+
+#[test]
+fn deleting_surrounding_text_removes_whole_characters() {
+    // Engines rewrite already-committed text, and in these scripts a character
+    // is several bytes. Truncating by bytes would leave an invalid string.
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    controller.handle(PlatformEvent::CommitPreedit("नमस".to_owned()));
+
+    // "स" is three bytes in UTF-8.
+    controller.handle(PlatformEvent::DeleteSurrounding {
+        before: 3,
+        after: 0,
+    });
+
+    let (content, _) = preview_parts(&controller);
+    assert_eq!(content, "नम");
+}
+
+#[test]
+fn deleting_more_than_there_is_empties_rather_than_panics() {
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    controller.handle(PlatformEvent::CommitPreedit("नम".to_owned()));
+
+    controller.handle(PlatformEvent::DeleteSurrounding {
+        before: 999,
+        after: 0,
+    });
+
+    assert_eq!(preview_parts(&controller).0, "");
+}
+
+#[test]
+fn a_composition_arriving_with_no_editor_open_is_ignored() {
+    // An input method should not be able to create a document object on its
+    // own, and an engine may send events as focus changes.
+    let mut controller = typing();
+    assert!(!controller.is_editing_text());
+
+    controller.handle(PlatformEvent::Preedit("नम".to_owned()));
+    controller.handle(PlatformEvent::CommitPreedit("नमस्ते".to_owned()));
+
+    assert!(!controller.is_editing_text());
+    assert!(controller.preview().is_none());
+}
+
+#[test]
+fn the_caret_rectangle_tracks_the_end_of_what_is_typed() {
+    // An input method puts its candidate window here. Without it the list of
+    // suggestions lands wherever the compositor guesses, which on a
+    // full-screen overlay is nowhere useful.
+    let mut controller = typing();
+    assert!(
+        controller.caret_rectangle().is_none(),
+        "no editor, no caret"
+    );
+
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    let (start, _, height) = controller
+        .caret_rectangle()
+        .expect("an open editor has a caret");
+    assert_eq!(start, point(200.0, 300.0));
+    assert!(height > 0.0);
+
+    type_word(&mut controller, "hello");
+    let (moved, _, _) = controller.caret_rectangle().unwrap();
+    assert!(
+        moved.x > start.x,
+        "the caret did not advance along the line"
+    );
+
+    controller.act(Action::NewlineText);
+    let (wrapped, _, _) = controller.caret_rectangle().unwrap();
+    assert!(wrapped.y > start.y, "the caret did not move down a line");
+}
+
+#[test]
+fn a_composition_counts_towards_where_the_candidate_window_goes() {
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    let (before, _, _) = controller.caret_rectangle().unwrap();
+
+    controller.handle(PlatformEvent::Preedit("नमस".to_owned()));
+
+    let (after, _, _) = controller.caret_rectangle().unwrap();
+    assert!(
+        after.x > before.x,
+        "the candidate window would cover the composition"
+    );
+}

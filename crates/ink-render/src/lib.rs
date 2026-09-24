@@ -228,6 +228,12 @@ impl Painter {
         self.font.is_some()
     }
 
+    /// The face, for measuring text that is drawn as chrome rather than as a
+    /// document object, such as the underline under a composition.
+    pub fn font(&self) -> Option<&crate::text::TextFont> {
+        self.font.as_ref()
+    }
+
     /// Paints every object in the document, in document order.
     ///
     /// The canvas is not cleared first: the caller decides whether this is a

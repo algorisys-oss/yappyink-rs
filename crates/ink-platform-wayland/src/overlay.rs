@@ -55,6 +55,8 @@ use smithay_client_toolkit::{delegate_registry, registry_handlers};
 use wayland_client::globals::registry_queue_init;
 use wayland_client::protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_surface};
 use wayland_client::{Connection, QueueHandle};
+use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_manager_v3::ZwpTextInputManagerV3;
+use wayland_protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 
 /// The left mouse button, as Wayland reports it.
 const BTN_LEFT: u32 = 0x110;
@@ -213,6 +215,20 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     // reported rather than treated as a failure to start.
     let activation = ActivationState::bind::<Overlay>(&globals, &qh).ok();
 
+    // Optional too. Without it the text tool still works for anything with one
+    // key per character, which is most Latin typing; what is lost is composing
+    // in scripts that need an input method, and the application says so rather
+    // than silently dropping their keystrokes.
+    let text_input_manager = globals
+        .bind::<ZwpTextInputManagerV3, _, _>(&qh, 1..=1, crate::ime::TextInputManagerData)
+        .ok();
+    if text_input_manager.is_none() {
+        eprintln!(
+            "[ime] zwp_text_input_v3 is not available, so input methods will not work in the \
+             text tool"
+        );
+    }
+
     let width = config.size.width().round().max(1.0) as u32;
     let height = config.size.height().round().max(1.0) as u32;
     let pool = SlotPool::new(width as usize * height as usize * 4, &shm)
@@ -241,6 +257,10 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         themed_pointer: None,
         cursor: None,
         cursor_failures: std::collections::HashSet::new(),
+        ime_pending: crate::ime::Pending::default(),
+        text_input_manager,
+        text_input: None,
+        ime_enabled: false,
         last_pointer: None,
         last_press_serial: None,
         width,
@@ -323,6 +343,12 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             }
         }
 
+        // The engine is told about the editor here rather than at each of the
+        // several places one can open or close, for the same reason the scene
+        // summary is recomputed here: one place that always runs beats many
+        // places that must each remember.
+        overlay.sync_input_method();
+
         // The cursor depends on the tool and the mode, both of which change
         // without the pointer moving. Re-evaluated every iteration from the
         // last known position; `apply_cursor` does nothing when it is already
@@ -383,7 +409,7 @@ fn print_controls() {
     );
 }
 
-struct Overlay {
+pub struct Overlay {
     /// Kept so the surface can be recreated after Hidden withdrew it.
     qh: QueueHandle<Overlay>,
     /// The size to go back to when leaving Parked.
@@ -408,6 +434,16 @@ struct Overlay {
     cursor: Option<CursorIcon>,
     /// Cursors that could not be set, so each is complained about once.
     cursor_failures: std::collections::HashSet<CursorIcon>,
+    /// What the input method has said since its last `done`.
+    pub(crate) ime_pending: crate::ime::Pending,
+    /// The manager, kept so a text-input object can be made once a seat
+    /// exists. Seats can appear after startup.
+    text_input_manager: Option<ZwpTextInputManagerV3>,
+    /// The text-input object, when the compositor offers the protocol.
+    pub(crate) text_input: Option<ZwpTextInputV3>,
+    /// Whether the engine has been told an editor is open, so enable and
+    /// disable are each sent once rather than on every frame.
+    pub(crate) ime_enabled: bool,
     /// Where the pointer was last seen, in logical units.
     ///
     /// Kept because the right cursor depends on the tool as well as the
@@ -423,8 +459,8 @@ struct Overlay {
     height: u32,
     scale: Scale,
     configured: bool,
-    needs_redraw: bool,
-    controller: Controller,
+    pub(crate) needs_redraw: bool,
+    pub(crate) controller: Controller,
     session: Session,
     ids: IdSource,
     painter: ink_render::Painter,
@@ -440,7 +476,7 @@ impl Overlay {
     }
 
     /// Carries out the controller's effects, in the order given.
-    fn apply(&mut self, effects: Vec<Effect>) {
+    pub(crate) fn apply(&mut self, effects: Vec<Effect>) {
         for effect in effects {
             match effect {
                 Effect::ApplyMode { mode, transition } => self.apply_mode(mode, transition),
@@ -650,6 +686,50 @@ impl Overlay {
         }
     }
 
+    /// Keeps the input method in step with the editor.
+    ///
+    /// Enables on open and disables on close, each once, and moves the
+    /// candidate window as the caret moves. FR-023 asks for text focus to be
+    /// released on leaving the editor, and with an engine involved that means
+    /// telling the engine: one that still believes a field is focused will go
+    /// on composing into nothing.
+    fn sync_input_method(&mut self) {
+        let Some(input) = &self.text_input else {
+            return;
+        };
+        let editing = self.controller.is_editing_text();
+
+        if editing && !self.ime_enabled {
+            crate::ime::enable(input, self.caret_rectangle_px());
+            self.ime_enabled = true;
+            return;
+        }
+        if !editing && self.ime_enabled {
+            crate::ime::disable(input);
+            self.ime_enabled = false;
+            return;
+        }
+        if editing {
+            // Cheap, and the candidate window has to follow the caret or it
+            // covers the text being composed.
+            crate::ime::move_caret(input, self.caret_rectangle_px());
+        }
+    }
+
+    /// The caret in surface pixels, which is what the protocol wants.
+    fn caret_rectangle_px(&self) -> (i32, i32, i32, i32) {
+        let Some((at, width, height)) = self.controller.caret_rectangle() else {
+            return (0, 0, 1, 1);
+        };
+        let scale = self.scale.get();
+        (
+            (at.x * scale).round() as i32,
+            (at.y * scale).round() as i32,
+            (width * scale).round().max(1.0) as i32,
+            (height * scale).round().max(1.0) as i32,
+        )
+    }
+
     /// Tells the controller what is in the document now.
     ///
     /// Called after every change, including undo, so the selection and its
@@ -760,6 +840,7 @@ impl Overlay {
 
         // The gesture in flight is drawn but not in the document, which is the
         // whole point of keeping the preview separate from committed state.
+        let mut preedit_underline = None;
         if let Some(preview) = self.controller.preview() {
             let built = match preview {
                 Preview::Stroke {
@@ -776,11 +857,17 @@ impl Overlay {
                 Preview::Text {
                     at,
                     content,
+                    preedit,
                     size,
                     style,
                 } => {
-                    let with_caret = format!("{content}|");
-                    Shape::text(at, with_caret, size)
+                    // Composition is drawn inline where it will land, and
+                    // underlined below so the user can see what is still
+                    // provisional. The caret sits after both.
+                    preedit_underline = (!preedit.is_empty())
+                        .then(|| (at, content.to_owned(), preedit.to_owned(), size));
+                    let shown = format!("{content}{preedit}|");
+                    Shape::text(at, shown, size)
                         .ok()
                         .map(|shape| (shape, style))
                 }
@@ -815,6 +902,29 @@ impl Overlay {
             self.controller.style(),
             self.controller.tool(),
         );
+        // Drawn after the preview, so it sits under the glyphs it marks.
+        if let Some((at, content, preedit, size)) = preedit_underline
+            && let Some(font) = self.painter.font()
+        {
+            let scale = self.scale.get();
+            let pixels = (size * scale) as f32;
+            // The last line only: a composition never spans one.
+            let before = content.rsplit('\n').next().unwrap_or("");
+            let start = (at.x * scale) as f32 + font.line_width(before, pixels);
+            let width = font.line_width(&preedit, pixels);
+            let down = content.matches('\n').count() as f64 * size * 1.25 * scale;
+            let baseline = (at.y * scale + down) as f32 + font.ascent(pixels) + 2.0;
+            let thickness = (scale.round() as i64).max(1);
+            let colour = [0xD0, 0xD0, 0xD0, 0xD0];
+            canvas.fill_rect(
+                start.round() as i64,
+                baseline.round() as i64,
+                width.round() as i64,
+                thickness,
+                colour,
+            );
+        }
+
         paint_caret_hint(&mut canvas, &self.controller, self.last_pointer, self.scale);
 
         paint_selection(
@@ -1801,6 +1911,16 @@ impl SeatHandler for Overlay {
         self.seat = Some(seat.clone());
         if capability == Capability::Keyboard && self.keyboard.is_none() {
             self.keyboard = self.seat_state.get_keyboard(qh, &seat, None).ok();
+
+            // Text input belongs to a seat, so it is created with the keyboard
+            // rather than at startup.
+            if let Some(manager) = &self.text_input_manager
+                && self.text_input.is_none()
+            {
+                self.text_input =
+                    Some(manager.get_text_input(&seat, qh, crate::ime::TextInputData));
+                eprintln!("[ime] input methods available through zwp_text_input_v3");
+            }
         }
         if capability == Capability::Pointer && self.pointer.is_none() {
             // A themed pointer rather than a plain one, because a plain one

@@ -201,6 +201,7 @@ dependencies = [
  "ink-storage",
  "smithay-client-toolkit",
  "wayland-client",
+ "wayland-protocols",
 ]
 
 [[package]]

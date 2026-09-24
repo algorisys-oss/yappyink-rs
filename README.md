@@ -79,8 +79,11 @@ With the **text** tool, a caret follows the pointer showing exactly where the
 line will sit and how tall it will be. Click to place it and type. `Esc` discards what
 you typed, clicking elsewhere keeps it and starts a new one, and picking
 another tool keeps it too. Text moves and resizes with the select tool like any
-other object. It is **Latin only** for now: there is no input-method support,
-so scripts needing a composition engine will not work yet.
+other object. Input methods are supported through `zwp_text_input_v3`, so scripts that
+compose — Devanagari, CJK and others — work with your usual engine. While you
+compose, the provisional text is drawn underlined until the engine commits it,
+and the candidate window follows the caret. **Untested by the author against a
+real engine**; see `docs/evidence/` for what that means here.
 
 The colour button shows the colour you are about to draw with; click it for a
 row of swatches, and clicking one picks it and closes the row. `c` cycles

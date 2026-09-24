@@ -83,6 +83,11 @@ No font is bundled. A sans-serif face is found by probing known system paths;
 if none is found the text tool draws nothing and the application says so, which
 is better than shipping a font nobody asked for or drawing placeholder boxes.
 
+Added by input-method support: **`wayland-protocols` 0.32.13** with the
+`client` and `unstable` features, for `zwp_text_input_v3`. Unstable is where
+that protocol lives and it is what Mutter advertises. No new transitive tree:
+`wayland-client` was already a dependency.
+
 Still open, to be pinned by the task that needs them:
 
 - `smithay-client-toolkit` for the layer surface (T006)
