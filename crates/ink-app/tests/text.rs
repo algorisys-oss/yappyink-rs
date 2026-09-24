@@ -308,3 +308,84 @@ fn only_the_text_tool_opens_an_editor() {
         assert!(!controller.is_editing_text(), "{tool:?} opened an editor");
     }
 }
+
+// --- The cursor ------------------------------------------------------------
+
+#[test]
+fn the_text_tool_shows_an_i_beam() {
+    // Without it there is no way to tell where a click will place the caret:
+    // the canvas is transparent and has nothing to aim at.
+    let controller = typing();
+
+    assert_eq!(controller.cursor(), ink_app::Cursor::Text);
+}
+
+#[test]
+fn drawing_tools_show_a_crosshair_and_select_shows_an_arrow() {
+    let mut controller = typing();
+
+    for tool in [Tool::Pen, Tool::Highlighter, Tool::Rectangle, Tool::Eraser] {
+        controller.act(Action::SelectTool(tool));
+        assert_eq!(controller.cursor(), ink_app::Cursor::Crosshair, "{tool:?}");
+    }
+
+    controller.act(Action::SelectTool(Tool::Select));
+    assert_eq!(controller.cursor(), ink_app::Cursor::Default);
+}
+
+#[test]
+fn the_chrome_wins_over_the_canvas() {
+    // An I-beam over the toolbar would promise typing where there is none.
+    let controller = typing();
+    let button = controller.toolbar().buttons()[0].bounds;
+    let over_button = point(
+        (button.min.x + button.max.x) / 2.0,
+        (button.min.y + button.max.y) / 2.0,
+    );
+
+    assert_eq!(controller.cursor_at(over_button), ink_app::Cursor::Default);
+    assert_eq!(
+        controller.cursor_at(point(600.0, 600.0)),
+        ink_app::Cursor::Text
+    );
+}
+
+#[test]
+fn the_grip_shows_a_move_cursor() {
+    let controller = typing();
+    let grip = controller.toolbar().grip();
+
+    let cursor = controller.cursor_at(point(
+        (grip.min.x + grip.max.x) / 2.0,
+        (grip.min.y + grip.max.y) / 2.0,
+    ));
+
+    assert_eq!(cursor, ink_app::Cursor::Move);
+}
+
+#[test]
+fn the_resize_corner_shows_a_resize_cursor() {
+    let mut controller = typing();
+    controller.set_surface_size(ink_core::LogicalSize::new(800.0, 600.0).unwrap());
+    let corner = controller.resize_corner().expect("a corner");
+
+    let cursor = controller.cursor_at(point(
+        (corner.min.x + corner.max.x) / 2.0,
+        (corner.min.y + corner.max.y) / 2.0,
+    ));
+
+    assert_eq!(cursor, ink_app::Cursor::ResizeBottomRight);
+}
+
+#[test]
+fn pass_through_shows_an_ordinary_arrow() {
+    // The canvas is not ours there, so a crosshair would claim otherwise.
+    let mut controller = typing();
+    let transition = match controller.act(Action::ToggleDraw).first() {
+        Some(Effect::ApplyMode { transition, .. }) => *transition,
+        other => panic!("expected a mode request, got {other:?}"),
+    };
+    controller.handle(PlatformEvent::ModeApplied { transition });
+
+    assert_eq!(controller.cursor(), ink_app::Cursor::Default);
+}

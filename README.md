@@ -71,6 +71,10 @@ A toolbar sits in the top-left of the overlay: the tools, delete, undo, redo,
 clear, and the ways out. Rest the pointer on a button for a tooltip naming it
 and its key.
 
+The pointer tells you what a click will do: an I-beam for text, a crosshair for
+the drawing tools, an arrow over the toolbar and in pass-through, and move or
+resize cursors over the grip and the corner.
+
 With the **text** tool, click to place a caret and type. `Esc` discards what
 you typed, clicking elsewhere keeps it and starts a new one, and picking
 another tool keeps it too. Text moves and resizes with the select tool like any

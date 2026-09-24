@@ -40,7 +40,9 @@ use smithay_client_toolkit::registry::{ProvidesRegistryState, RegistryState};
 use smithay_client_toolkit::seat::keyboard::{
     KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers,
 };
-use smithay_client_toolkit::seat::pointer::{PointerEvent, PointerEventKind, PointerHandler};
+use smithay_client_toolkit::seat::pointer::{
+    CursorIcon, PointerEvent, PointerEventKind, PointerHandler, ThemeSpec, ThemedPointer,
+};
 use smithay_client_toolkit::seat::{Capability, SeatHandler, SeatState};
 use smithay_client_toolkit::shell::WaylandSurface;
 use smithay_client_toolkit::shell::xdg::XdgShell;
@@ -188,6 +190,8 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         keyboard: None,
         pointer: None,
         seat: None,
+        themed_pointer: None,
+        cursor: None,
         last_press_serial: None,
         width,
         height,
@@ -338,6 +342,11 @@ struct Overlay {
     pointer: Option<wl_pointer::WlPointer>,
     /// The seat, kept because an interactive move or resize has to name one.
     seat: Option<wl_seat::WlSeat>,
+    /// A themed pointer, so the cursor can be set. A client that never sets
+    /// one shows whatever the previously entered surface left behind.
+    themed_pointer: Option<ThemedPointer>,
+    /// The cursor currently applied, so it is only set when it changes.
+    cursor: Option<CursorIcon>,
     /// The serial of the most recent pointer press. The compositor requires it
     /// to start a move or resize, and refuses a stale or invented one.
     last_press_serial: Option<u32>,
@@ -532,6 +541,29 @@ impl Overlay {
         // transition complete is after the commit has been flushed, which the
         // next roundtrip does.
         self.pending_confirmations.push(transition);
+    }
+
+    /// Sets the cursor, if it is not already what we want.
+    ///
+    /// Only on a change: setting it on every motion event would ask the
+    /// compositor to reload a cursor image hundreds of times a second.
+    fn apply_cursor(&mut self, cursor: ink_app::Cursor, conn: &Connection) {
+        let icon = match cursor {
+            ink_app::Cursor::Default => CursorIcon::Default,
+            ink_app::Cursor::Crosshair => CursorIcon::Crosshair,
+            ink_app::Cursor::Text => CursorIcon::Text,
+            ink_app::Cursor::Move => CursorIcon::Move,
+            ink_app::Cursor::ResizeBottomRight => CursorIcon::SeResize,
+        };
+        if self.cursor == Some(icon) {
+            return;
+        }
+        let Some(themed) = &self.themed_pointer else {
+            return;
+        };
+        if themed.set_cursor(conn, icon).is_ok() {
+            self.cursor = Some(icon);
+        }
     }
 
     /// Tells the controller what is in the document now.
@@ -1348,7 +1380,7 @@ fn paint_resize_corner(canvas: &mut Canvas, corner: ink_core::LogicalRect, scale
 impl PointerHandler for Overlay {
     fn pointer_frame(
         &mut self,
-        _conn: &Connection,
+        conn: &Connection,
         _qh: &QueueHandle<Self>,
         _pointer: &wl_pointer::WlPointer,
         events: &[PointerEvent],
@@ -1356,6 +1388,7 @@ impl PointerHandler for Overlay {
         // Positions arrive surface-local, which is already the document's
         // coordinate space once the scale is divided out (FR-012).
         let mut produced = Vec::new();
+        let mut wanted_cursor = None;
         for event in events {
             let logical = LogicalPoint::new(
                 event.position.0 / self.scale.get(),
@@ -1366,6 +1399,11 @@ impl PointerHandler for Overlay {
                 // than allowed into the document.
                 continue;
             };
+            // What the pointer should look like here. Recomputed per event
+            // rather than per frame so that entering the surface, moving over
+            // the toolbar, and moving back onto the canvas all update it.
+            wanted_cursor = Some(self.controller.cursor_at(at));
+
             match event.kind {
                 PointerEventKind::Press { button, serial, .. } if button == BTN_LEFT => {
                     // Kept for a move or resize, which the compositor will only
@@ -1385,6 +1423,10 @@ impl PointerHandler for Overlay {
                 _ => {}
             }
         }
+        if let Some(cursor) = wanted_cursor {
+            self.apply_cursor(cursor, conn);
+        }
+
         for event in produced {
             let before = self.visual_state();
             let effects = self.controller.handle(event);
@@ -1551,7 +1593,29 @@ impl SeatHandler for Overlay {
             self.keyboard = self.seat_state.get_keyboard(qh, &seat, None).ok();
         }
         if capability == Capability::Pointer && self.pointer.is_none() {
-            self.pointer = self.seat_state.get_pointer(qh, &seat).ok();
+            // A themed pointer rather than a plain one, because a plain one
+            // cannot set a cursor and the overlay would keep showing whatever
+            // the last window chose.
+            let surface = self.compositor.create_surface(qh);
+            match self.seat_state.get_pointer_with_theme::<_, ()>(
+                qh,
+                &seat,
+                self.shm.wl_shm(),
+                surface,
+                ThemeSpec::default(),
+            ) {
+                Ok(themed) => {
+                    self.pointer = Some(themed.pointer().clone());
+                    self.themed_pointer = Some(themed);
+                }
+                Err(error) => {
+                    // Not fatal: without a theme the cursor is whatever the
+                    // compositor last showed, which is odd rather than broken.
+                    // Saying so beats a silently wrong pointer.
+                    eprintln!("[cursor] no cursor theme, the pointer will look wrong: {error}");
+                    self.pointer = self.seat_state.get_pointer(qh, &seat).ok();
+                }
+            }
         }
     }
 

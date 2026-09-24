@@ -497,6 +497,23 @@ fn rect_contains(rect: LogicalRect, at: LogicalPoint) -> bool {
     at.x >= rect.min.x && at.x <= rect.max.x && at.y >= rect.min.y && at.y <= rect.max.y
 }
 
+/// What the pointer should look like.
+///
+/// Named by intent rather than by picture, so the adapter can map them onto
+/// whatever its platform calls them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cursor {
+    Default,
+    /// Drawing tools: the canvas is live here.
+    Crosshair,
+    /// The text tool: an I-beam showing where the caret will land.
+    Text,
+    /// The toolbar's drag grip.
+    Move,
+    /// A resize handle.
+    ResizeBottomRight,
+}
+
 /// An open text editor.
 #[derive(Clone, Debug)]
 struct TextEdit {
@@ -1112,6 +1129,61 @@ impl Controller {
     }
 
     // --- mode changes ------------------------------------------------------
+
+    /// The cursor the pointer should show right now.
+    ///
+    /// A Wayland client has to set this itself: a surface that never does
+    /// inherits whatever the previously entered window left behind, so the
+    /// arrow over an annotation overlay may be a leftover rather than a
+    /// choice. Naming the tool in the cursor also answers "where will this
+    /// land?" before the click, which an invisible canvas otherwise cannot.
+    pub fn cursor(&self) -> Cursor {
+        if !Toolbar::canvas_is_interactive(self.effective) {
+            // The toolbar is the only live part, so the ordinary arrow is
+            // right: there is nothing to draw on.
+            return Cursor::Default;
+        }
+        match self.tool {
+            Tool::Text => Cursor::Text,
+            Tool::Select => Cursor::Default,
+            Tool::Eraser => Cursor::Crosshair,
+            _ => Cursor::Crosshair,
+        }
+    }
+
+    /// The cursor to show over a particular point.
+    ///
+    /// Chrome wins over the canvas: an arrow over the toolbar, a resize
+    /// cursor on the corner, a move cursor on the grip.
+    pub fn cursor_at(&self, at: LogicalPoint) -> Cursor {
+        if self.toolbar_visible() {
+            if self.toolbar.is_grip(at) {
+                return Cursor::Move;
+            }
+            if self.toolbar.contains(at)
+                || self
+                    .swatches()
+                    .iter()
+                    .any(|(_, _, r)| rect_contains(*r, at))
+            {
+                return Cursor::Default;
+            }
+            if self
+                .resize_corner()
+                .is_some_and(|corner| rect_contains(corner, at))
+            {
+                return Cursor::ResizeBottomRight;
+            }
+            if self
+                .selection_handles()
+                .iter()
+                .any(|(_, rect)| rect_contains(*rect, at))
+            {
+                return Cursor::ResizeBottomRight;
+            }
+        }
+        self.cursor()
+    }
 
     /// Whether the text editor is open.
     ///
