@@ -284,6 +284,31 @@ every assumption in its condition. If the guard and the assertion consult the
 same machinery, the test cannot distinguish "not applicable here" from "broken
 everywhere" — and it will choose the reassuring one.
 
+## 15. `is_absolute` asks the host, not the protocol
+
+**What happened.** The first CI run failed on Windows, on its first attempt, in
+`ink-platform` — the crate with no dependencies and no platform code in it at
+all. `WAYLAND_DISPLAY=/custom/wl.sock` was parsed with `Path::is_absolute`,
+which answers by the *host's* rules: Windows wants a drive letter, so it called
+that path relative, fell through to joining `XDG_RUNTIME_DIR`, and panicked
+because there is no such variable there.
+
+**Why it matters more than the bug.** The value is a POSIX path by the Wayland
+protocol's definition. It means the same thing whichever machine parses the
+string, so the parse had to mean the same thing too, and `is_absolute` quietly
+substituted a different question. The crate was portable in the sense of
+compiling everywhere and not portable in the sense of *behaving the same*, and
+only one of those is worth having.
+
+**What changed.** A leading-slash test, which is the protocol's own rule.
+
+**The general lesson.** This is the first thing the Windows and macOS CI jobs
+did, and it is the argument for them: not that the application works there — it
+does not — but that "portable" degrades into "compiles" the moment nothing
+checks it. It is also the fourth time a standard-library convenience answered a
+nearby question instead of the intended one, after `lines()` on a trailing
+newline and `XDG_DATA_HOME` in a snap, twice.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

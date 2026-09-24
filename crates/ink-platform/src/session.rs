@@ -197,10 +197,17 @@ fn wayland_socket_path(env: &EnvSnapshot) -> Result<PathBuf, String> {
     if display.is_empty() {
         return Err("WAYLAND_DISPLAY is empty".to_owned());
     }
-    let path = Path::new(display);
-    if path.is_absolute() {
-        return Ok(path.to_path_buf());
+    // Deliberately a leading-slash test rather than `Path::is_absolute`.
+    // `WAYLAND_DISPLAY` is a POSIX path by the protocol's own definition, and
+    // `is_absolute` asks the *host's* rules: on Windows it calls
+    // "/custom/wl.sock" relative, so this fell through and tried to join an
+    // XDG_RUNTIME_DIR that does not exist there. The string means the same
+    // thing on every machine, so the parse has to as well. Caught by CI's
+    // Windows job on its first run, which is exactly what that job is for.
+    if display.starts_with('/') {
+        return Ok(PathBuf::from(display));
     }
+    let path = Path::new(display);
     let runtime_dir = env.get("XDG_RUNTIME_DIR").ok_or_else(|| {
         format!("WAYLAND_DISPLAY is the relative name {display:?} but XDG_RUNTIME_DIR is not set")
     })?;
