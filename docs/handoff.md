@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after the IME-diagnostics commit.
+**Last updated:** 2026-09-24, after CI and versioning landed. Version 0.3.0.
 
 ## What this is
 
@@ -21,6 +21,7 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 | `docs/learning.md` | fourteen mistakes so far, one of them twice, and what changed |
 | `docs/evidence/` | what was actually run on a real machine, including failures |
 | `tasks.md` | per-task status, with evidence and what is still missing |
+| `docs/ship-it.md` | the version scheme, what "Ship it" does, what CI does and does not prove |
 
 `docs/evidence/E002` is the single most useful document: it is mostly the story
 of a route that did not work, and it is why the GNOME extension is small.
@@ -59,6 +60,23 @@ cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 python tools/check_specs.py             # specification cross-references only
 ```
+
+## Releasing
+
+Versioning started at 0.3.0 on 2026-09-24. **"Ship it" from the owner means:
+bump the version in the root `Cargo.toml`, commit, push, then push a `v<version>`
+tag.** The tag is what publishes; a branch push never does. The release workflow
+refuses a tag that disagrees with `Cargo.toml`, because a rule with nothing
+enforcing it is a preference. `docs/ship-it.md` has the increment table.
+
+CI runs the full workspace on Linux and the portable crates plus the binary on
+Windows and macOS. The second job keeps `ink-core` and friends free of Unix
+assumptions; **it does not mean the app works there**, and `docs/ship-it.md`
+says so in as many words. The Linux job installs `libxkbcommon-dev`, which the
+overlay links; Wayland needs nothing because the pure-Rust backend is used.
+
+Neither workflow has run yet — they were written and pushed in the same commit,
+so the first push to `main` is their first execution. Expect to fix something.
 
 ## The immediate next action
 
@@ -163,6 +181,11 @@ follows the pointer, and its own size setting defaulting to 30 logical units.
 `zwp_text_input_v3` is bound, the composition is kept apart from the committed
 text and drawn underlined, and the caret rectangle is reported so the candidate
 window follows.
+
+**Non-Latin input is parked, with its evidence written up.**
+`docs/evidence/E008-input-method-latin-only.md` records the one run so far and
+what each outcome of the next run would mean. Read it before touching the IME
+code; it exists so that attempt does not start from memory.
 
 **What is still missing is shaping.** Per-glyph font fallback landed after Hindi
 turned out to be invisible because DejaVuSans has no Devanagari at all

@@ -1,5 +1,7 @@
 # yappyink
 
+[![CI](https://github.com/algorisys-oss/yappyink-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/algorisys-oss/yappyink-rs/actions/workflows/ci.yml)
+
 Draw on top of your screen while the applications underneath keep working.
 
 You circle a function in your editor, draw an arrow, and then keep scrolling and
@@ -7,9 +9,11 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early. One backend, partly working, on one desktop environment.**
-Nothing here is a release, and the table below is the whole truth about what has
-been demonstrated.
+**Status: early (0.3.0). One backend, partly working, on one desktop
+environment.** Nothing here is finished, and the table below is the whole truth
+about what has been demonstrated. Versions are explained in
+[docs/ship-it.md](docs/ship-it.md); the leading zero is about the platform
+matrix, not about polish.
 
 Formerly specified under the name *ScreenInk*, which still appears throughout
 the specification documents. Same project.
@@ -21,8 +25,15 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | not implemented, never built there |
-| macOS | not implemented, never built there |
+| Windows | no overlay. `doctor` and `version` run; built and tested on every push |
+| macOS | no overlay. `doctor` and `version` run; built and tested on every push |
+
+The Windows and macOS rows say *built and tested*, and that is all they say. CI
+compiles the domain, the controller, the renderer, storage and the platform
+contracts on both, and runs their tests, which keeps the portable half honest.
+**It does not mean the application does anything there.** `yappyink draw` exits
+non-zero with `[failed unsupported]`. The ports are T003 and T004 and neither
+has been started.
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):
@@ -276,7 +287,7 @@ Specifications: [product-spec.md](product-spec.md) for requirements,
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
-python tools/check_specs.py     # specification cross-references only
+python3 tools/check_specs.py    # specification cross-references only
 ```
 
 The last one validates requirement, task, and scenario references. It does not
@@ -286,6 +297,13 @@ The Gherkin files under `tests/acceptance/` are **scenario specifications, not
 executable tests**. No scenario has passed. Where a scenario is partly covered
 by real tests, [traceability.json](traceability.json) says which tests and what
 is still missing.
+
+The same checks run in CI on every push: the whole workspace on Linux, and the
+portable crates plus the binary on Windows and macOS. A tag beginning with `v`
+builds the release binaries and publishes them, and refuses if the tag and the
+version in `Cargo.toml` disagree. [docs/ship-it.md](docs/ship-it.md) has the
+details and is explicit about what a green tick on three platforms does not
+mean.
 
 ## Licence
 

@@ -1,0 +1,92 @@
+name: CI
+
+# Pull requests and pushes to main. Tags are handled by release.yml, which runs
+# these same checks before it publishes anything.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The real gate. Everything builds here, including the Wayland adapter, and
+  # the whole suite runs.
+  linux:
+    name: Linux (full workspace)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The overlay links libxkbcommon for keysym handling. Wayland itself
+      # needs nothing: the pure-Rust backend is used, so libwayland-client is
+      # never linked. See crates/ink-platform-wayland/Cargo.toml.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libxkbcommon-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build --workspace --release
+
+      # Reference integrity across the specification files. It cannot certify
+      # that anything was implemented, and says so in its own output.
+      - name: Validate specification cross-references
+        run: python3 tools/check_specs.py
+
+  # Keeps the portable crates portable. It does not prove the application does
+  # anything on these platforms: there is no overlay backend for either
+  # (T003, T004). See docs/ship-it.md.
+  portable:
+    name: Portable core (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+
+      # Named one by one rather than --workspace, because the workspace
+      # contains the Wayland adapter and the throwaway experiment, neither of
+      # which can build off Linux. Excluding them by listing what is portable
+      # means adding a crate is a deliberate decision about which list it
+      # belongs in.
+      - name: Lint
+        run: >
+          cargo clippy --all-targets
+          -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
+          -p yappyink
+          -- -D warnings
+
+      - name: Test
+        run: >
+          cargo test
+          -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
+
+      # Proves the two verbs that exist off Linux actually run, rather than
+      # only compiling. `draw` is expected to fail here, and the release notes
+      # say so; asserting the failure keeps it from quietly starting to
+      # "succeed" at nothing.
+      - name: The binary runs, and refuses what it cannot do
+        shell: bash
+        run: |
+          cargo run -q -p yappyink -- version
+          cargo run -q -p yappyink -- doctor
+          if cargo run -q -p yappyink -- draw; then
+            echo "draw exited 0 on a platform with no backend"
+            exit 1
+          fi

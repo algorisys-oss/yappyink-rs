@@ -109,6 +109,39 @@ impl SocketProbe for UnixSocketProbe {
     }
 }
 
+/// Answers that nothing can be probed, with the reason.
+///
+/// Used where the platform has no Wayland or X11 socket to try at all. It
+/// exists so that `detect_session` returns an honest `Unknown` carrying "this
+/// platform has no such socket" rather than the caller skipping the probe and
+/// leaving a silent gap in the report. Windows does have `AF_UNIX`, so the
+/// absence is about the display server, not the socket type.
+#[cfg(not(unix))]
+#[derive(Clone, Copy, Debug, Default)]
+pub struct NoSocketProbe;
+
+#[cfg(not(unix))]
+impl SocketProbe for NoSocketProbe {
+    fn can_connect(&self, _path: &Path) -> Result<(), String> {
+        Err(format!(
+            "{} has no Wayland or X11 display socket to connect to",
+            std::env::consts::OS
+        ))
+    }
+}
+
+/// The probe to use on this platform.
+///
+/// One name for both, so callers do not repeat the `cfg` and cannot forget the
+/// non-Unix half; forgetting it is what kept the binary from compiling for
+/// Windows at all.
+#[cfg(unix)]
+pub type PlatformSocketProbe = UnixSocketProbe;
+
+/// The probe to use on this platform.
+#[cfg(not(unix))]
+pub type PlatformSocketProbe = NoSocketProbe;
+
 /// Resolves the reachable display server.
 ///
 /// Wayland is tried first: on a session that runs both, the Wayland socket is

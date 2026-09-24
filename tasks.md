@@ -370,6 +370,8 @@ Choose exact targets, build installers/packages, review dependency licenses/unsa
 
 **Exit criterion:** Clean-machine installation and uninstall preserve user documents and show truthful permissions/support notes.
 
+**Ahead of this task, 2026-09-24:** a build and release pipeline exists at the owner's request, and the status above is unchanged because none of the work this task actually asks for has been done — no installers, no licence review, no signing or notarisation, and no clean-machine test. What exists is GitHub Actions running the full workspace on Linux and the portable crates on Windows and macOS, and a tag producing three binaries with release notes that state plainly that two of them cannot draw. Versioning also starts here, at 0.3.0; `docs/ship-it.md` holds the scheme. T025 is still the dependency and is still not started.
+
 ## T032 [M3]: Certify V1 support
 
 Status: not_started. Dependencies: T027, T028, T029, T030, T031.

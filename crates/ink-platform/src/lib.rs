@@ -16,7 +16,7 @@ pub mod session;
 
 pub use capability::{Capability, CapabilityFinding, CapabilityReport, CapabilityState};
 pub use error::PlatformError;
-pub use session::{EnvSnapshot, SessionKind, SocketProbe, detect_session};
+pub use session::{EnvSnapshot, PlatformSocketProbe, SessionKind, SocketProbe, detect_session};
 
 /// One display output as a probe observed it.
 ///

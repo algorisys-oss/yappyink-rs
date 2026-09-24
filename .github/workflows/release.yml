@@ -1,0 +1,154 @@
+name: Release
+
+# A pushed v* tag is the only thing that publishes. Pushing to a branch never
+# does. See docs/ship-it.md.
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  # Refuses to release a tag that disagrees with the version in the tree.
+  # The rule is that every release bumps the version, and a rule with nothing
+  # enforcing it is a preference. Cheap to check, and it fails before anything
+  # is published rather than after.
+  verify-version:
+    name: Tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compare
+        run: |
+          tagged="${GITHUB_REF_NAME#v}"
+          declared=$(sed -n '/^\[workspace\.package\]/,/^\[/p' Cargo.toml \
+            | sed -n 's/^version = "\(.*\)"/\1/p' | head -1)
+          echo "tag=$tagged declared=$declared"
+          if [ "$tagged" != "$declared" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $declared."
+            echo "::error::Bump the version and retag; do not move a pushed tag."
+            exit 1
+          fi
+
+  # The same gate as CI. A release that skipped the checks is not worth the
+  # tag, and re-running them costs minutes.
+  checks:
+    name: Checks
+    needs: verify-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libxkbcommon-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: python3 tools/check_specs.py
+
+  build:
+    name: ${{ matrix.artifact }}
+    needs: checks
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The only one that draws anything.
+          - os: ubuntu-latest
+            artifact: yappyink-x86_64-linux
+            binary: yappyink
+          # doctor and version only; no overlay backend exists (T003, T004).
+          - os: windows-latest
+            artifact: yappyink-x86_64-windows.exe
+            binary: yappyink.exe
+          - os: macos-latest
+            artifact: yappyink-aarch64-macos
+            binary: yappyink
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libxkbcommon-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release -p yappyink
+
+      - name: Name it after the platform it was built for
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp "target/release/${{ matrix.binary }}" "dist/${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish the release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # Written here rather than taken from the tag message, so that the
+      # limitations travel with every download. Somebody will find this page
+      # without having read the README.
+      - name: Compose the notes
+        shell: bash
+        run: |
+          cat > notes.md <<'EOF'
+          ## What runs where
+
+          | Download | What it does |
+          |---|---|
+          | `yappyink-x86_64-linux` | the overlay, on GNOME Wayland |
+          | `yappyink-x86_64-windows.exe` | `doctor` and `version` only |
+          | `yappyink-aarch64-macos` | `doctor` and `version` only |
+
+          **There is no overlay on Windows or macOS.** Those binaries are
+          published because the portable core builds and is tested there, not
+          because the application works; `yappyink draw` exits non-zero and
+          says so. Ports are T003 and T004 and neither has been started.
+
+          On Linux this is a **limited preview on GNOME**. It cannot choose
+          which monitor it appears on, and it cannot raise itself: you apply
+          *Always on Top* once per launch, or use the GNOME Shell extension in
+          `integrations/gnome/`. Both limits are measured rather than assumed —
+          see `docs/evidence/` and `docs/adr/ADR-002-gnome.md`.
+
+          Nothing is signed or notarised. macOS will refuse the binary until
+          you clear it by hand.
+
+          Run `chmod +x` on the Linux and macOS downloads.
+          EOF
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --title "yappyink $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --prerelease \
+            dist/*

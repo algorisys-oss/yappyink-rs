@@ -11,8 +11,7 @@
 use std::fmt::Write as _;
 
 use ink_platform::{
-    Capability, CapabilityFinding, CapabilityReport, CapabilityState, EnvSnapshot, SessionKind,
-    detect_session, session::UnixSocketProbe,
+    Capability, CapabilityReport, EnvSnapshot, PlatformSocketProbe, SessionKind, detect_session,
 };
 
 const ALL_CAPABILITIES: [Capability; 11] = [
@@ -32,7 +31,7 @@ const ALL_CAPABILITIES: [Capability; 11] = [
 /// Runs every probe available on this build and renders the report.
 pub fn report() -> String {
     let env = EnvSnapshot::from_process_env();
-    let session = detect_session(&env, &UnixSocketProbe);
+    let session = detect_session(&env, &PlatformSocketProbe::default());
 
     let mut out = String::new();
     let _ = writeln!(out, "yappyink doctor {}", env!("CARGO_PKG_VERSION"));
@@ -155,6 +154,10 @@ fn wayland_section(
     capabilities: &mut CapabilityReport,
     not_probed: &mut Vec<String>,
 ) {
+    // Imported here rather than at the top of the file: only this arm records
+    // findings, and a top-level import is dead weight on every other target.
+    use ink_platform::{CapabilityFinding, CapabilityState};
+
     match ink_platform_wayland::probe() {
         Ok(probe) => {
             let _ = writeln!(*out, "  advertised globals: {}", probe.globals.len());

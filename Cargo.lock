@@ -129,7 +129,7 @@ dependencies = [
 
 [[package]]
 name = "exp-gnome-xdg-shell"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "smithay-client-toolkit",
  "wayland-client",
@@ -176,7 +176,7 @@ checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 
 [[package]]
 name = "ink-app"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "ink-core",
  "ink-platform",
@@ -184,15 +184,15 @@ dependencies = [
 
 [[package]]
 name = "ink-core"
-version = "0.0.0"
+version = "0.3.0"
 
 [[package]]
 name = "ink-platform"
-version = "0.0.0"
+version = "0.3.0"
 
 [[package]]
 name = "ink-platform-wayland"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "ink-app",
  "ink-core",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "ink-render"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "fontdue",
  "ink-core",
@@ -214,7 +214,7 @@ dependencies = [
 
 [[package]]
 name = "ink-storage"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "ink-core",
  "serde",
@@ -645,7 +645,7 @@ dependencies = [
 
 [[package]]
 name = "yappyink"
-version = "0.0.0"
+version = "0.3.0"
 dependencies = [
  "ink-app",
  "ink-core",

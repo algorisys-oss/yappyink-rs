@@ -21,6 +21,20 @@ fn main() -> std::process::ExitCode {
         }
         #[cfg(target_os = "linux")]
         Some("draw") => draw::run(),
+        // Present on every platform, and refuses on the ones without a
+        // backend. Reporting `draw` as an unknown command on Windows would be
+        // a lie about the command rather than the truth about the platform,
+        // and a reader cannot tell a missing feature from a typo.
+        #[cfg(not(target_os = "linux"))]
+        Some("draw") => {
+            eprintln!(
+                "[failed unsupported] there is no overlay backend for {} yet. \
+                 Windows is T003 and macOS is T004; neither has been started.",
+                std::env::consts::OS
+            );
+            eprintln!("`yappyink doctor` works here and reports what this machine offers.");
+            std::process::ExitCode::FAILURE
+        }
         #[cfg(target_os = "linux")]
         Some(verb) if control::ControlCommand::parse(verb).is_some() => {
             let command = control::ControlCommand::parse(verb).expect("just checked");
@@ -45,13 +59,20 @@ fn main() -> std::process::ExitCode {
                 eprintln!("unknown command: {command}");
             }
             eprintln!("usage: yappyink <draw|doctor|version>");
-            let verbs: Vec<&str> = control::ControlCommand::all()
-                .iter()
-                .map(|c| c.as_str())
-                .collect();
-            eprintln!("       yappyink <{}>", verbs.join("|"));
-            eprintln!("         sends a command to an overlay that is already running;");
-            eprintln!("         bind one to a chord in your desktop's keyboard settings.");
+            // The control verbs talk to a running overlay over a local socket,
+            // so they are listed only where an overlay can run. Offering them
+            // on a platform with no backend would advertise a command that
+            // cannot succeed.
+            #[cfg(target_os = "linux")]
+            {
+                let verbs: Vec<&str> = control::ControlCommand::all()
+                    .iter()
+                    .map(|c| c.as_str())
+                    .collect();
+                eprintln!("       yappyink <{}>", verbs.join("|"));
+                eprintln!("         sends a command to an overlay that is already running;");
+                eprintln!("         bind one to a chord in your desktop's keyboard settings.");
+            }
             eprintln!(
                 "draw starts the overlay on Wayland. doctor reports what this machine offers. \
                  Windows, macOS, and X11 have no backend yet (T003, T004, T005)."
