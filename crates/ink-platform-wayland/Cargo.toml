@@ -13,6 +13,7 @@ ink-core.workspace = true
 ink-platform.workspace = true
 ink-render.workspace = true
 ink-storage.workspace = true
+ink-ui.workspace = true
 smithay-client-toolkit = "0.21.1"
 # The text-input protocol, for input methods. Needed because composing in
 # Devanagari, CJK and similar scripts does not produce one character per key

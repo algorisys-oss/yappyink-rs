@@ -13,6 +13,7 @@ ink-core.workspace = true
 ink-platform.workspace = true
 ink-render.workspace = true
 ink-storage.workspace = true
+ink-ui.workspace = true
 
 # Only the OS calls need these. Everything decidable lives in `keys`, `pointer`
 # and `surface`, which are plain arithmetic over integers and therefore compile

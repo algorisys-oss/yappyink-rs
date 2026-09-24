@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24. Windows backend written and unrun; both probes unrun.
+**Last updated:** 2026-09-24. Windows backend with the shared toolbar, unrun.
 
 ## What this is
 
@@ -160,22 +160,26 @@ Note a nested compositor is not the real thing; `platform-matrix.md` says so.
 It answers whether the extension loads and behaves. Confirming it on the real
 session needs a logout, which was deferred because the owner was streaming.
 
-## The next piece of work, whoever picks it up
+## Verify this on Linux before building on it
 
-**Lift the chrome out of the Wayland adapter.** `paint_chrome`, `paint_toolbar`
-and the selection and text-preview drawing are private functions in
-`crates/ink-platform-wayland/src/overlay.rs`. The Windows backend needs all of
-them and deliberately does not have them: copying several hundred lines into a
-second adapter guarantees the two drift, and a toolbar that behaves differently
-per platform is two products.
+**The chrome moved.** It now lives in `crates/ink-ui` and both backends call
+it; the Wayland adapter lost 538 lines and calls `ink_ui::paint_*` instead.
+Behaviour should be identical — the code was moved, not rewritten — but it is a
+refactor of the one thing that *was* known to work, and nobody has watched it
+since.
 
-They belong in shared code — most naturally beside the toolbar layout that
-already lives in `ink-app`, with the painting in `ink-render`. That refactor is
-also the first chance to give the chrome real tests, since it would then be
-reachable without a compositor.
+```sh
+cargo build --workspace && ./target/debug/yappyink draw
+```
 
-It can be verified on Linux by running the overlay, so it is not blocked on
-anyone's hardware.
+Check the frame, the mode badge, the toolbar and its highlight, the swatches,
+the tooltips and the selection handles. Anything that looks different from
+before is a regression from this refactor, not a new feature.
+
+There are now 8 chrome tests in `crates/ink-ui/tests/chrome.rs`, which is 8 more
+than this code has ever had. They cover the failures from `learning.md` §1, but
+they compare buffers rather than looking at a screen, and a thing can be drawn
+and still be wrong.
 
 ## What to know before changing anything
 

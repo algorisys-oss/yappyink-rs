@@ -7,14 +7,15 @@
 //!
 //! # What is here, and what is not
 //!
-//! Drawing, the tools, mode switching, undo and redo, save and load, and a
-//! global toggle through `RegisterHotKey`. **There is no toolbar yet.** The
-//! Wayland adapter paints its own chrome in private functions, and copying
-//! several hundred lines of it here would guarantee the two drift apart; the
-//! right move is to lift that into shared code, and that is the next task
-//! rather than something to fake now. Until then this backend is keyboard
-//! driven and paints a frame and a mode badge so it can be found on screen at
-//! all (`docs/learning.md` §2).
+//! Drawing, the tools, mode switching, undo and redo, save and load, a global
+//! toggle through `RegisterHotKey`, and the full toolbar — the same one the
+//! Wayland backend draws, from the same code in `ink-ui`. It was lifted there
+//! rather than copied: a toolbar that behaves differently per platform is two
+//! products that merely resemble each other.
+//!
+//! Still missing: the text tool's preedit underline, which needs the font
+//! metrics the Wayland adapter reaches for inline, and any input-method
+//! integration at all.
 //!
 //! # Differences from the Wayland adapter, on purpose
 //!
@@ -97,6 +98,14 @@ struct Overlay {
     needs_redraw: bool,
     hidden: bool,
     pass_through: bool,
+    /// Where the pointer was last seen, for the text tool's caret hint.
+    ///
+    /// Kept rather than read on demand because the hint follows the pointer
+    /// and has to be redrawn when the *tool* changes as well as when the
+    /// pointer moves. Deciding exactly when something can change is what
+    /// produced six repaint bugs on the other backend; keeping the value and
+    /// recomputing cheaply is the lesson from those (docs/learning.md §12).
+    last_pointer: Option<LogicalPoint>,
 }
 
 thread_local! {
@@ -214,6 +223,7 @@ fn create(width: u32, height: u32) -> Result<(), PlatformError> {
             needs_redraw: true,
             hidden: false,
             pass_through: false,
+            last_pointer: None,
         });
     });
 
@@ -447,10 +457,26 @@ fn act(action: Action) {
 
 fn dispatch(event: PlatformEvent) {
     let effects = OVERLAY.with(|slot| {
-        slot.borrow_mut()
-            .as_mut()
-            .map(|overlay| overlay.controller.handle(event))
-            .unwrap_or_default()
+        let mut borrowed = slot.borrow_mut();
+        let Some(overlay) = borrowed.as_mut() else {
+            return Vec::new();
+        };
+        // Recorded before the controller sees the event, and compared against
+        // the tool afterwards, so the caret hint redraws when either changes.
+        let moved = match event {
+            PlatformEvent::PointerDown { at }
+            | PlatformEvent::PointerMoved { at }
+            | PlatformEvent::PointerUp { at } => {
+                let changed = overlay.last_pointer != Some(at);
+                overlay.last_pointer = Some(at);
+                changed
+            }
+            _ => false,
+        };
+        if moved && overlay.controller.tool() == ink_app::Tool::Text {
+            overlay.needs_redraw = true;
+        }
+        overlay.controller.handle(event)
     });
     apply(effects);
     flush();
@@ -753,7 +779,51 @@ fn repaint() {
                 .paint_object(&object, &mut canvas, overlay.scale);
         }
 
-        paint_frame(&mut canvas, overlay.pass_through);
+        // The same chrome the Wayland backend draws, from the same code. It
+        // was lifted into `ink-ui` rather than copied, because a toolbar that
+        // behaves differently per platform is two products (see that crate's
+        // documentation).
+        ink_ui::paint_chrome(
+            &mut canvas,
+            overlay.controller.mode(),
+            overlay.controller.style(),
+            overlay.controller.tool(),
+        );
+        ink_ui::paint_caret_hint(
+            &mut canvas,
+            &overlay.controller,
+            overlay.last_pointer,
+            overlay.scale,
+        );
+        ink_ui::paint_selection(
+            &mut canvas,
+            &overlay.controller,
+            overlay.session.document(),
+            &mut overlay.painter,
+            overlay.scale,
+        );
+
+        if overlay.controller.toolbar_visible() {
+            ink_ui::paint_toolbar(
+                &mut canvas,
+                overlay.controller.toolbar(),
+                overlay.controller.tool(),
+                overlay.controller.style().color,
+                overlay.scale,
+            );
+            if let Some(corner) = overlay.controller.resize_corner() {
+                ink_ui::paint_resize_corner(&mut canvas, corner, overlay.scale);
+            }
+            ink_ui::paint_swatches(&mut canvas, &overlay.controller, overlay.scale);
+            if let Some(button) = overlay.controller.hovered_button() {
+                ink_ui::paint_tooltip(
+                    &mut canvas,
+                    button,
+                    overlay.controller.toolbar().bounds(),
+                    overlay.scale,
+                );
+            }
+        }
 
         let blend = BLENDFUNCTION {
             BlendOp: AC_SRC_OVER as u8,
@@ -789,34 +859,6 @@ fn repaint() {
     });
 }
 
-/// A frame and a mode badge, so the overlay can be found on screen.
-///
-/// A fully transparent, undecorated window cannot be located, so there is
-/// nowhere to aim the pointer; that made the first Wayland build unusable
-/// (`docs/learning.md` §2). This is not the toolbar, which is still to come.
-fn paint_frame(canvas: &mut Canvas, pass_through: bool) {
-    let colour: [u8; 4] = if pass_through {
-        // Premultiplied: the colour channels are scaled by the alpha too.
-        [10, 60, 90, 120]
-    } else {
-        [90, 90, 0, 120]
-    };
-    let width = i64::from(canvas.width());
-    let height = i64::from(canvas.height());
-    let thickness = 4;
-    canvas.fill_rect(0, 0, width, thickness, colour);
-    canvas.fill_rect(0, height - thickness, width, thickness, colour);
-    canvas.fill_rect(0, 0, thickness, height, colour);
-    canvas.fill_rect(width - thickness, 0, thickness, height, colour);
-
-    let badge: [u8; 4] = if pass_through {
-        [20, 120, 180, 255]
-    } else {
-        [180, 180, 0, 255]
-    };
-    canvas.fill_rect(12, 12, 28, 28, badge);
-}
-
 fn print_orientation() {
     eprintln!();
     eprintln!("The overlay is the thin outlined rectangle; everything inside it is");
@@ -829,7 +871,6 @@ fn print_orientation() {
     eprintln!("With the overlay focused: d/p/h modes, 1-9 tools, u/r undo and redo,");
     eprintln!("w/o write and open, x clear, c colour, q quit.");
     eprintln!();
-    eprintln!("There is no toolbar on this backend yet; the chrome lives in the Wayland");
-    eprintln!("adapter and is being lifted into shared code rather than copied.");
+    eprintln!("The toolbar is the same one the Linux build draws, from the same code.");
     eprintln!();
 }

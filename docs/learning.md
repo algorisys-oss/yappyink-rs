@@ -309,6 +309,40 @@ checks it. It is also the fourth time a standard-library convenience answered a
 nearby question instead of the intended one, after `lines()` on a trailing
 newline and `XDG_DATA_HOME` in a snap, twice.
 
+## 16. Five hundred lines that could not be tested, and did not have to be
+
+**What happened.** Every bug in section 1 was in the same place: the chrome —
+the frame, the mode badge, the toolbar, the selection handles. All of it lived
+in private functions inside the Wayland adapter, so reaching it needed a
+compositor, so none of it had a single test. Four of those bugs were found by
+the owner using the application.
+
+The assumption underneath was that this code was *inherently* untestable
+because it was in the adapter. It was not. `paint_toolbar` takes a `Canvas`, a
+`Toolbar`, a `Tool`, a colour and a scale, and returns nothing; a `Canvas` is a
+slice of bytes. There was never anything platform-specific about it. It was
+untestable because of where it had been put, and nowhere else.
+
+**What changed.** A second backend forced the question — the alternative was
+copying it — and it moved to a new `ink-ui` crate that depends on `ink-core`,
+`ink-app` and `ink-render` and nothing else. Eight tests exist now, written
+against the failures that actually happened rather than against the
+implementation: the overlay that could not be seen, the mode that looked
+identical in both states, the toolbar highlight that did not follow the
+selected tool. Removing the highlight makes the last one fail, which was
+checked rather than assumed.
+
+**The general lesson, and it is uncomfortable.** "This layer cannot be tested"
+was true of the layer and false of the code in it. The honest version was "this
+code is in a place where it cannot be tested", which invites a different
+question. It took needing the code twice to ask it, and the tests that came out
+in an afternoon would have caught four bugs that shipped.
+
+Worth setting against section 1's conclusion, which was that untestable code
+needs its invariants written where they will be read. That was a reasonable
+response to the problem as posed. It was also an accommodation, and the better
+move was available the whole time.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

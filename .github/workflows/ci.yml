@@ -73,7 +73,7 @@ jobs:
         run: >
           cargo clippy --all-targets
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p ink-platform-windows -p yappyink
+          -p ink-platform-windows -p ink-ui -p ink-ui -p yappyink
           -p exp-windows-layered -p exp-macos-overlay
           -- -D warnings
 

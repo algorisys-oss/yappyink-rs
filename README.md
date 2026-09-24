@@ -96,15 +96,17 @@ thing you are annotating, and it is the kind of constraint a probe is for.
 
 Beyond the probe there is now a real backend,
 [crates/ink-platform-windows](crates/ink-platform-windows/), and `yappyink draw`
-reaches it on Windows: drawing, every tool, modes, undo, save and load, and
-`Ctrl+Alt+D` from anywhere. **There is no toolbar on it yet** — the Wayland
-adapter paints its chrome in private functions, and copying that would
-guarantee the two drift apart, so it is being lifted into shared code instead.
+reaches it on Windows: drawing, every tool, modes, undo, save and load,
+`Ctrl+Alt+D` from anywhere, and the full toolbar — **the same toolbar the Linux
+build draws, from the same code**. It was lifted into
+[crates/ink-ui](crates/ink-ui/) rather than copied, because a toolbar that
+behaves differently per platform is two products that merely resemble each
+other.
 
-Most of the crate is testable here. `keys` and `surface` take no Windows types
-and carry 13 tests that run in the ordinary suite; only the window itself needs
-Win32. That split exists because the Wayland adapter has no tests and six bugs
-were found by a person rather than by the suite.
+Most of the Windows crate is testable here too. `keys` and `surface` take no
+Windows types and carry 13 tests that run in the ordinary suite; only the window
+itself needs Win32. That split exists because the Wayland adapter has no tests
+and six bugs were found by a person rather than by the suite.
 
 One small thing fell out nicely: the renderer's premultiplied ARGB8888 is
 byte-identical to what a 32-bit DIB wants, so the canvas is built straight over

@@ -52,7 +52,11 @@ The crate is split so that most of it is testable on the development machine. `k
 
 One finding worth recording: the renderer's premultiplied ARGB8888 little-endian is **byte-identical** to what a 32-bit DIB wants for `AC_SRC_ALPHA`, so the canvas is built directly over the bitmap's memory and there is no copy and no conversion. `surface` states that rather than leaving it implicit, because the failure mode if either side ever changes is swapped red and blue rather than an error.
 
-**Not yet built: the toolbar.** The Wayland adapter paints its chrome in private functions, and copying several hundred lines would guarantee the two drift. Lifting it into shared code is the next task; until then this backend is keyboard driven and paints a frame and a mode badge so it can be found at all. Text preview is in the same position.
+**The toolbar is shared, not copied, 2026-09-24.** The chrome was lifted out of the Wayland adapter into a new `ink-ui` crate and both backends now call the same functions: frame, mode badge, toolbar, swatches, tooltips, selection handles and the text caret. `architecture.md` proposed that boundary and T013 deferred it on the grounds that one backend does not justify a crate; a second one does. The Wayland adapter lost 538 lines.
+
+The refactor paid for itself immediately in a way that matters more than the sharing: **the chrome is testable for the first time.** Inside the adapter it could not be reached without a compositor, which is why every bug in `docs/learning.md` §1 was in this layer and every one was found by a person. There are now 8 tests, written against the failures that actually happened — the invisible overlay, the mode that looked the same in both states, the toolbar highlight that did not follow the selected tool. The last of those was checked by deliberately removing the highlight, and it fails.
+
+Still missing on Windows: the preedit underline, and input methods entirely.
 
 **What has actually been verified: that it compiles, and nothing else.** `cargo check` and `cargo clippy -D warnings` pass against `x86_64-pc-windows-gnu` from the development machine, and CI lints it on a real Windows runner. **No part of it has been run, and a CI runner cannot answer any of the six questions, because every one of them is about what a person sees on a screen.** Every Windows capability stays `unknown` until the owner runs it and reports. This status is `in_progress` and not `implemented` for exactly that reason.
 

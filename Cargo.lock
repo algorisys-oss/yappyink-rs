@@ -234,6 +234,7 @@ dependencies = [
  "ink-platform",
  "ink-render",
  "ink-storage",
+ "ink-ui",
  "smithay-client-toolkit",
  "wayland-client",
  "wayland-protocols",
@@ -248,6 +249,7 @@ dependencies = [
  "ink-platform",
  "ink-render",
  "ink-storage",
+ "ink-ui",
  "windows-sys",
 ]
 
@@ -266,6 +268,15 @@ dependencies = [
  "ink-core",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "ink-ui"
+version = "0.4.0"
+dependencies = [
+ "ink-app",
+ "ink-core",
+ "ink-render",
 ]
 
 [[package]]

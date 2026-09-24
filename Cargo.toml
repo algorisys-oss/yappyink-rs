@@ -6,6 +6,7 @@ members = [
     "crates/ink-platform",
     "crates/ink-render",
     "crates/ink-storage",
+    "crates/ink-ui",
     "crates/ink-platform-wayland",
     "crates/ink-platform-windows",
     "apps/yappyink",
@@ -30,6 +31,7 @@ ink-core = { path = "crates/ink-core" }
 ink-platform = { path = "crates/ink-platform" }
 ink-render = { path = "crates/ink-render" }
 ink-storage = { path = "crates/ink-storage" }
+ink-ui = { path = "crates/ink-ui" }
 ink-platform-wayland = { path = "crates/ink-platform-wayland" }
 ink-platform-windows = { path = "crates/ink-platform-windows" }
 

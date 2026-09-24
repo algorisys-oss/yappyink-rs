@@ -1,0 +1,13 @@
+[package]
+name = "ink-ui"
+description = "The overlay's own chrome: frame, mode badge, toolbar, swatches, tooltips, selection handles and the text caret. Shared by every backend, and free of platform types."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ink-app.workspace = true
+ink-core.workspace = true
+ink-render.workspace = true
