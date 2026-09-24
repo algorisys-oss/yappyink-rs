@@ -25,15 +25,25 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | no overlay. `doctor` and `version` run; built and tested on every push |
+| Windows | no overlay yet. A feasibility probe is written and compiles; nobody has run it |
 | macOS | no overlay. `doctor` and `version` run; built and tested on every push |
 
 The Windows and macOS rows say *built and tested*, and that is all they say. CI
 compiles the domain, the controller, the renderer, storage and the platform
 contracts on both, and runs their tests, which keeps the portable half honest.
 **It does not mean the application does anything there.** `yappyink draw` exits
-non-zero with `[failed unsupported]`. The ports are T003 and T004 and neither
-has been started.
+non-zero with `[failed unsupported]`. macOS is T004 and has not been started. Windows is T003 and is
+**in progress**: `experiments/windows-layered` puts up a layered, top-most,
+click-through window and asks six questions about what Windows actually does.
+It compiles for Windows and CI lints it there. **It has never been run**, and a
+CI runner cannot answer any of its questions, because all six are about what a
+person sees on a screen.
+
+Windows is the interesting one. The two things GNOME measurably cannot do —
+choosing a monitor and registering a global shortcut — both have ordinary Win32
+answers, so if the probe behaves, Windows is where this product first works as
+specified. Whether it behaves is unknown. See
+[ADR-005](docs/adr/ADR-005-windows-bindings.md).
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):

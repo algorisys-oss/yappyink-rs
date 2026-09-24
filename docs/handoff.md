@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after CI and versioning landed. Version 0.3.0.
+**Last updated:** 2026-09-24, after the Windows probe was written. Version 0.3.0.
 
 ## What this is
 
@@ -77,6 +77,27 @@ overlay links; Wayland needs nothing because the pure-Rust backend is used.
 
 Neither workflow has run yet — they were written and pushed in the same commit,
 so the first push to `main` is their first execution. Expect to fix something.
+
+## The immediate next action, if you have a Windows machine
+
+**Run the T003 probe and write down what happens.** It is written, it compiles,
+CI lints it on a Windows runner, and **nobody has ever run it**. It cannot
+answer anything until someone does: all six of its questions are about what
+appears on a screen.
+
+```sh
+cargo run -p exp-windows-layered        # primary monitor
+cargo run -p exp-windows-layered -- 1   # the second one
+```
+
+It prints its own checklist on startup. Ctrl+Alt+D switches mode, Ctrl+Alt+Q
+quits. Record the answers in a new `docs/evidence/E0NN`, failures included, and
+then T003 can move off `in_progress`.
+
+The two questions that matter most are the ones GNOME failed: does it appear on
+the monitor you asked for, and does `RegisterHotKey` work. If both do, Windows
+is the first platform where the product works as specified, and ADR-002's
+"limited preview" framing stops being the whole story.
 
 ## The immediate next action
 

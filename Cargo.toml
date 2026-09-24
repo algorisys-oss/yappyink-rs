@@ -9,6 +9,7 @@ members = [
     "crates/ink-platform-wayland",
     "apps/yappyink",
     "experiments/gnome-xdg-shell",
+    "experiments/windows-layered",
 ]
 
 [workspace.package]

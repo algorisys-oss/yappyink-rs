@@ -136,6 +136,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "exp-windows-layered"
+version = "0.3.0"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"

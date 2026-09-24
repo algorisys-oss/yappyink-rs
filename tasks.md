@@ -32,13 +32,21 @@ Add diagnostic probing for active session, outputs, available protocols, shortcu
 
 ## T003 [M0]: Prove the Windows overlay path
 
-Status: not_started. Dependencies: T001.
+Status: in_progress since 2026-09-24. Dependencies: T001.
 
 Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
 
 Build only the transparent surface, fixed ink, one-stroke input, mode switching, and exit controls. Check empty transparent hit testing and other-process clicks.
 
 **Exit criterion:** Native Windows evidence records success/failure for live overlay, no click leakage, visible pass-through, and withdrawal.
+
+**Probe written, 2026-09-24, not yet run.** `experiments/windows-layered` is a throwaway feasibility program in the same spirit as `experiments/gnome-xdg-shell`: it depends on nothing in this workspace, because borrowing our own renderer would make a failure ambiguous between the platform and us. It puts up a layered, top-most, non-activating window on a chosen monitor, paints premultiplied BGRA straight into a top-down DIB through `UpdateLayeredWindow`, draws with the mouse, and switches pass-through by toggling one extended style bit. `WS_EX_TRANSPARENT` is real routing by the window manager, so FR-003 is satisfiable here without forwarding or synthesising anything, which is the boundary `AGENTS.md` draws.
+
+Six questions are posed in the program's own documentation and repeated on screen when it starts, mapped to FR-001, FR-002, FR-003, FR-018 and FR-005. Two of them are the interesting ones, because they are the capabilities GNOME measurably lacks: choosing which monitor to appear on, and registering a global shortcut with real conflict feedback. `RegisterHotKey` fails loudly when another application owns a chord, which is feedback Wayland cannot give because it has no registration at all.
+
+The dependency is `windows-sys` 0.61.2, target-gated, justified in `docs/adr/ADR-005-windows-bindings.md`.
+
+**What has actually been verified: that it compiles, and nothing else.** `cargo check` and `cargo clippy -D warnings` pass against `x86_64-pc-windows-gnu` from the development machine, and CI lints it on a real Windows runner. **No part of it has been run, and a CI runner cannot answer any of the six questions, because every one of them is about what a person sees on a screen.** Every Windows capability stays `unknown` until the owner runs it and reports. This status is `in_progress` and not `implemented` for exactly that reason.
 
 ## T004 [M0]: Prove the macOS overlay path
 
