@@ -108,6 +108,14 @@ pub enum Preview<'a> {
         path: &'a [LogicalPoint],
         radius: f64,
     },
+    /// Text being typed. Not in the document until it is committed, so an
+    /// abandoned edit leaves nothing behind.
+    Text {
+        at: LogicalPoint,
+        content: &'a str,
+        size: f64,
+        style: Style,
+    },
 }
 
 /// A drawing tool (FR-007, FR-008).
@@ -128,6 +136,8 @@ pub enum Tool {
     Eraser,
     /// Picks an object up to move, resize or delete it (FR-023).
     Select,
+    /// Places a caret and types (FR-023).
+    Text,
 }
 
 impl Tool {
@@ -163,7 +173,7 @@ impl Tool {
             Self::Rectangle => Shape::rectangle(from, to),
             Self::Ellipse => Shape::ellipse(from, to),
             // These are not defined by their endpoints.
-            Self::Pen | Self::Highlighter | Self::Eraser | Self::Select => {
+            Self::Pen | Self::Highlighter | Self::Eraser | Self::Select | Self::Text => {
                 Err(DocumentError::EmptyStroke)
             }
         }
@@ -301,6 +311,18 @@ pub enum Action {
     Quit,
     /// Shrink to the toolbar, or come back from it.
     TogglePark,
+    /// Text typed into an open editor.
+    ///
+    /// Separate from a key press, because while the editor is open a key is a
+    /// character rather than a shortcut. That distinction is the focus policy
+    /// FR-023 asks for, made explicit.
+    TypeText(char),
+    /// Remove the character before the caret.
+    BackspaceText,
+    /// Start a new line in the open editor.
+    NewlineText,
+    /// Finish the open editor, keeping what was typed.
+    CommitText,
     /// Show or hide the row of colour swatches.
     ToggleColorPicker,
     /// Choose a palette entry by position. Out-of-range values are ignored.
@@ -415,6 +437,13 @@ pub enum Effect {
     Faulted { error: PlatformError },
 }
 
+/// Text size as a multiple of the tool's width setting.
+///
+/// The width table tops out at 24 logical units, which is a thin line and a
+/// tiny label. Multiplying gives a usable range of text sizes from the same
+/// control rather than adding a second one.
+const TEXT_SIZE_RATIO: f64 = 2.5;
+
 /// Edge length of a selection's corner grab squares, in logical units.
 const HANDLE: f64 = 12.0;
 
@@ -466,6 +495,15 @@ fn scale_factors(start: LogicalRect, anchor: LogicalPoint, to: LogicalPoint) -> 
 
 fn rect_contains(rect: LogicalRect, at: LogicalPoint) -> bool {
     at.x >= rect.min.x && at.x <= rect.max.x && at.y >= rect.min.y && at.y <= rect.max.y
+}
+
+/// An open text editor.
+#[derive(Clone, Debug)]
+struct TextEdit {
+    at: LogicalPoint,
+    content: String,
+    size: f64,
+    style: Style,
 }
 
 /// What the pointer is doing.
@@ -557,6 +595,8 @@ pub struct Controller {
     hovered: Option<crate::toolbar::Icon>,
     /// Whether the swatch row is showing.
     picker_open: bool,
+    /// The text being typed, if the editor is open.
+    editing: Option<TextEdit>,
     tool: Tool,
     pen: ToolState,
     highlighter: ToolState,
@@ -591,6 +631,7 @@ impl Controller {
             selection: Vec::new(),
             hovered: None,
             picker_open: false,
+            editing: None,
             tool: Tool::Pen,
             pen: ToolState {
                 colour: 0,
@@ -884,6 +925,15 @@ impl Controller {
                 kind: *kind,
                 style: *style,
             }),
+            _ if self.editing.is_some() => {
+                let edit = self.editing.as_ref()?;
+                Some(Preview::Text {
+                    at: edit.at,
+                    content: &edit.content,
+                    size: edit.size,
+                    style: edit.style,
+                })
+            }
             Gesture::Sweeping { path, radius } => Some(Preview::Erase {
                 path,
                 radius: *radius,
@@ -928,8 +978,18 @@ impl Controller {
             // the tool and style it was started with, so a setting changed
             // mid-drag cannot rewrite what the user drew.
             Action::SelectTool(tool) => {
+                // An open text editor is committed rather than discarded:
+                // losing a typed label because you reached for the pen would
+                // be a harsh way to enforce tidiness, and FR-018's
+                // cancellation rules are about gestures in flight, not about
+                // finished words.
+                //
+                // A drawing gesture is deliberately left alone. A stroke keeps
+                // the tool and style it started with, so changing the tool
+                // mid-drag changes nothing about it.
+                let effects = self.commit_text();
                 self.tool = tool;
-                Vec::new()
+                effects
             }
             Action::SetColor(colour) => {
                 // Only palette colours can be selected today, because the
@@ -942,6 +1002,27 @@ impl Controller {
                 }
                 Vec::new()
             }
+            Action::TypeText(text) => {
+                if let Some(edit) = &mut self.editing
+                    && edit.content.chars().count() < limits::MAX_TEXT_CHARS
+                {
+                    edit.content.push(text);
+                }
+                Vec::new()
+            }
+            Action::BackspaceText => {
+                if let Some(edit) = &mut self.editing {
+                    edit.content.pop();
+                }
+                Vec::new()
+            }
+            Action::NewlineText => {
+                if let Some(edit) = &mut self.editing {
+                    edit.content.push('\n');
+                }
+                Vec::new()
+            }
+            Action::CommitText => self.commit_text(),
             Action::ToggleColorPicker => {
                 self.picker_open = !self.picker_open;
                 Vec::new()
@@ -1032,6 +1113,35 @@ impl Controller {
 
     // --- mode changes ------------------------------------------------------
 
+    /// Whether the text editor is open.
+    ///
+    /// While it is, a key is a character rather than a shortcut. The adapter
+    /// asks this before deciding which it is, which is the whole of FR-023's
+    /// "text edit keyboard focus is explicit".
+    pub fn is_editing_text(&self) -> bool {
+        self.editing.is_some()
+    }
+
+    /// Finishes the open editor, keeping what was typed.
+    ///
+    /// Empty or whitespace-only text commits nothing, because `Shape::text`
+    /// refuses it: an invisible object is the thing FR-008 rules out.
+    fn commit_text(&mut self) -> Vec<Effect> {
+        let Some(edit) = self.editing.take() else {
+            return Vec::new();
+        };
+        match Shape::text(edit.at, edit.content, edit.size) {
+            Ok(shape) => vec![Effect::CommitObject {
+                shape,
+                style: edit.style,
+            }],
+            // Not an error worth reporting: an editor opened and closed with
+            // nothing typed is a user changing their mind.
+            Err(DocumentError::EmptyText) => Vec::new(),
+            Err(reason) => vec![Effect::GestureDiscarded { reason }],
+        }
+    }
+
     /// Emits an effect, cancelling any gesture in flight first.
     fn with_gesture_cancelled(&mut self, effect: Effect) -> Vec<Effect> {
         let mut effects: Vec<Effect> = self.cancel_gesture().into_iter().collect();
@@ -1072,6 +1182,13 @@ impl Controller {
         // flight, then a selection, then Draw mode itself. Doing two at once
         // would make it impossible to cancel a drag without also losing what
         // was selected.
+        // An open editor is the smallest thing Escape can undo, and it is
+        // undone rather than kept: Escape means "forget this".
+        if self.editing.is_some() {
+            self.editing = None;
+            return Vec::new();
+        }
+
         let was_gesturing = self.is_gesturing();
         if let Some(cancelled) = self.cancel_gesture() {
             return vec![cancelled];
@@ -1216,6 +1333,19 @@ impl Controller {
         {
             self.gesture = Gesture::IgnoringHeldButton;
             return vec![Effect::BeginWindowResize];
+        }
+
+        if self.tool == Tool::Text {
+            // Finish whatever was being typed, then open a new editor here.
+            let mut effects = self.commit_text();
+            self.editing = Some(TextEdit {
+                at,
+                content: String::new(),
+                size: self.style().width.get() * TEXT_SIZE_RATIO,
+                style: self.style(),
+            });
+            effects.extend(self.cancel_gesture());
+            return effects;
         }
 
         if self.tool.is_select() {

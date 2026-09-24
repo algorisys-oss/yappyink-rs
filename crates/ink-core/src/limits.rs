@@ -18,3 +18,9 @@ pub const MAX_STROKE_POINTS: usize = 100_000;
 /// Only the count is enforced today; the byte budget needs a measurement, and
 /// T024 owns it.
 pub const MAX_UNDO_TRANSACTIONS: usize = 1_000;
+
+/// Characters a single text object may hold.
+///
+/// A defensive default like the others, not a measured one. An annotation is a
+/// label, not a document.
+pub const MAX_TEXT_CHARS: usize = 4_000;

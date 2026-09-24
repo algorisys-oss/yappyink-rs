@@ -67,4 +67,9 @@ pub enum WireShape {
         a: [f64; 2],
         b: [f64; 2],
     },
+    Text {
+        at: [f64; 2],
+        content: String,
+        size: f64,
+    },
 }

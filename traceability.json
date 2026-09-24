@@ -243,7 +243,13 @@
         "FR-023"
       ],
       "file": "tests/acceptance/v1.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/text.rs",
+        "crates/ink-app/tests/selection.rs",
+        "crates/ink-render/tests/text.rs"
+      ],
+      "note": "Latin text entry and editing pass headlessly. IME and preedit are not implemented, so the scenario cannot pass."
     },
     {
       "id": "AC-FR-024",
@@ -717,7 +723,7 @@
       ],
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "Split on 2026-09-23: T036 covers selection, move, resize and delete, which are implemented; T028 keeps Unicode text and IME, which are not started."
+      "notes": "Split on 2026-09-23: T036 covers selection, move, resize and delete, which are implemented. T028 covers text: Latin entry, rendering, move and resize are implemented as of 2026-09-24; IME, preedit, shaping and font fallback are not."
     },
     {
       "requirement": "FR-024",

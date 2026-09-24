@@ -197,7 +197,19 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         controller: Controller::new(),
         session: Session::new(output, config.size),
         ids: IdSource::starting_at(1),
-        painter: ink_render::Painter::new(),
+        painter: match ink_render::text::TextFont::discover() {
+            Ok(font) => {
+                eprintln!("[font] {}", font.source().display());
+                ink_render::Painter::new().with_font(font)
+            }
+            Err(reason) => {
+                // Not fatal: everything except the text tool works without a
+                // font. Saying so beats drawing nothing and leaving the user
+                // to guess (NFR-005).
+                eprintln!("[font] none found, so the text tool will draw nothing: {reason}");
+                ink_render::Painter::new()
+            }
+        },
         pending_confirmations: Vec::new(),
         quit: false,
     };
@@ -292,6 +304,7 @@ fn print_controls() {
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 7 or e eraser: removes whole objects its sweep touches\n\
          \x20 8 or s select: click an object, drag to move, corners to resize\n\
+         \x20 9      text: click to place a caret, then type; Esc discards\n\
          \x20 Del    delete what is selected\n\
          \x20 u / r  undo / redo\n\
          \x20 w / o  write / open the session file\n\
@@ -622,6 +635,20 @@ impl Overlay {
                     .ok()
                     .map(|shape| (shape, style)),
                 Preview::Shape { shape, style } => Some((shape, style)),
+                // Text being typed. A caret is appended so an empty editor is
+                // still visible: a click that opened one and drew nothing
+                // would otherwise look like the tool failing.
+                Preview::Text {
+                    at,
+                    content,
+                    size,
+                    style,
+                } => {
+                    let with_caret = format!("{content}|");
+                    Shape::text(at, with_caret, size)
+                        .ok()
+                        .map(|shape| (shape, style))
+                }
                 // The eraser's sweep is drawn as a faint grey trail so the
                 // user can see what it is about to take. It is chrome: never
                 // in the document, and it commits nothing.
@@ -920,6 +947,7 @@ fn paint_chrome(canvas: &mut Canvas, mode: Mode, style: Style, tool: Tool) {
         Tool::Ellipse => 5,
         Tool::Eraser => 6,
         Tool::Select => 7,
+        Tool::Text => 8,
     };
     for pip in 0..pips {
         canvas.fill_rect(80 + i64::from(pip) * 12, 14, 8, 8, ink);
@@ -1102,6 +1130,12 @@ fn paint_toolbar(
         match button.icon {
             // Drawn above as a filled swatch, never as a glyph.
             Icon::Color => {}
+            // A capital I with serifs: the usual text cursor.
+            Icon::Text => {
+                draw(&[(0.5, 0.0), (0.5, 1.0)]);
+                draw(&[(0.2, 0.0), (0.8, 0.0)]);
+                draw(&[(0.2, 1.0), (0.8, 1.0)]);
+            }
             // A box with an arrow pointing into it.
             Icon::Park => {
                 draw(&[(0.0, 0.55), (0.0, 1.0), (1.0, 1.0), (1.0, 0.55)]);
@@ -1397,6 +1431,29 @@ impl KeyboardHandler for Overlay {
         _serial: u32,
         event: KeyEvent,
     ) {
+        // FR-023: while the editor is open, keyboard focus belongs to it. A
+        // key is a character, not a shortcut, or typing "q" would quit and
+        // typing "x" would erase the drawing.
+        if self.controller.is_editing_text() {
+            let action = match event.keysym {
+                Keysym::Escape => Some(Action::Escape),
+                Keysym::BackSpace => Some(Action::BackspaceText),
+                Keysym::Return | Keysym::KP_Enter => Some(Action::NewlineText),
+                _ => event
+                    .utf8
+                    .as_ref()
+                    .and_then(|text| text.chars().next())
+                    .filter(|character| !character.is_control())
+                    .map(Action::TypeText),
+            };
+            if let Some(action) = action {
+                let effects = self.controller.act(action);
+                self.apply(effects);
+                self.needs_redraw = true;
+            }
+            return;
+        }
+
         let action = match event.keysym {
             Keysym::d | Keysym::D => Some(Action::EnterDraw),
             Keysym::p | Keysym::P => Some(Action::ToggleDraw),
@@ -1417,6 +1474,7 @@ impl KeyboardHandler for Overlay {
             Keysym::o | Keysym::O => Some(Action::Load),
             Keysym::t | Keysym::T => Some(Action::ShowWindowMenu),
             Keysym::_8 | Keysym::s | Keysym::S => Some(Action::SelectTool(Tool::Select)),
+            Keysym::_9 => Some(Action::SelectTool(Tool::Text)),
             Keysym::Delete | Keysym::BackSpace => Some(Action::DeleteSelection),
             Keysym::u | Keysym::U => Some(Action::Undo),
             Keysym::r | Keysym::R => Some(Action::Redo),

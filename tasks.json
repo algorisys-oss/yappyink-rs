@@ -510,7 +510,7 @@
     {
       "id": "T028",
       "phase": "M3",
-      "status": "not_started",
+      "status": "in_progress",
       "depends_on": [
         "T036"
       ],
@@ -519,7 +519,9 @@
       ],
       "title": "Add text entry and editing",
       "work": "Implement explicit text focus, Unicode/IME preedit and commit/cancel, and history for text edits. Object selection, move, resize and delete were split out into T036 on 2026-09-23 and are implemented.",
-      "exit_criterion": "IME tests and local shortcuts work without leaking keystrokes to the underlying app while editing."
+      "exit_criterion": "IME tests and local shortcuts work without leaking keystrokes to the underlying app while editing.",
+      "evidence": "crates/ink-app/tests/text.rs (15 tests); crates/ink-render/tests/text.rs (6 tests against a real font)",
+      "remaining": "IME and preedit are not implemented: no zwp_text_input_v3, no composition rendering, and no font fallback or shaping, so non-Latin scripts do not work. There is also no caret movement, no selection within a run, and no editing of an already-committed text object."
     },
     {
       "id": "T036",

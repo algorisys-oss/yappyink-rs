@@ -11,6 +11,10 @@ use crate::id::{ObjectId, OutputId};
 pub enum DocumentError {
     /// A stroke with no samples at all. Distinct from a dot, which has one.
     EmptyStroke,
+    /// Text with nothing in it, which would be invisible and unselectable.
+    EmptyText,
+    /// Text longer than the limit (NFR-003).
+    TextTooLong { characters: usize, limit: usize },
     /// A stroke exceeding the sample limit (NFR-003).
     StrokeTooLong { points: usize, limit: usize },
     /// A drag that went nowhere. Storing it would create an object the user
@@ -33,6 +37,11 @@ impl fmt::Display for DocumentError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::EmptyStroke => f.write_str("a stroke must have at least one point"),
+            Self::EmptyText => f.write_str("a text object must have some text in it"),
+            Self::TextTooLong { characters, limit } => write!(
+                f,
+                "text of {characters} characters exceeds the limit of {limit}"
+            ),
             Self::StrokeTooLong { points, limit } => {
                 write!(
                     f,

@@ -62,6 +62,8 @@ pub enum Icon {
     Park,
     /// Leaves the application.
     Quit,
+    /// Places a caret and types.
+    Text,
     /// Shows the row of colour swatches. Drawn in the current colour, so the
     /// button is itself the answer to "what am I drawing with?".
     Color,
@@ -91,6 +93,7 @@ impl Button {
             Icon::Arrow => "ARROW (4)",
             Icon::Rectangle => "RECTANGLE (5)",
             Icon::Ellipse => "ELLIPSE (6)",
+            Icon::Text => "TEXT (9)",
             Icon::Eraser => "ERASER (E)",
             Icon::Color => "COLOUR (C CYCLES)",
             Icon::Delete => "DELETE SELECTED (DEL)",
@@ -138,6 +141,7 @@ impl Toolbar {
             (Icon::Arrow, Action::SelectTool(Tool::Arrow)),
             (Icon::Rectangle, Action::SelectTool(Tool::Rectangle)),
             (Icon::Ellipse, Action::SelectTool(Tool::Ellipse)),
+            (Icon::Text, Action::SelectTool(Tool::Text)),
             (Icon::Eraser, Action::SelectTool(Tool::Eraser)),
             (Icon::Color, Action::ToggleColorPicker),
             (Icon::Delete, Action::DeleteSelection),

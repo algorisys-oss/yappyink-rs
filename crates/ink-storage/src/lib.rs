@@ -180,6 +180,11 @@ fn object_to_wire(object: &Object) -> wire::WireObject {
                 a: point(a),
                 b: point(b),
             },
+            Shape::Text { at, content, size } => wire::WireShape::Text {
+                at: point(at),
+                content: content.clone(),
+                size: *size,
+            },
         },
     }
 }
@@ -281,6 +286,7 @@ fn object_from_wire(entry: wire::WireObject, output: &OutputId) -> Result<Object
         wire::WireShape::Arrow { from, to } => Shape::arrow(point(from)?, point(to)?),
         wire::WireShape::Rectangle { a, b } => Shape::rectangle(point(a)?, point(b)?),
         wire::WireShape::Ellipse { a, b } => Shape::ellipse(point(a)?, point(b)?),
+        wire::WireShape::Text { at, content, size } => Shape::text(point(at)?, content, size),
     }
     .map_err(|e| StorageError::invalid("a shape", e.to_string()))?;
 

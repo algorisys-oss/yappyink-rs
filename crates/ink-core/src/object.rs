@@ -46,6 +46,16 @@ pub enum Shape {
         a: LogicalPoint,
         b: LogicalPoint,
     },
+    /// A run of text with its top-left corner at `at`.
+    ///
+    /// `size` is the line height in logical units, not a point size: the
+    /// document has no notion of physical measurements, and scaling happens at
+    /// the backend boundary like everything else (FR-012).
+    Text {
+        at: LogicalPoint,
+        content: String,
+        size: f64,
+    },
 }
 
 /// Below this, a drag is treated as having gone nowhere.
@@ -91,6 +101,45 @@ impl Shape {
         Ok(Self::Ellipse { a, b })
     }
 
+    /// A run of text.
+    ///
+    /// Empty text is refused for the same reason a zero-area rectangle is: it
+    /// would be an object the user cannot see, select, or erase (FR-008).
+    pub fn text(
+        at: LogicalPoint,
+        content: impl Into<String>,
+        size: f64,
+    ) -> Result<Self, DocumentError> {
+        let content = content.into();
+        if content.trim().is_empty() {
+            return Err(DocumentError::EmptyText);
+        }
+        if !size.is_finite() || size <= 0.0 {
+            return Err(DocumentError::DegenerateShape { shape: "text" });
+        }
+        if content.chars().count() > limits::MAX_TEXT_CHARS {
+            return Err(DocumentError::TextTooLong {
+                characters: content.chars().count(),
+                limit: limits::MAX_TEXT_CHARS,
+            });
+        }
+        Ok(Self::Text { at, content, size })
+    }
+
+    /// The approximate extent of a text run, in logical units.
+    fn text_extent(content: &str, size: f64) -> (f64, f64) {
+        let lines = content.lines().count().max(1);
+        let widest = content
+            .lines()
+            .map(|line| line.chars().count())
+            .max()
+            .unwrap_or(0);
+        (
+            widest as f64 * size * TEXT_ADVANCE_RATIO,
+            lines as f64 * size * TEXT_LINE_RATIO,
+        )
+    }
+
     /// The geometry as a polyline, for hit testing.
     ///
     /// Everything reduces to connected points: a stroke already is one, a
@@ -101,6 +150,24 @@ impl Shape {
         match self {
             Self::Stroke { points, .. } => points.clone(),
             Self::Line { from, to } | Self::Arrow { from, to } => vec![*from, *to],
+            // Its bounding box. The gaps between letters are not holes: a
+            // user pointing at a word means the word.
+            Self::Text { .. } => {
+                let bounds = self.bounds();
+                vec![
+                    bounds.min,
+                    LogicalPoint {
+                        x: bounds.max.x,
+                        y: bounds.min.y,
+                    },
+                    bounds.max,
+                    LogicalPoint {
+                        x: bounds.min.x,
+                        y: bounds.max.y,
+                    },
+                    bounds.min,
+                ]
+            }
             Self::Rectangle { a, b } => {
                 let rect = LogicalRect::from_corners(*a, *b);
                 let (x0, y0) = (rect.min.x, rect.min.y);
@@ -160,6 +227,10 @@ impl Shape {
             Self::Arrow { from, to } => Self::arrow(*from, *to).ok(),
             Self::Rectangle { a, b } => Self::rectangle(*a, *b).ok(),
             Self::Ellipse { a, b } => Self::ellipse(*a, *b).ok(),
+            // Text scales by its height. Stretching a font horizontally alone
+            // would need a transform the document does not model, so a
+            // non-uniform drag changes the size and leaves the letterforms be.
+            Self::Text { at, content, size } => Self::text(*at, content.clone(), size * sy).ok(),
         }
     }
 
@@ -182,6 +253,11 @@ impl Shape {
                 a: map(*a)?,
                 b: map(*b)?,
             },
+            Self::Text { at, content, size } => Self::Text {
+                at: map(*at)?,
+                content: content.clone(),
+                size: *size,
+            },
             Self::Ellipse { a, b } => Self::Ellipse {
                 a: map(*a)?,
                 b: map(*b)?,
@@ -200,6 +276,16 @@ impl Shape {
                 LogicalRect::from_corners(*from, *to)
             }
             Self::Rectangle { a, b } | Self::Ellipse { a, b } => LogicalRect::from_corners(*a, *b),
+            Self::Text { at, content, size } => {
+                let (width, height) = Self::text_extent(content, *size);
+                LogicalRect {
+                    min: *at,
+                    max: LogicalPoint {
+                        x: at.x + width,
+                        y: at.y + height,
+                    },
+                }
+            }
         }
     }
 }
@@ -212,6 +298,16 @@ fn check_extent(what: &'static str, a: LogicalPoint, b: LogicalPoint) -> Result<
     }
     Ok(())
 }
+
+/// Rough advance width of one character, as a fraction of the line height.
+///
+/// The domain cannot measure text: that needs a font, and `ink-core` has no
+/// dependencies by design. This approximation is used for selection bounds and
+/// picking, where being a few percent out is invisible. The renderer measures
+/// properly when it draws.
+const TEXT_ADVANCE_RATIO: f64 = 0.55;
+/// Line spacing as a fraction of the line height.
+const TEXT_LINE_RATIO: f64 = 1.25;
 
 /// How many segments an ellipse is approximated with for hit testing.
 ///

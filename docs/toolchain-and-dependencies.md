@@ -71,6 +71,18 @@ is MIT; the rest were not checked individually, and that check belongs to T031.
 `#![forbid(unsafe_code)]`; the dependencies contain unsafe code that has not been
 reviewed.
 
+Added by the text tool: **`fontdue` 0.9.4** (MIT/Apache-2.0), for glyph
+rasterisation. Chosen over a shaping stack such as cosmic-text because it
+rasterises straight to a coverage bitmap, which is the form `ink-render`
+already composites in, and because its dependency tree is small. What it does
+not do is shaping, bidirectional layout or font fallback, which is why the text
+tool is Latin-only and why input-method support is recorded as outstanding
+rather than nearly done.
+
+No font is bundled. A sans-serif face is found by probing known system paths;
+if none is found the text tool draws nothing and the application says so, which
+is better than shipping a font nobody asked for or drawing placeholder boxes.
+
 Still open, to be pinned by the task that needs them:
 
 - `smithay-client-toolkit` for the layer surface (T006)

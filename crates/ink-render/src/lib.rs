@@ -17,6 +17,7 @@
 #![forbid(unsafe_code)]
 
 pub mod font;
+pub mod text;
 
 use ink_core::{Document, LogicalPoint, Object, Shape, Style};
 
@@ -197,6 +198,10 @@ impl Scale {
 /// canvas, and allocating it per frame would show up in NFR-001's budget.
 #[derive(Default)]
 pub struct Painter {
+    /// The face used for text objects, if one was found. Text is simply not
+    /// drawn without it, and the application reports the reason rather than
+    /// drawing boxes.
+    font: Option<crate::text::TextFont>,
     /// Per-pixel coverage of the object being drawn, 0 to 255.
     ///
     /// This is what makes FR-007 work. The samples of a stroke overlap
@@ -210,6 +215,17 @@ pub struct Painter {
 impl Painter {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Gives the painter a face to draw text with.
+    pub fn with_font(mut self, font: crate::text::TextFont) -> Self {
+        self.font = Some(font);
+        self
+    }
+
+    /// Whether text can be drawn at all.
+    pub fn has_font(&self) -> bool {
+        self.font.is_some()
     }
 
     /// Paints every object in the document, in document order.
@@ -252,6 +268,26 @@ impl Painter {
 
     /// Rasterises the object's geometry into the coverage mask.
     fn mark(&mut self, object: &Object, stride: u32, rect: PixelRect, scale: Scale, radius: f64) {
+        // Text writes glyph coverage directly rather than going through the
+        // pen: it is not a polyline, and fontdue already produces exactly the
+        // coverage bitmap this renderer composites in.
+        if let Shape::Text { at, content, size } = object.shape() {
+            let Some(font) = &self.font else {
+                return;
+            };
+            mark_text(
+                &mut self.coverage,
+                stride,
+                rect,
+                font,
+                *at,
+                content,
+                *size * scale.get(),
+                scale,
+            );
+            return;
+        }
+
         let mut pen = Pen {
             coverage: &mut self.coverage,
             stride,
@@ -259,6 +295,8 @@ impl Painter {
             radius,
         };
         match object.shape() {
+            // Handled above, before the pen exists.
+            Shape::Text { .. } => {}
             Shape::Stroke { points, .. } => pen.polyline(points, scale),
             Shape::Line { from, to } => pen.polyline(&[*from, *to], scale),
             Shape::Arrow { from, to } => {
@@ -320,7 +358,13 @@ struct PixelRect {
 /// The canvas pixels an object can touch, or `None` if it misses entirely.
 fn mask_rect(object: &Object, canvas: &Canvas, scale: Scale, radius: f64) -> Option<PixelRect> {
     let bounds = object.bounds();
-    let margin = radius.ceil() + 1.0;
+    // Text bounds are approximate, because the domain cannot measure a font
+    // (see `Shape::text_extent`). The mask is padded by a whole line height so
+    // a run wider than the estimate is not clipped.
+    let margin = match object.shape() {
+        Shape::Text { size, .. } => (size * scale.get()).ceil() + 2.0,
+        _ => radius.ceil() + 1.0,
+    };
     let left = bounds.min.x * scale.get() - margin;
     let top = bounds.min.y * scale.get() - margin;
     let right = bounds.max.x * scale.get() + margin;
@@ -356,6 +400,61 @@ fn composite(coverage: &mut [u8], canvas: &mut Canvas, rect: PixelRect, colour: 
             }
             canvas.blend(i64::from(x), i64::from(y), colour);
         }
+    }
+}
+
+/// Writes glyph coverage for a run of text.
+///
+/// One line at a time, one glyph at a time, taking the maximum where glyphs
+/// overlap, so a kerned pair does not come out darker than its neighbours. The
+/// same reason strokes accumulate coverage rather than colour (FR-007).
+#[allow(clippy::too_many_arguments)]
+fn mark_text(
+    coverage: &mut [u8],
+    stride: u32,
+    rect: PixelRect,
+    font: &crate::text::TextFont,
+    at: LogicalPoint,
+    content: &str,
+    pixels: f64,
+    scale: Scale,
+) {
+    let pixels = pixels as f32;
+    let line_height = pixels * 1.25;
+    let origin_x = (at.x * scale.get()) as f32;
+    let mut baseline = (at.y * scale.get()) as f32 + font.ascent(pixels);
+
+    for line in content.lines() {
+        let mut pen_x = origin_x;
+        for character in line.chars() {
+            let (bitmap, width, height, xmin, ymin, advance) = font.glyph(character, pixels);
+            // The bitmap's top edge, derived from the baseline and the glyph's
+            // own extents, so descenders hang where they should.
+            let top = baseline - (height as f32 + ymin as f32);
+            let left = pen_x + xmin as f32;
+
+            for row in 0..height {
+                for column in 0..width {
+                    let value = bitmap[row * width + column];
+                    if value == 0 {
+                        continue;
+                    }
+                    let x = (left + column as f32).round() as i64;
+                    let y = (top + row as f32).round() as i64;
+                    if x < i64::from(rect.x0)
+                        || y < i64::from(rect.y0)
+                        || x >= i64::from(rect.x1)
+                        || y >= i64::from(rect.y1)
+                    {
+                        continue;
+                    }
+                    let index = y as usize * stride as usize + x as usize;
+                    coverage[index] = coverage[index].max(value);
+                }
+            }
+            pen_x += advance;
+        }
+        baseline += line_height;
     }
 }
 

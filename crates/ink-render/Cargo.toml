@@ -9,3 +9,9 @@ publish.workspace = true
 
 [dependencies]
 ink-core.workspace = true
+# Glyph rasterisation for the text tool. Chosen over a shaping stack because it
+# rasterises straight to a coverage bitmap, which is the form this renderer
+# already composites in, and because it is pure Rust with a small tree. It does
+# not shape or do font fallback; complex scripts need more than this and will
+# arrive with IME support. See docs/toolchain-and-dependencies.md.
+fontdue = "0.9.4"

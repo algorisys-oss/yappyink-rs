@@ -71,6 +71,12 @@ A toolbar sits in the top-left of the overlay: the tools, delete, undo, redo,
 clear, and the ways out. Rest the pointer on a button for a tooltip naming it
 and its key.
 
+With the **text** tool, click to place a caret and type. `Esc` discards what
+you typed, clicking elsewhere keeps it and starts a new one, and picking
+another tool keeps it too. Text moves and resizes with the select tool like any
+other object. It is **Latin only** for now: there is no input-method support,
+so scripts needing a composition engine will not work yet.
+
 The colour button shows the colour you are about to draw with; click it for a
 row of swatches, and clicking one picks it and closes the row. `c` cycles
 through the same palette without opening anything.
@@ -108,6 +114,7 @@ Keys, while the overlay has focus:
 | `3` – `6` | line / arrow / rectangle / ellipse |
 | `7` or `e` | eraser |
 | `8` or `s` | select |
+| `9` | text |
 | `t` | window menu, where *Always on Top* lives |
 | `Del` | delete what is selected |
 | `u` / `r` | undo / redo |
@@ -184,7 +191,8 @@ off, and there is no autosave to turn on.
 
 ## Not built yet
 
-A file picker, image export, text, and multiple monitors at once. Selection
+A file picker, image export, input-method support for non-Latin scripts, and
+multiple monitors at once. Selection
 picks objects by their bounding box rather than their exact outline, and there
 is no multi-select and no rotation.
 **Nothing is saved when you quit.**
