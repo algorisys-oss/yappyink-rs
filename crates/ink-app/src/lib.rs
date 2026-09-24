@@ -439,10 +439,11 @@ pub enum Effect {
 
 /// Text size as a multiple of the tool's width setting.
 ///
-/// The width table tops out at 24 logical units, which is a thin line and a
-/// tiny label. Multiplying gives a usable range of text sizes from the same
-/// control rather than adding a second one.
-const TEXT_SIZE_RATIO: f64 = 2.5;
+/// The width table is built for stroke thickness, where 24 units is a fat line
+/// but a very small label. Multiplying reuses the same control for text size
+/// rather than adding a second one, and the table then reads as roughly 3 to 72
+/// logical units, which covers a caption through to a headline.
+const TEXT_SIZE_RATIO: f64 = 3.0;
 
 /// Edge length of a selection's corner grab squares, in logical units.
 const HANDLE: f64 = 12.0;
@@ -623,6 +624,10 @@ pub struct Controller {
     shape: ToolState,
     /// Only the width is meaningful: an eraser has no colour of its own.
     eraser: ToolState,
+    /// Its own entry rather than sharing with the shape tools, which it did at
+    /// first: the width control means size here, so sharing meant changing a
+    /// label's size silently changed how thick the next rectangle was drawn.
+    text: ToolState,
 }
 
 impl Default for Controller {
@@ -668,6 +673,14 @@ impl Controller {
             },
             eraser: ToolState {
                 colour: 0,
+                width: 4,
+                opacity: OPACITIES.len() - 1,
+            },
+            text: ToolState {
+                colour: 0,
+                // Index 4 is 10 units, so 30 logical units of text: readable
+                // from the back of a room, which is what an annotation over a
+                // shared screen is for.
                 width: 4,
                 opacity: OPACITIES.len() - 1,
             },
@@ -867,6 +880,7 @@ impl Controller {
             Tool::Pen => &self.pen,
             Tool::Highlighter => &self.highlighter,
             Tool::Eraser => &self.eraser,
+            Tool::Text => &self.text,
             _ => &self.shape,
         }
     }
@@ -876,6 +890,7 @@ impl Controller {
             Tool::Pen => &mut self.pen,
             Tool::Highlighter => &mut self.highlighter,
             Tool::Eraser => &mut self.eraser,
+            Tool::Text => &mut self.text,
             _ => &mut self.shape,
         }
     }

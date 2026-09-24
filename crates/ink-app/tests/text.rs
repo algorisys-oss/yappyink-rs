@@ -389,3 +389,40 @@ fn pass_through_shows_an_ordinary_arrow() {
 
     assert_eq!(controller.cursor(), ink_app::Cursor::Default);
 }
+
+#[test]
+fn text_starts_large_enough_to_read_across_a_room() {
+    // An annotation over a shared screen is read by an audience, not by the
+    // person whose face is against the monitor.
+    let mut controller = typing();
+    controller.handle(PlatformEvent::PointerDown {
+        at: point(200.0, 300.0),
+    });
+    type_word(&mut controller, "a");
+
+    let (_, size) = committed_text(&controller.act(Action::CommitText)).expect("a commit");
+
+    assert!(
+        size >= 24.0,
+        "the default text size is {size}, which is small"
+    );
+}
+
+#[test]
+fn the_text_size_is_its_own_setting() {
+    // It shared one with the shape tools at first, so resizing a label
+    // silently changed how thick the next rectangle came out.
+    let mut controller = typing();
+    controller.act(Action::SelectTool(Tool::Rectangle));
+    let shape_width = controller.style().width;
+
+    controller.act(Action::SelectTool(Tool::Text));
+    controller.act(Action::AdjustWidth(2));
+
+    controller.act(Action::SelectTool(Tool::Rectangle));
+    assert_eq!(
+        controller.style().width,
+        shape_width,
+        "the rectangle got thicker"
+    );
+}
