@@ -166,3 +166,86 @@ fn scale_applies_to_text_like_everything_else() {
     let ratio = painted(&two) as f64 / painted(&one).max(1) as f64;
     assert!((2.5..=6.0).contains(&ratio), "scale ratio was {ratio}");
 }
+
+/// Whether this machine has a font covering the character these tests use.
+///
+/// Deliberately asks the filesystem rather than asking `TextFont`. The obvious
+/// guard is `font.can_draw(c)`, and it is wrong: it resolves through the same
+/// lookup the tests exercise, so removing fallback made both tests skip and
+/// report success. A skip condition must not depend on the thing under test.
+fn machine_has_devanagari() -> bool {
+    std::path::Path::new("/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf").exists()
+}
+
+/// A character the primary face does not have still reaches the canvas.
+///
+/// This is the bug that made Hindi invisible: DejaVuSans is first in the
+/// candidate list and this machine loads it, and it has no Devanagari at all,
+/// so correct text rasterised to an empty bitmap. Skipped where no face on the
+/// machine has the character, since that is a missing font, not a missing
+/// fallback.
+///
+/// It asserts pixels, not correctness: fallback is per glyph and does no
+/// shaping, so the arrangement of a Devanagari cluster is still wrong.
+#[test]
+fn a_character_outside_the_primary_face_is_still_drawn() {
+    let Ok(font) = TextFont::discover() else {
+        return;
+    };
+    if !machine_has_devanagari() {
+        eprintln!("skipping: this machine has no Devanagari font installed");
+        return;
+    }
+    // Devanagari letter KA. Chosen because it is a plain consonant: it needs
+    // no reordering, so fallback alone is enough to draw it.
+    let devanagari = 'क';
+    assert!(
+        font.can_draw(devanagari),
+        "a Devanagari font is installed but no loaded face reports the glyph"
+    );
+
+    let mut painter = Painter::new().with_font(font);
+    let mut pixels = vec![0u8; 400 * 200 * 4];
+    let mut canvas = Canvas::new(&mut pixels, 400, 200).unwrap();
+    painter.paint(
+        &document_with(Shape::text(point(10.0, 10.0), devanagari.to_string(), 48.0).unwrap()),
+        &mut canvas,
+        Scale::ONE,
+    );
+
+    assert!(
+        painted(&canvas) > 20,
+        "the glyph came out empty, which is what a missing fallback looks like"
+    );
+}
+
+/// Measurement uses the same face the glyph is drawn from.
+///
+/// If it did not, a run in a fallback face would advance by the primary face's
+/// .notdef width and the glyphs would sit on top of each other.
+#[test]
+fn a_fallback_character_has_a_real_width() {
+    let Ok(font) = TextFont::discover() else {
+        return;
+    };
+    if !machine_has_devanagari() {
+        return;
+    }
+    let devanagari = 'क';
+
+    // Compared against the face the glyph actually comes from, not against a
+    // threshold. DejaVu's .notdef is a wide box, so "wider than nothing" is
+    // satisfied by exactly the broken behaviour this is meant to catch.
+    let devanagari_face = TextFont::load(std::path::Path::new(
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+    ))
+    .expect("the file exists, so it should load");
+
+    let width = font.line_width(&devanagari.to_string(), 48.0);
+    let expected = devanagari_face.line_width(&devanagari.to_string(), 48.0);
+    assert!(
+        (width - expected).abs() < 0.5,
+        "advance was {width}, but the face drawing the glyph advances {expected}: \
+         the run is being measured against a face that is not drawing it"
+    );
+}

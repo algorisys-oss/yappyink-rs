@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after `4487d8e`.
+**Last updated:** 2026-09-24, after the font-fallback commit.
 
 ## What this is
 
@@ -18,7 +18,7 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 | File | Why |
 |---|---|
 | `AGENTS.md` | the contract: what may and may not be claimed |
-| `docs/learning.md` | twelve mistakes made so far, and what changed because of them |
+| `docs/learning.md` | fourteen mistakes made so far, and what changed because of them |
 | `docs/evidence/` | what was actually run on a real machine, including failures |
 | `tasks.md` | per-task status, with evidence and what is still missing |
 
@@ -45,7 +45,7 @@ capability and settings UX (T019), text and IME (T028), and everything on
 Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
 all.
 
-248 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+260 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -157,13 +157,24 @@ a fix.
 
 ## In flight
 
-**The text tool is half done.** Latin entry, rendering through `fontdue`, move
-and resize through the existing selection machinery, a caret that follows the
-pointer, and its own size setting defaulting to 30 logical units. What is
-missing is IME and preedit: no `zwp_text_input_v3`, no composition rendering,
-and no shaping or font fallback, so non-Latin scripts do not work. T028 stays in
-progress and `tasks.md` says why. The owner asked for English first and the rest
-after, so IME is the next piece of that task.
+**The text tool works for Latin and is unfinished beyond it.** Entry, rendering
+through `fontdue`, move and resize through the selection machinery, a caret that
+follows the pointer, and its own size setting defaulting to 30 logical units.
+`zwp_text_input_v3` is bound, the composition is kept apart from the committed
+text and drawn underlined, and the caret rectangle is reported so the candidate
+window follows.
+
+**What is still missing is shaping.** Per-glyph font fallback landed after Hindi
+turned out to be invisible because DejaVuSans has no Devanagari at all
+(`docs/learning.md` §13), so the characters now reach the screen — but nothing
+reorders or joins them, so Devanagari matras sit after their consonant and
+Arabic does not connect. That needs a shaping engine, which would mean a new
+dependency and therefore an ADR; `AGENTS.md` does not allow one without.
+
+None of the non-Latin path has been watched working. The diagnostics for that
+are in place: startup logs every loaded face, and every key arriving at an open
+editor logs its keysym and UTF-8 bytes, so one run says whether the keyboard is
+even producing the right characters.
 
 Also missing within text: caret movement inside a run, selecting part of one,
 and re-editing a committed text object.
@@ -179,8 +190,10 @@ nested-Shell run is still the outstanding action below.
 - **The GlobalShortcuts portal** needs a D-Bus client dependency that has not
   been chosen. Until then `doctor` reports the capability as `unknown` with
   that reason.
-- **IME and preedit**, the remaining half of T028, and the largest single piece
-  of unfinished work in the app itself.
+- **A shaping engine** for T028. `fontdue` rasterises a glyph and will never
+  reorder a cluster. `rustybuzz` or `cosmic-text` would do it and both are new
+  dependencies, so this needs an ADR before any code. Until then, non-Latin
+  scripts are honestly described as broken rather than quietly shipped.
 - **A file picker.** Saving uses one fixed path, because choosing a path needs
   the desktop's file portal, which needs the D-Bus dependency that is also
   blocking the shortcuts portal. Deciding that dependency unblocks both.

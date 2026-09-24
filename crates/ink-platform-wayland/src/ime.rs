@@ -86,9 +86,26 @@ impl Dispatch2<ZwpTextInputV3, Overlay> for TextInputData {
                 state.apply(effects);
                 state.needs_redraw = true;
             }
-            // Enter and Leave concern keyboard focus moving between surfaces.
-            // The editor is opened and closed by the application, not by the
-            // engine, so they are noted and not acted on.
+            // Text-input focus follows keyboard focus, and `enable` is only
+            // meaningful while focused: a client that enables before being
+            // told it has focus is talking to nobody, which is why the engine
+            // never engaged and every key arrived as a plain keystroke.
+            TextInputEvent::Enter { .. } => {
+                eprintln!("[ime] focused");
+                state.ime_focused = true;
+                // Focus can arrive after the editor is already open, so the
+                // engine is told immediately rather than waiting for the next
+                // change.
+                state.sync_input_method();
+            }
+            TextInputEvent::Leave { .. } => {
+                eprintln!("[ime] unfocused");
+                state.ime_focused = false;
+                // The compositor has already disabled the object on its side;
+                // saying so here keeps the two in step, so the next focus
+                // enables again rather than assuming it is still on.
+                state.ime_enabled = false;
+            }
             _ => {}
         }
     }

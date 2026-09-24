@@ -261,6 +261,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         text_input_manager,
         text_input: None,
         ime_enabled: false,
+        ime_focused: false,
         last_pointer: None,
         last_press_serial: None,
         width,
@@ -274,6 +275,9 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         painter: match ink_render::text::TextFont::discover() {
             Ok(font) => {
                 eprintln!("[font] {}", font.source().display());
+                for fallback in font.fallbacks() {
+                    eprintln!("[font] fallback {}", fallback.display());
+                }
                 ink_render::Painter::new().with_font(font)
             }
             Err(reason) => {
@@ -444,6 +448,12 @@ pub struct Overlay {
     /// Whether the engine has been told an editor is open, so enable and
     /// disable are each sent once rather than on every frame.
     pub(crate) ime_enabled: bool,
+    /// Whether text-input focus is on our surface.
+    ///
+    /// Enabling before the compositor says so does nothing at all, which is
+    /// how the engine came to be silently absent: every key then arrives as an
+    /// ordinary press and composes into Latin.
+    pub(crate) ime_focused: bool,
     /// Where the pointer was last seen, in logical units.
     ///
     /// Kept because the right cursor depends on the tool as well as the
@@ -693,18 +703,21 @@ impl Overlay {
     /// released on leaving the editor, and with an engine involved that means
     /// telling the engine: one that still believes a field is focused will go
     /// on composing into nothing.
-    fn sync_input_method(&mut self) {
+    pub(crate) fn sync_input_method(&mut self) {
         let Some(input) = &self.text_input else {
             return;
         };
-        let editing = self.controller.is_editing_text();
+        // Only while the compositor says the focus is ours.
+        let editing = self.controller.is_editing_text() && self.ime_focused;
 
         if editing && !self.ime_enabled {
+            eprintln!("[ime] enabled for the open editor");
             crate::ime::enable(input, self.caret_rectangle_px());
             self.ime_enabled = true;
             return;
         }
         if !editing && self.ime_enabled {
+            eprintln!("[ime] disabled");
             crate::ime::disable(input);
             self.ime_enabled = false;
             return;
@@ -1797,6 +1810,16 @@ impl KeyboardHandler for Overlay {
         // key is a character, not a shortcut, or typing "q" would quit and
         // typing "x" would erase the drawing.
         if self.controller.is_editing_text() {
+            // Logged only while the editor is open. When text comes out wrong,
+            // what arrived here is the first thing worth knowing: it separates
+            // "the keyboard is still producing Latin" from "the characters are
+            // right and we failed to draw them", and those have nothing in
+            // common. Guessing between them cost a day. See learning.md.
+            eprintln!(
+                "[key] keysym {} utf8 {:?}",
+                event.keysym.name().unwrap_or("unnamed"),
+                event.utf8
+            );
             let action = match event.keysym {
                 Keysym::Escape => Some(Action::Escape),
                 Keysym::BackSpace => Some(Action::BackspaceText),

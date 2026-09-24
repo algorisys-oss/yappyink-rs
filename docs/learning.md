@@ -223,6 +223,57 @@ it is a no-op when it has not changed, so the cost is a comparison.
 beats "work out exactly when it can change" for anything small enough to afford
 it. The clever version is what produced five bugs.
 
+## 13. The text was never the problem; the font was
+
+**What happened.** `zwp_text_input_v3` was implemented, the handshake was
+confirmed in a log — `[ime] focused`, `[ime] enabled for the open editor` — and
+Hindi still did not appear. The next instinct was to keep reading protocol code.
+
+`fc-query` settled it in one command: **DejaVuSans has zero Devanagari
+coverage**, and DejaVuSans is first in the renderer's candidate list and is what
+this machine loads. `lookup_glyph_index` answers 0 for a character a face does
+not have, and rasterising that gives an empty bitmap. So the text could have
+been arriving perfectly correct the entire time and the screen would have looked
+identical to the text never arriving at all.
+
+**Why it was nearly missed.** Two layers can each turn text into nothing, and
+they produce the same symptom. The one recently worked on is not the more likely
+one; it is just the one in mind. The cheap discriminating question — *can the
+font this machine loaded even draw this character?* — was not asked for a day,
+and it costs one command.
+
+**What changed.** The renderer keeps fallback faces and picks per character.
+Every loaded face is logged at startup, and each key arriving at an open editor
+is logged with its keysym and UTF-8 bytes, so a single run now separates "the
+keyboard is still producing Latin" from "the characters are right and we failed
+to draw them". This is section 12's lesson again: make the state visible rather
+than deduce it.
+
+## 14. A skip guard that asked the code under test
+
+**What happened.** Two tests were written for the new font fallback, and both
+passed first time. Following section 5, the fallback was deliberately broken to
+see whether they would notice. **Both still passed.**
+
+They each began `if !font.can_draw(c) { return; }` — a reasonable guard, since a
+machine with no Devanagari font should skip rather than fail. But `can_draw`
+resolves through the very lookup that was mutated. With fallback removed the
+guard answered false, both tests returned early, and the suite reported success
+for a feature that had been deleted.
+
+**What changed.** The guard asks the filesystem whether the font file exists,
+which is independent of the code under test, and the test then *asserts* that a
+loaded face can draw the character rather than skipping when it cannot. One of
+the two then caught the mutation; the other still did not, because it compared
+the advance width against a fixed threshold and DejaVu's `.notdef` is a wide box
+that cleared it. It now compares against the width the fallback face itself
+reports. Both fail under the mutation.
+
+**The general lesson.** A conditional skip is a silent pass, and it inherits
+every assumption in its condition. If the guard and the assertion consult the
+same machinery, the test cannot distinguish "not applicable here" from "broken
+everywhere" — and it will choose the reassuring one.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

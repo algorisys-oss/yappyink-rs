@@ -79,11 +79,21 @@ With the **text** tool, a caret follows the pointer showing exactly where the
 line will sit and how tall it will be. Click to place it and type. `Esc` discards what
 you typed, clicking elsewhere keeps it and starts a new one, and picking
 another tool keeps it too. Text moves and resizes with the select tool like any
-other object. Input methods are supported through `zwp_text_input_v3`, so scripts that
-compose — Devanagari, CJK and others — work with your usual engine. While you
-compose, the provisional text is drawn underlined until the engine commits it,
-and the candidate window follows the caret. **Untested by the author against a
-real engine**; see `docs/evidence/` for what that means here.
+other object.
+
+Input methods are wired up through `zwp_text_input_v3`: while you compose, the
+provisional text is drawn underlined until the engine commits it, and the
+candidate window follows the caret. If a character is missing from the main
+font the renderer falls back to another installed face, so CJK, Devanagari,
+Arabic, Hebrew and Thai reach the screen rather than rasterising to nothing.
+
+**Latin is what actually works.** There is no text shaping, so scripts that
+reorder or join characters come out as a row of separate base glyphs: readable
+in principle, wrong in practice. Devanagari matras land after their consonant
+instead of around it, and conjuncts do not form. Arabic letters do not join.
+Fixing that means a shaping engine, which is not written yet. None of the
+non-Latin path has been watched working by the author either; see
+`docs/evidence/` for what that distinction means here.
 
 The colour button shows the colour you are about to draw with; click it for a
 row of swatches, and clicking one picks it and closes the row. `c` cycles
@@ -201,7 +211,7 @@ off, and there is no autosave to turn on.
 
 ## Not built yet
 
-A file picker, image export, input-method support for non-Latin scripts, and
+A file picker, image export, text shaping for non-Latin scripts, and
 multiple monitors at once. Selection
 picks objects by their bounding box rather than their exact outline, and there
 is no multi-select and no rotation.
