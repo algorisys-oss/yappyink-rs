@@ -7,6 +7,7 @@ members = [
     "crates/ink-render",
     "crates/ink-storage",
     "crates/ink-platform-wayland",
+    "crates/ink-platform-windows",
     "apps/yappyink",
     "experiments/gnome-xdg-shell",
     "experiments/windows-layered",
@@ -30,6 +31,7 @@ ink-platform = { path = "crates/ink-platform" }
 ink-render = { path = "crates/ink-render" }
 ink-storage = { path = "crates/ink-storage" }
 ink-platform-wayland = { path = "crates/ink-platform-wayland" }
+ink-platform-windows = { path = "crates/ink-platform-windows" }
 
 [profile.release]
 debug = 1

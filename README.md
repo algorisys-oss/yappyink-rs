@@ -25,7 +25,7 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | no overlay yet. A feasibility probe is written and compiles; nobody has run it |
+| Windows | a backend exists and compiles. Nobody has run it, so nothing is claimed |
 | macOS | no overlay yet. A feasibility probe is written and compiles; nobody involved has a Mac |
 
 CI compiles the domain, the controller, the renderer, storage and the platform
@@ -94,13 +94,29 @@ window that never activates **receives no keyboard input at all**. Every control
 has to be a global hot key. That is the price of not stealing focus from the
 thing you are annotating, and it is the kind of constraint a probe is for.
 
-**None of this has been run.** It compiles for Windows, and CI lints it on a
-Windows runner, and that is the entire extent of what is known. A CI runner
-cannot answer any of the probe's six questions, because every one of them is
-about what a person sees on a screen. Until someone runs it, every Windows
-capability is `unknown` — not `unavailable`, and certainly not working.
-[ADR-005](docs/adr/ADR-005-windows-bindings.md) explains the binding choice;
-`docs/handoff.md` says how to run it and what to record.
+Beyond the probe there is now a real backend,
+[crates/ink-platform-windows](crates/ink-platform-windows/), and `yappyink draw`
+reaches it on Windows: drawing, every tool, modes, undo, save and load, and
+`Ctrl+Alt+D` from anywhere. **There is no toolbar on it yet** — the Wayland
+adapter paints its chrome in private functions, and copying that would
+guarantee the two drift apart, so it is being lifted into shared code instead.
+
+Most of the crate is testable here. `keys` and `surface` take no Windows types
+and carry 13 tests that run in the ordinary suite; only the window itself needs
+Win32. That split exists because the Wayland adapter has no tests and six bugs
+were found by a person rather than by the suite.
+
+One small thing fell out nicely: the renderer's premultiplied ARGB8888 is
+byte-identical to what a 32-bit DIB wants, so the canvas is built straight over
+the bitmap's memory with no copy and no conversion.
+
+**None of it has been run.** It compiles, CI lints and tests it on a Windows
+runner, and that is the entire extent of what is known — a compiler cannot tell
+you whether a window appears. Every Windows capability is `unknown`, not
+`unavailable` and certainly not working, and `yappyink doctor` says so on
+Windows too. [ADR-005](docs/adr/ADR-005-windows-bindings.md) explains the
+binding choice; `docs/handoff.md` says how to run the probe and what to
+record.
 
 ### How the macOS overlay is meant to work
 

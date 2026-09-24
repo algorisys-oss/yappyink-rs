@@ -46,6 +46,14 @@ Six questions are posed in the program's own documentation and repeated on scree
 
 The dependency is `windows-sys` 0.61.2, target-gated, justified in `docs/adr/ADR-005-windows-bindings.md`.
 
+**Adapter written, 2026-09-24.** `crates/ink-platform-windows` is the real backend, and `yappyink draw` now reaches it on Windows. Drawing, every tool, mode switching, undo and redo, save and load, and a global `Ctrl+Alt+D` through `RegisterHotKey`, which is the recovery route Wayland needs a control socket to fake. Pass-through is one extended style bit and the window manager does the routing, so nothing is forwarded or synthesised.
+
+The crate is split so that most of it is testable on the development machine. `keys` maps a virtual-key code to an `Action` and `surface` does the buffer arithmetic; both take no Windows types at all, compile anywhere, and carry **13 tests that run in the normal suite**. Only `overlay` needs Win32. That split is a direct response to `docs/learning.md` §1: the Wayland adapter has no tests, cannot easily have any, and six bugs were found by a person rather than the suite.
+
+One finding worth recording: the renderer's premultiplied ARGB8888 little-endian is **byte-identical** to what a 32-bit DIB wants for `AC_SRC_ALPHA`, so the canvas is built directly over the bitmap's memory and there is no copy and no conversion. `surface` states that rather than leaving it implicit, because the failure mode if either side ever changes is swapped red and blue rather than an error.
+
+**Not yet built: the toolbar.** The Wayland adapter paints its chrome in private functions, and copying several hundred lines would guarantee the two drift. Lifting it into shared code is the next task; until then this backend is keyboard driven and paints a frame and a mode badge so it can be found at all. Text preview is in the same position.
+
 **What has actually been verified: that it compiles, and nothing else.** `cargo check` and `cargo clippy -D warnings` pass against `x86_64-pc-windows-gnu` from the development machine, and CI lints it on a real Windows runner. **No part of it has been run, and a CI runner cannot answer any of the six questions, because every one of them is about what a person sees on a screen.** Every Windows capability stays `unknown` until the owner runs it and reports. This status is `in_progress` and not `implemented` for exactly that reason.
 
 ## T004 [M0]: Prove the macOS overlay path

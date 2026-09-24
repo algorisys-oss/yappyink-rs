@@ -1,0 +1,29 @@
+[package]
+name = "ink-platform-windows"
+description = "Windows adapter (T003). Win32 layered-window overlay. The message translation and surface layout are platform-independent and tested everywhere; only the OS calls are gated."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ink-app.workspace = true
+ink-core.workspace = true
+ink-platform.workspace = true
+ink-render.workspace = true
+ink-storage.workspace = true
+
+# Only the OS calls need these. Everything decidable lives in `keys`, `pointer`
+# and `surface`, which are plain arithmetic over integers and therefore compile
+# and run their tests on the development machine too. That split is the whole
+# reason this crate is testable at all; see the crate documentation.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_System_LibraryLoader",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_WindowsAndMessaging",
+] }

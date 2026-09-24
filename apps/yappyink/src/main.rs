@@ -9,6 +9,8 @@
 mod control;
 #[cfg(target_os = "linux")]
 mod draw;
+#[cfg(windows)]
+mod draw_windows;
 
 mod doctor;
 
@@ -21,15 +23,17 @@ fn main() -> std::process::ExitCode {
         }
         #[cfg(target_os = "linux")]
         Some("draw") => draw::run(),
+        #[cfg(windows)]
+        Some("draw") => draw_windows::run(),
         // Present on every platform, and refuses on the ones without a
         // backend. Reporting `draw` as an unknown command on Windows would be
         // a lie about the command rather than the truth about the platform,
         // and a reader cannot tell a missing feature from a typo.
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(not(any(target_os = "linux", windows)))]
         Some("draw") => {
             eprintln!(
                 "[failed unsupported] there is no overlay backend for {} yet. \
-                 Windows is T003 and macOS is T004; neither has been started.",
+                 macOS is T004 and has not been started.",
                 std::env::consts::OS
             );
             eprintln!("`yappyink doctor` works here and reports what this machine offers.");

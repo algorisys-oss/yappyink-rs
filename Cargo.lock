@@ -240,6 +240,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ink-platform-windows"
+version = "0.4.0"
+dependencies = [
+ "ink-app",
+ "ink-core",
+ "ink-platform",
+ "ink-render",
+ "ink-storage",
+ "windows-sys",
+]
+
+[[package]]
 name = "ink-render"
 version = "0.4.0"
 dependencies = [
@@ -838,6 +850,7 @@ dependencies = [
  "ink-core",
  "ink-platform",
  "ink-platform-wayland",
+ "ink-platform-windows",
  "ink-storage",
 ]
 

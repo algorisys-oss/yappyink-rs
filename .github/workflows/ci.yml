@@ -73,13 +73,18 @@ jobs:
         run: >
           cargo clippy --all-targets
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p yappyink -p exp-windows-layered -p exp-macos-overlay
+          -p ink-platform-windows -p yappyink
+          -p exp-windows-layered -p exp-macos-overlay
           -- -D warnings
 
+      # ink-platform-windows is tested on both runners on purpose. Its key
+      # bindings and buffer arithmetic take no Windows types, so they run
+      # anywhere, and that is the whole reason they were separated out.
       - name: Test
         run: >
           cargo test
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
+          -p ink-platform-windows
 
       # Proves the two verbs that exist off Linux actually run, rather than
       # only compiling. `draw` is expected to fail here, and the release notes

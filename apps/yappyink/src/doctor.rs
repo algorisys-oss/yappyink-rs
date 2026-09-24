@@ -229,8 +229,31 @@ fn wayland_section(
     }
 }
 
-/// On a non-Linux build no Wayland adapter is linked, so nothing can be said.
-#[cfg(not(target_os = "linux"))]
+/// On Windows the adapter is linked and reports what it would offer.
+///
+/// Every state it returns is `Unknown`, because nobody has run it. That is the
+/// distinction the constitution insists on: a documented behaviour is not a
+/// measured one, and reporting it as available would be inventing evidence.
+#[cfg(windows)]
+fn wayland_section(
+    out: &mut String,
+    capabilities: &mut CapabilityReport,
+    not_probed: &mut Vec<String>,
+) {
+    let _ = writeln!(
+        *out,
+        "  the windows-layered backend is compiled in, and has never been run"
+    );
+    for finding in ink_platform_windows::capabilities().findings() {
+        capabilities.record(finding.clone());
+    }
+    not_probed.push(
+        "every windows capability: the backend compiles but nobody has watched it".to_owned(),
+    );
+}
+
+/// On any other build no adapter is linked, so nothing can be said.
+#[cfg(not(any(target_os = "linux", windows)))]
 fn wayland_section(
     out: &mut String,
     _capabilities: &mut CapabilityReport,

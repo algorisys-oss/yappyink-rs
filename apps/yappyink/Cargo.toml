@@ -19,3 +19,6 @@ ink-storage.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ink-platform-wayland.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+ink-platform-windows.workspace = true

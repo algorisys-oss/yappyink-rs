@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, release 0.4.0: both platform probes written, neither run.
+**Last updated:** 2026-09-24. Windows backend written and unrun; both probes unrun.
 
 ## What this is
 
@@ -159,6 +159,23 @@ holds the checklist and what each outcome means for ADR-002.
 Note a nested compositor is not the real thing; `platform-matrix.md` says so.
 It answers whether the extension loads and behaves. Confirming it on the real
 session needs a logout, which was deferred because the owner was streaming.
+
+## The next piece of work, whoever picks it up
+
+**Lift the chrome out of the Wayland adapter.** `paint_chrome`, `paint_toolbar`
+and the selection and text-preview drawing are private functions in
+`crates/ink-platform-wayland/src/overlay.rs`. The Windows backend needs all of
+them and deliberately does not have them: copying several hundred lines into a
+second adapter guarantees the two drift, and a toolbar that behaves differently
+per platform is two products.
+
+They belong in shared code — most naturally beside the toolbar layout that
+already lives in `ink-app`, with the painting in `ink-render`. That refactor is
+also the first chance to give the chrome real tests, since it would then be
+reachable without a compositor.
+
+It can be verified on Linux by running the overlay, so it is not blocked on
+anyone's hardware.
 
 ## What to know before changing anything
 
