@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after `b7945b6`.
+**Last updated:** 2026-09-24, after `2e7bdab`.
 
 ## What this is
 
@@ -31,6 +31,10 @@ of a route that did not work, and it is why the GNOME extension is small.
 toolbar, T014 rendering, T015 pen and highlighter, T016 shapes, T017 eraser and
 history, T020 save, T021 validated load, T036 selection.
 
+Also done outside the task list: the toolbar is pinned in pass-through, there is
+a Parked mode that shrinks the overlay to its toolbar, a colour swatch picker,
+tooltips, save and quit buttons, and a window grip and resize corner.
+
 **In progress:** T002 (capability probe; the GlobalShortcuts portal is
 unprobed), T007 (GNOME route; extension prototype written, never loaded), T011
 (vertical slice; half the checklist unobserved), T012 (control socket works; no
@@ -41,7 +45,7 @@ capability and settings UX (T019), text and IME (T028), and everything on
 Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
 all.
 
-218 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+239 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -147,17 +151,15 @@ a fix.
 
 ## In flight
 
-**A text tool** is the next feature, and the open question is scope. FR-023 and
-T028 ask for Unicode text *with IME and preedit*. Direct key input handles Latin
-and most European layouts and is about a session's work; IME means the
-`zwp_text_input_v3` protocol, a focus contract, and rendering an in-progress
-composition differently from committed text. The owner was asked whether they
-need to type Devanagari or other non-Latin script and has not answered yet.
+**The text tool is half done.** Latin entry, rendering through `fontdue`, and
+move and resize through the existing selection machinery all work, with 21
+tests. What is missing is IME and preedit: no `zwp_text_input_v3`, no
+composition rendering, and no shaping or font fallback, so non-Latin scripts do
+not work. T028 stays in progress and `tasks.md` says why. The owner asked for
+English first and the rest after.
 
-Text also needs a real font. The 5x7 bitmap in `ink-render::font` has no
-lowercase and exists only for chrome; a rasteriser such as `fontdue` or
-`ab_glyph` plus a system font is the intended route, and that dependency choice
-should be recorded when it is made.
+Also missing within text: caret movement inside a run, selecting part of one,
+and re-editing a committed text object.
 
 ## Open decisions
 
@@ -178,6 +180,8 @@ should be recorded when it is made.
 
 - Every feature updates `README.md` in the same commit.
 - Every task updates `tasks.md`, `tasks.json` and `traceability.json` together.
+  `tools/check_specs.py` enforces that the first two agree, after they drifted
+  silently for a day.
 - Native observations go in `docs/evidence/` as a new `E0NN` file, including
   what was *not* tested.
 - Mistakes go in `docs/learning.md`.
