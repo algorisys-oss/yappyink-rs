@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after `2e7bdab`.
+**Last updated:** 2026-09-24, after `4487d8e`.
 
 ## What this is
 
@@ -18,7 +18,7 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 | File | Why |
 |---|---|
 | `AGENTS.md` | the contract: what may and may not be claimed |
-| `docs/learning.md` | ten mistakes made so far, and what changed because of them |
+| `docs/learning.md` | twelve mistakes made so far, and what changed because of them |
 | `docs/evidence/` | what was actually run on a real machine, including failures |
 | `tasks.md` | per-task status, with evidence and what is still missing |
 
@@ -45,7 +45,7 @@ capability and settings UX (T019), text and IME (T028), and everything on
 Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
 all.
 
-239 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+248 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -115,7 +115,13 @@ owner running the application, none by the suite. See `docs/learning.md` §1 and
 `crates/ink-platform-wayland` needs a compositor. When something is right in the
 model and absent on screen, look first at `VisualState` in `overlay.rs`: if a
 thing that is drawn is not in that struct, it will not trigger a repaint. That
-has been the bug four times.
+has been the bug six times now, including once where the comparison ran after
+the value it compared had already been updated.
+
+**Do not reason about a cursor or a repaint you cannot see.** Two fixes were
+shipped for a cursor bug on the strength of reading the code, and a single run
+with logging settled it immediately. Successful cursor changes are logged as
+well as failures for exactly this reason. Ask for the output.
 
 **Dependency direction is one way.** `ink-core` knows nothing about a window,
 `ink-app` knows nothing about Wayland, and the adapter decides nothing about
@@ -151,15 +157,19 @@ a fix.
 
 ## In flight
 
-**The text tool is half done.** Latin entry, rendering through `fontdue`, and
-move and resize through the existing selection machinery all work, with 21
-tests. What is missing is IME and preedit: no `zwp_text_input_v3`, no
-composition rendering, and no shaping or font fallback, so non-Latin scripts do
-not work. T028 stays in progress and `tasks.md` says why. The owner asked for
-English first and the rest after.
+**The text tool is half done.** Latin entry, rendering through `fontdue`, move
+and resize through the existing selection machinery, a caret that follows the
+pointer, and its own size setting defaulting to 30 logical units. What is
+missing is IME and preedit: no `zwp_text_input_v3`, no composition rendering,
+and no shaping or font fallback, so non-Latin scripts do not work. T028 stays in
+progress and `tasks.md` says why. The owner asked for English first and the rest
+after, so IME is the next piece of that task.
 
 Also missing within text: caret movement inside a run, selecting part of one,
 and re-editing a committed text object.
+
+**Nothing on GNOME has been verified since the extension was written.** The
+nested-Shell run is still the outstanding action below.
 
 ## Open decisions
 
@@ -169,6 +179,8 @@ and re-editing a committed text object.
 - **The GlobalShortcuts portal** needs a D-Bus client dependency that has not
   been chosen. Until then `doctor` reports the capability as `unknown` with
   that reason.
+- **IME and preedit**, the remaining half of T028, and the largest single piece
+  of unfinished work in the app itself.
 - **A file picker.** Saving uses one fixed path, because choosing a path needs
   the desktop's file portal, which needs the D-Bus dependency that is also
   blocking the shortcuts portal. Deciding that dependency unblocks both.
