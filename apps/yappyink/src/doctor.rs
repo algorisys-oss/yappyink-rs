@@ -252,8 +252,29 @@ fn wayland_section(
     );
 }
 
+/// On macOS the adapter is linked and reports what it would offer.
+///
+/// Every state is `Unknown`, and unlike Windows there is not even a plan for
+/// measuring them: nobody on this project has a Mac.
+#[cfg(target_os = "macos")]
+fn wayland_section(
+    out: &mut String,
+    capabilities: &mut CapabilityReport,
+    not_probed: &mut Vec<String>,
+) {
+    let _ = writeln!(
+        *out,
+        "  the macos-appkit backend is compiled in, and has never been run"
+    );
+    for finding in ink_platform_macos::capabilities().findings() {
+        capabilities.record(finding.clone());
+    }
+    not_probed
+        .push("every macos capability: the backend compiles but nobody has watched it".to_owned());
+}
+
 /// On any other build no adapter is linked, so nothing can be said.
-#[cfg(not(any(target_os = "linux", windows)))]
+#[cfg(not(any(target_os = "linux", windows, target_os = "macos")))]
 fn wayland_section(
     out: &mut String,
     _capabilities: &mut CapabilityReport,

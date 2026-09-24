@@ -26,7 +26,7 @@ the specification documents. Same project.
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
 | Windows | a backend exists and compiles. Nobody has run it, so nothing is claimed |
-| macOS | no overlay yet. A feasibility probe is written and compiles; nobody involved has a Mac |
+| macOS | a backend exists and compiles. Nobody involved has a Mac, so nothing is claimed |
 
 CI compiles the domain, the controller, the renderer, storage and the platform
 contracts on Windows and macOS and runs their tests, which keeps the portable

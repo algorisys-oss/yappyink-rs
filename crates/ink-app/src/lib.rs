@@ -19,6 +19,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod keymap;
 pub mod toolbar;
 
 pub use toolbar::{Button, Icon, Toolbar};

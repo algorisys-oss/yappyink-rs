@@ -10,9 +10,10 @@
 //!
 //! So the decidable parts are separated out and take no Windows types at all:
 //!
-//! - [`keys`] turns a virtual-key code into an [`ink_app::Action`]. A key code
-//!   is a `u32`, and what it *means* is this project's decision, not the
-//!   platform's.
+//! - [`keys`] turns a virtual-key code into an [`ink_app::keymap::Key`]. What
+//!   the key then *means* is decided by `ink_app::keymap`, shared with every
+//!   backend, because three copies of "what does `d` do" is three chances to
+//!   disagree.
 //! - [`surface`] is buffer-layout arithmetic: stride, top-down height, the DPI
 //!   scale.
 //!

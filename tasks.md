@@ -89,7 +89,15 @@ Two findings came out of writing it, before any of it ran:
 
 **FR-005 has no equivalent at all.** A global shortcut on macOS needs either Carbon's `RegisterEventHotKey` or an accessibility-permission grant. A permission prompt is a product decision, so the probe deliberately does not attempt one, and ADR-006 says it needs its own ADR.
 
-**What has been verified: that it compiles.** `cargo check` and `cargo clippy -D warnings` against `aarch64-apple-darwin`, and CI lints it on a macOS runner. **Nobody on this project has a Mac.** It has never been launched, and no CI runner can answer any of its questions, because every one of them is about what a person sees on a screen. Unlike T003, where the owner has the hardware, **there is currently no route to closing this task.** Every macOS capability stays `unknown`. If that does not change, the honest outcome is to declare macOS unsupported rather than ship it quietly; ADR-006 says so explicitly.
+**Adapter written, 2026-09-24.** `crates/ink-platform-macos` is the real backend and `yappyink draw` reaches it on macOS: a borderless `NSWindow` at screen-saver level with a clear background, a flipped custom `NSView`, the canvas blitted through a `CGImage`, pass-through by `setIgnoresMouseEvents:`, and the full `ink-ui` toolbar. Split like the Windows one: `keys` and `surface` take no AppKit types and carry 13 tests that run in the ordinary suite.
+
+Two details are worth recording because they are the kind that are wrong silently rather than loudly. The `CGImage` is built with `PremultipliedFirst | Order32Little`, which is memory order BGRA and matches the renderer exactly; dropping the byte-order flag does not fail, it swaps red and blue. And the view is flipped so pointer coordinates match the canvas, which means Core Graphics draws the image upside down unless the transform is inverted around the image height first.
+
+Unlike Windows, **points are not pixels here**: AppKit reports a Retina screen as the same number of points with a backing scale of 2, so the bitmap is physical and the document is in points. Win32 is the opposite and the two adapters divide in opposite directions.
+
+**FR-005 is not addressed and cannot be, yet.** There is no `RegisterHotKey` equivalent. The consequence is concrete and worse than on either other platform: once the overlay is in pass-through it receives no input at all, and the only way back is the terminal that launched it. Both the adapter and the startup banner say so.
+
+**What has been verified: that it compiles.** `cargo check` and `cargo clippy -D warnings` against `aarch64-apple-darwin`, and CI lints and tests it on a macOS runner. **Nobody on this project has a Mac.** It has never been launched, and no CI runner can answer any of its questions, because every one of them is about what a person sees on a screen. Unlike T003, where the owner has the hardware, **there is currently no route to closing this task.** Every macOS capability stays `unknown`. If that does not change, the honest outcome is to declare macOS unsupported rather than ship it quietly; ADR-006 says so explicitly.
 
 ## T005 [M0]: Prove the composited X11 path
 

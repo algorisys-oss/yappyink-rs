@@ -1,0 +1,38 @@
+[package]
+name = "ink-platform-macos"
+description = "macOS adapter (T004). A borderless high-level NSWindow. The key translation and surface layout are platform-independent and tested everywhere; only the AppKit calls are gated."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ink-app.workspace = true
+ink-core.workspace = true
+ink-platform.workspace = true
+ink-render.workspace = true
+ink-storage.workspace = true
+ink-ui.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSString"] }
+objc2-core-foundation = { version = "0.3", features = ["CFCGTypes"] }
+objc2-core-graphics = { version = "0.3", features = [
+    "CGColorSpace",
+    "CGContext",
+    "CGDataProvider",
+    "CGImage",
+] }
+objc2-app-kit = { version = "0.3", features = [
+    "NSApplication",
+    "NSColor",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSResponder",
+    "NSScreen",
+    "NSView",
+    "NSWindow",
+] }

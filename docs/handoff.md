@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, release 0.5.0. Windows backend with the shared toolbar, unrun.
+**Last updated:** 2026-09-24, after 0.5.0. Three backends exist; two have never run.
 
 ## What this is
 
@@ -27,6 +27,17 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 of a route that did not work, and it is why the GNOME extension is small.
 
 ## Where things stand
+
+**Three backends now exist and share everything above the window.** The key
+bindings live once in `ink_app::keymap` and each adapter only translates its
+platform's spelling of a key into `Key`; the chrome lives once in `ink-ui`. Both
+were extracted rather than copied, because the alternative is three products
+that resemble each other.
+
+Neither the Windows nor the macOS backend has ever been run. `tasks.md` under
+T003 and T004 lists what each one does not do; the macOS one is worse off,
+because it has no global shortcut at all and so no way back from pass-through
+except killing it from a terminal.
 
 **Implemented:** T001 workspace, T009 document model, T010 reducer, T013
 toolbar, T014 rendering, T015 pen and highlighter, T016 shapes, T017 eraser and

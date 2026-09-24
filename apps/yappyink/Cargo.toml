@@ -22,3 +22,6 @@ ink-platform-wayland.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 ink-platform-windows.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+ink-platform-macos.workspace = true

@@ -73,18 +73,18 @@ jobs:
         run: >
           cargo clippy --all-targets
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p ink-platform-windows -p ink-ui -p ink-ui -p yappyink
+          -p ink-platform-windows -p ink-platform-macos -p ink-ui -p yappyink
           -p exp-windows-layered -p exp-macos-overlay
           -- -D warnings
 
-      # ink-platform-windows is tested on both runners on purpose. Its key
-      # bindings and buffer arithmetic take no Windows types, so they run
-      # anywhere, and that is the whole reason they were separated out.
+      # Both platform adapters are tested on both runners on purpose. Their
+      # key translation and buffer arithmetic take no platform types, so they
+      # run anywhere, and that is the whole reason they were separated out.
       - name: Test
         run: >
           cargo test
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p ink-platform-windows
+          -p ink-platform-windows -p ink-platform-macos -p ink-ui
 
       # Proves the two verbs that exist off Linux actually run, rather than
       # only compiling. `draw` is expected to fail here, and the release notes

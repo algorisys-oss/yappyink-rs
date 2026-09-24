@@ -456,25 +456,33 @@ fn on_key(hwnd: HWND, virtual_key: u32) {
             .is_some_and(|overlay| overlay.controller.is_editing_text())
     });
 
+    let Some(key) = keys::translate(virtual_key) else {
+        return;
+    };
+
     if editing {
         // FR-023: while the editor is open a key is a character, not a
-        // shortcut. Only the three that cannot be characters keep their
+        // shortcut. Only the keys that cannot be characters keep their
         // meaning; everything else arrives as WM_CHAR.
-        if let Some(action) = keys::editing(virtual_key) {
+        if let Some(action) = ink_app::keymap::editing(key) {
             act(action);
         }
         return;
     }
 
-    if keys::quits(virtual_key) {
+    if ink_app::keymap::quits(key) {
         unsafe { DestroyWindow(hwnd) };
         return;
     }
-    if keys::is_window_menu(virtual_key) {
-        eprintln!("[window] this overlay is already top-most; there is nothing to ask for here");
-        return;
-    }
-    if let Some(action) = keys::command(virtual_key) {
+    if let Some(action) = ink_app::keymap::command(key) {
+        // Wayland needs this to ask the compositor for Always on Top. Windows
+        // is already top-most by its own extended style, so the key is
+        // accepted and explains itself rather than being silently missing on
+        // one platform.
+        if action == Action::ShowWindowMenu {
+            eprintln!("[window] this overlay is already top-most; there is nothing to ask for");
+            return;
+        }
         act(action);
     }
 }
