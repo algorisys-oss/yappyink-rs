@@ -308,15 +308,33 @@ Handle unplug/reconnect, scale/rotation changes, lock/unlock, suspend/resume, an
 
 **Exit criterion:** No ghost input surfaces or silent document loss occur in the lifecycle test matrix.
 
-## T028 [M3]: Add text and selection/editing
+## T028 [M3]: Add text entry and editing
 
-Status: not_started. Dependencies: T017, T013.
+Status: in_progress since 2026-09-24. Dependencies: T036.
 
 Requirements: FR-023.
 
-Implement explicit text focus, Unicode/IME preedit and commit/cancel, object selection/move/delete, and history for edits.
+Implement explicit text focus, Unicode/IME preedit and commit/cancel, and history for text edits.
+
+**Amended on 2026-09-23:** object selection, move, resize and delete were split out into T036 and are implemented. FR-023 bundled text with selection, and the two are separable: selection needs hit testing and transforms, text needs a focus policy and an input-method protocol. Splitting let the smaller half ship. FR-023 is not satisfied until both are done.
 
 **Exit criterion:** IME tests and local shortcuts work without leaking keystrokes to the underlying app while editing.
+
+**Progress on 2026-09-24, Latin only:** `Shape::Text` in the domain, glyph rasterisation through `fontdue` in `ink-render`, and an editor in the controller. Clicking with the text tool places a caret; while it is open a key is a character rather than a shortcut, which is FR-023's explicit focus made testable, and `is_editing_text()` is the question the adapter asks before deciding which. Escape discards, clicking elsewhere or picking another tool keeps what was typed, and empty or whitespace-only text commits nothing because FR-008 forbids an invisible object. Text moves and resizes through the existing selection machinery. 21 tests, including six against a real system font.
+
+**Remaining, and why the exit criterion is not met:** no IME and no preedit, so no `zwp_text_input_v3`, no composition rendering, and no shaping or font fallback. Non-Latin scripts do not work. There is also no caret movement within a run, no selection inside text, and no re-editing of a committed text object.
+
+## T036 [M3]: Object selection, move, resize and delete
+
+Status: implemented on 2026-09-23. Dependencies: T013, T017. Split from T028.
+
+Requirements: FR-023, FR-010, NFR-004.
+
+Selection picking, move and scale as inverse commands, corner handles, delete, and a live drag preview.
+
+**Exit criterion:** Selecting, moving, resizing and deleting are each one undoable edit that restores geometry exactly, and a click that does not move records no history.
+
+**Evidence:** `crates/ink-app/tests/selection.rs` (16 tests) and the transform tests in `crates/ink-core/tests/history.rs`. `Command::Replace` carries the objects as they were, so undoing a move or resize restores geometry exactly rather than applying an approximate reverse, and a moved object keeps its place in the paint order. A transform that would collapse a shape is refused whole, since FR-008 will not create an invisible object and a transform must not produce one either. A click that does not move is a selection, not an edit. **Not observed on screen.** Picking uses bounding boxes rather than exact geometry, there is no multi-select, and there is no rotation.
 
 ## T029 [M3]: Add annotation-only PNG/SVG export
 

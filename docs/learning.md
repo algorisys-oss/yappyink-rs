@@ -175,6 +175,32 @@ so, and prints a note when it detects a snap. It is worth noticing that the
 symptom was silence again, as in section 8: a successful copy into the wrong
 place looks exactly like a successful install.
 
+## 11. The same silent edit, twice more, and the fix that should have been first
+
+**What happened.** Section 3 recorded three source edits that silently did
+nothing because the text they were anchored to had been reformatted, and said
+the fix was to assert the anchor matched. That fix was applied to some edits and
+not others.
+
+Two more slipped through. When T028 was split into T028 and T036, `tasks.json`
+was updated and `tasks.md` was not, so for a day the prose said T028 was
+`not_started` and described work that had already shipped, and T036 did not
+appear in it at all. Both looked exactly like the work not having been done.
+
+Then the same thing happened again with the text tool, and this time the
+assertion caught it, which is how the older drift was noticed at all.
+
+**What changed.** Asserting on each edit is a discipline, and disciplines lapse.
+`tools/check_specs.py` now checks that every task in `tasks.json` has a heading
+in `tasks.md` and that the two agree on its status, and that `tasks.md` contains
+no task the JSON does not. Both failure modes were reproduced deliberately to
+confirm the check catches them.
+
+**The general lesson.** When a mistake recurs, the useful response is rarely to
+try harder. Section 1's fix was a struct the compiler forces you to fill in;
+this one is a validator that fails. Both replace an intention with something
+mechanical, which is the only kind of fix that survives being tired.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

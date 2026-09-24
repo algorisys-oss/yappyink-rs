@@ -35,6 +35,33 @@ def main() -> int:
             raise ValueError(f"Unknown dependencies in {task['id']}")
         if task['id'] in task['depends_on']:
             raise ValueError(f"Self-dependency in {task['id']}")
+    # tasks.md and tasks.json are edited together by hand and have drifted
+    # apart silently before: a heading that was never updated, and a whole task
+    # that existed in one file and not the other. Both looked like the work had
+    # not been done. The prose is what a human reads, so it has to agree.
+    tasks_md = (ROOT / 'tasks.md').read_text(encoding='utf-8')
+    for task in tasks:
+        heading = re.search(
+            r'^## %s \[[^\]]*\]: .*$' % re.escape(task['id']), tasks_md, re.M
+        )
+        if not heading:
+            raise ValueError(f"{task['id']} is in tasks.json but has no heading in tasks.md")
+        status = re.search(
+            r'^## %s \[[^\]]*\]: [^\n]*\n\nStatus: (\w+)' % re.escape(task['id']),
+            tasks_md,
+            re.M,
+        )
+        if not status:
+            raise ValueError(f"{task['id']} has no Status line in tasks.md")
+        if status.group(1) != task['status']:
+            raise ValueError(
+                f"{task['id']} is {task['status']} in tasks.json but "
+                f"{status.group(1)} in tasks.md"
+            )
+    for heading in re.findall(r'^## (T\d+) \[', tasks_md, re.M):
+        if heading not in tset:
+            raise ValueError(f'{heading} is in tasks.md but not in tasks.json')
+
     visiting, visited = set(), set()
     def visit(task_id: str) -> None:
         if task_id in visiting:
