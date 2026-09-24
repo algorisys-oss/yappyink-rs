@@ -9,7 +9,7 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early (0.5.0). One backend, partly working, on one desktop
+**Status: early (0.6.0). One backend, partly working, on one desktop
 environment.** Nothing here is finished, and the table below is the whole truth
 about what has been demonstrated. Versions are explained in
 [docs/ship-it.md](docs/ship-it.md); the leading zero is about the platform

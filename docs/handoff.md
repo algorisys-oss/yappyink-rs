@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after 0.5.0. Three backends exist; two have never run.
+**Last updated:** 2026-09-24, release 0.6.0. Three backends exist; two have never run.
 
 ## What this is
 
