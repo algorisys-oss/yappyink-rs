@@ -50,13 +50,23 @@ The dependency is `windows-sys` 0.61.2, target-gated, justified in `docs/adr/ADR
 
 ## T004 [M0]: Prove the macOS overlay path
 
-Status: not_started. Dependencies: T001.
+Status: in_progress since 2026-09-24. Dependencies: T001.
 
 Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
 
 Evaluate the minimal winit/AppKit path, pointer transparency, focus policy, deactivation, and Spaces/fullscreen separately.
 
 **Exit criterion:** Native macOS evidence records ordinary-app behavior and any Spaces/fullscreen restrictions.
+
+**Probe written, 2026-09-24, and unrunnable here.** `experiments/macos-overlay` is a throwaway program in the same spirit as the other two: a borderless `NSWindow` at screen-saver level with a clear background, a custom `NSView` that paints a frame, a badge and strokes, and pass-through by `setIgnoresMouseEvents:`. That last one is AppKit's own hit-test routing, so FR-003 is reachable without forwarding or synthesising anything. The dependency is `objc2` 0.6 with `objc2-app-kit` and `objc2-foundation`, target-gated, justified in `docs/adr/ADR-006-macos-bindings.md`.
+
+Two findings came out of writing it, before any of it ran:
+
+**The focus tension has no free answer.** Windows gets "never take focus" from `WS_EX_NOACTIVATE` and pays for it by having no keyboard at all, which is fine because `RegisterHotKey` supplies global shortcuts. macOS has `NSApplicationActivationPolicy::Accessory`, which keeps the app out of the Dock and stops it activating on launch, but a window that accepts a key press must be able to become key, and that takes focus from the application being annotated. The probe uses ordinary key presses and records the tension rather than pretending it is solved.
+
+**FR-005 has no equivalent at all.** A global shortcut on macOS needs either Carbon's `RegisterEventHotKey` or an accessibility-permission grant. A permission prompt is a product decision, so the probe deliberately does not attempt one, and ADR-006 says it needs its own ADR.
+
+**What has been verified: that it compiles.** `cargo check` and `cargo clippy -D warnings` against `aarch64-apple-darwin`, and CI lints it on a macOS runner. **Nobody on this project has a Mac.** It has never been launched, and no CI runner can answer any of its questions, because every one of them is about what a person sees on a screen. Unlike T003, where the owner has the hardware, **there is currently no route to closing this task.** Every macOS capability stays `unknown`. If that does not change, the honest outcome is to declare macOS unsupported rather than ship it quietly; ADR-006 says so explicitly.
 
 ## T005 [M0]: Prove the composited X11 path
 

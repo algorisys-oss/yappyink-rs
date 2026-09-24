@@ -65,14 +65,15 @@ jobs:
       # which can build off Linux. Excluding them by listing what is portable
       # means adding a crate is a deliberate decision about which list it
       # belongs in.
-      # exp-windows-layered is included because it is the T003 probe and must
-      # keep compiling on the platform it measures. Its Win32 dependency is
-      # target-gated, so on macOS it is a stub that explains itself.
+      # Both platform probes are linted on both runners. Each one's bindings
+      # are target-gated, so on the other platform it is a stub -- which is
+      # worth compiling too, because a broken cfg gate would otherwise only
+      # show up as a mysterious failure on the development machine.
       - name: Lint
         run: >
           cargo clippy --all-targets
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p yappyink -p exp-windows-layered
+          -p yappyink -p exp-windows-layered -p exp-macos-overlay
           -- -D warnings
 
       - name: Test

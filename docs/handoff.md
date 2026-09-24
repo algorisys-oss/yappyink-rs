@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, after the Windows probe was written. Version 0.3.0.
+**Last updated:** 2026-09-24, release 0.4.0: both platform probes written, neither run.
 
 ## What this is
 
@@ -98,6 +98,23 @@ The two questions that matter most are the ones GNOME failed: does it appear on
 the monitor you asked for, and does `RegisterHotKey` work. If both do, Windows
 is the first platform where the product works as specified, and ADR-002's
 "limited preview" framing stops being the whole story.
+
+### macOS, which nobody here can run
+
+`experiments/macos-overlay` exists on the same terms and **has no route to being
+tested**: nobody on this project has a Mac. It compiles for
+`aarch64-apple-darwin` and CI lints it on a macOS runner; that is the whole of
+what is known.
+
+Two findings came out of writing it anyway, and both are design-level rather
+than bugs. macOS has no `RegisterHotKey` equivalent that works without either
+Carbon or an accessibility-permission prompt, so FR-005 needs its own ADR there.
+And `Accessory` activation policy plus a key-accepting window are in tension:
+Windows resolves it by taking no keyboard at all, and macOS cannot copy that
+without a global shortcut to replace it. ADR-006 has both.
+
+If a Mac ever becomes available, run it and write `docs/evidence/E0NN`. If one
+never does, the honest end state is to declare macOS unsupported.
 
 ## The immediate next action
 

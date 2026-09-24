@@ -6,7 +6,9 @@ are and are not.
 ## The version scheme
 
 Started at **0.3.0** on 2026-09-24. The project was unversioned before that;
-everything up to then was `0.0.0`.
+everything up to then was `0.0.0`. **0.3.0 was never tagged**: the
+cross-platform work landed before the first release was cut, so the first
+published version is 0.4.0.
 
 `0.` — and it stays there. The leading zero is not modesty, it is the platform
 matrix: one operating system has a backend, and on that one the overlay is a
@@ -50,7 +52,7 @@ cargo test --workspace
 python3 tools/check_specs.py
 
 git commit -am "..." && git push
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
 The tag is the trigger and the tag is the record. Do not move one that has been

@@ -9,7 +9,7 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early (0.3.0). One backend, partly working, on one desktop
+**Status: early (0.4.0). One backend, partly working, on one desktop
 environment.** Nothing here is finished, and the table below is the whole truth
 about what has been demonstrated. Versions are explained in
 [docs/ship-it.md](docs/ship-it.md); the leading zero is about the platform
@@ -26,13 +26,12 @@ the specification documents. Same project.
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
 | Windows | no overlay yet. A feasibility probe is written and compiles; nobody has run it |
-| macOS | no overlay. `doctor` and `version` run; built and tested on every push |
+| macOS | no overlay yet. A feasibility probe is written and compiles; nobody involved has a Mac |
 
 CI compiles the domain, the controller, the renderer, storage and the platform
 contracts on Windows and macOS and runs their tests, which keeps the portable
 half of the codebase honest. **It does not mean the application does anything
 there.** `yappyink draw` exits non-zero with `[failed unsupported]` on both.
-macOS is T004 and has not been started.
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):
@@ -102,6 +101,59 @@ about what a person sees on a screen. Until someone runs it, every Windows
 capability is `unknown` — not `unavailable`, and certainly not working.
 [ADR-005](docs/adr/ADR-005-windows-bindings.md) explains the binding choice;
 `docs/handoff.md` says how to run it and what to record.
+
+### How the macOS overlay is meant to work
+
+macOS is T004 and **in progress**, with the same shape:
+[experiments/macos-overlay](experiments/macos-overlay/) is a throwaway probe,
+not an adapter.
+
+A borderless `NSWindow` with `setOpaque:NO`, a clear background colour and a
+window level of 1000 (`kCGScreenSaverWindowLevel`), holding a custom `NSView`
+that paints the frame, the badge and the ink. Pass-through is
+`setIgnoresMouseEvents:`, which is AppKit's own hit-test routing — we send
+nothing, so again there is nothing to fake. Choosing a screen is `NSScreen`,
+which macOS allows and GNOME does not.
+
+Two things came out of writing it, before a line of it ran:
+
+- **The focus tension has no free answer.** Windows gets "never take focus"
+  from `WS_EX_NOACTIVATE`, and pays for it with no keyboard at all — fine,
+  because `RegisterHotKey` supplies global shortcuts. macOS has
+  `NSApplicationActivationPolicy::Accessory`, which keeps the app out of the
+  Dock and stops it activating on launch, but **a window that accepts a key
+  press must be able to become key**, and that takes focus from the application
+  you are annotating. The probe uses ordinary keys and records the tension
+  instead of pretending it is solved.
+- **There is no `RegisterHotKey` here.** A global shortcut on macOS needs
+  either Carbon's `RegisterEventHotKey` or an accessibility-permission grant. A
+  permission prompt is a product decision, so the probe does not attempt one.
+
+The question most likely to produce a bad answer is what happens over a
+**fullscreen** application and across **Spaces**. `NSWindowCollectionBehavior`
+is set to join all Spaces and act as a fullscreen auxiliary, which is the
+documented way; whether it is honoured at this window level is exactly the
+unknown.
+
+**This is the least verified code in the repository, and unlike Windows there is
+no route to fixing that.** Nobody on this project has a Mac. It type-checks for
+`aarch64-apple-darwin` and CI compiles it on a macOS runner, and that is all
+that is known — a compiler cannot tell you whether a window appears. Every macOS
+capability is `unknown`. If nobody ever runs it, the honest outcome is to
+declare macOS unsupported rather than ship it quietly, and
+[ADR-006](docs/adr/ADR-006-macos-bindings.md) says so.
+
+**If you have a Mac and want to help, this is the single most useful thing you
+could do for this project:**
+
+```sh
+cargo run -p exp-macos-overlay        # primary screen
+cargo run -p exp-macos-overlay -- 1   # the second one
+```
+
+It prints its own checklist. `d` switches mode, `q` quits. Open an issue with
+what you saw, failures included — a clear negative result is worth as much here
+as a positive one.
 
 ## Try it
 
