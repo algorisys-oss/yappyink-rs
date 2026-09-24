@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-23, after `f2bd63c`.
+**Last updated:** 2026-09-24, after `b7945b6`.
 
 ## What this is
 
@@ -41,7 +41,7 @@ capability and settings UX (T019), text and IME (T028), and everything on
 Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
 all.
 
-202 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+218 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -136,10 +136,28 @@ From E002 and E003, on Mutter, without the extension:
 | Choosing which monitor | impossible by any route |
 | Covering a whole output | impossible; fullscreen destroys transparency |
 
+The toolbar is pinned in PassThrough, and Parked shrinks the surface to just
+the toolbar. Both work by choosing what the input region covers, which is the
+one part of the surface contract Mutter does hand over completely.
+
 The app has a `t` key and a toolbar button that open the compositor's own window
 menu, where Always on Top lives. That saves remembering `Alt+Space`; it does not
 remove the step, and ADR-002 says so explicitly so nobody later mistakes it for
 a fix.
+
+## In flight
+
+**A text tool** is the next feature, and the open question is scope. FR-023 and
+T028 ask for Unicode text *with IME and preedit*. Direct key input handles Latin
+and most European layouts and is about a session's work; IME means the
+`zwp_text_input_v3` protocol, a focus contract, and rendering an in-progress
+composition differently from committed text. The owner was asked whether they
+need to type Devanagari or other non-Latin script and has not answered yet.
+
+Text also needs a real font. The 5x7 bitmap in `ink-render::font` has no
+lowercase and exists only for chrome; a rasteriser such as `fontdue` or
+`ab_glyph` plus a system font is the intended route, and that dependency choice
+should be recorded when it is made.
 
 ## Open decisions
 
@@ -149,10 +167,6 @@ a fix.
 - **The GlobalShortcuts portal** needs a D-Bus client dependency that has not
   been chosen. Until then `doctor` reports the capability as `unknown` with
   that reason.
-- **A pinned toolbar in pass-through** is anticipated by `ux-state-machine.md`
-  and not built: set the input region to the toolbar's rectangle rather than
-  empty. It would remove the "no controls and no keyboard" dead end. The owner
-  has been offered it twice and not taken it up.
 - **A file picker.** Saving uses one fixed path, because choosing a path needs
   the desktop's file portal, which needs the D-Bus dependency that is also
   blocking the shortcuts portal. Deciding that dependency unblocks both.
