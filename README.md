@@ -140,7 +140,9 @@ erase. Rectangles and ellipses are outlines, not fills, because an annotation
 frames what is underneath rather than hiding it.
 
 With the **select** tool, click an object to pick it up, drag it to move it,
-drag a corner handle to resize it, and press Delete to remove it. Each is one
+drag a corner handle to resize it, and press Delete to remove it. While you
+drag, the object fades where it still is and the preview is drawn at full
+strength where it is going, so the two are not mistaken for each other. Each is one
 undoable edit, and undo restores the exact geometry rather than an approximate
 reverse. Clicking empty space deselects; Escape cancels a drag first, then the
 selection, then draw mode.

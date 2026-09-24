@@ -651,8 +651,27 @@ impl Overlay {
         };
         canvas.clear();
         if Toolbar::ink_is_visible(self.controller.mode()) {
-            self.painter
-                .paint(self.session.document(), &mut canvas, self.scale);
+            if self.controller.selection_drag().is_some() {
+                // A selection being dragged is drawn twice: once where it
+                // still is, faded, and once where it is going, at full
+                // strength. Without the fade the two are indistinguishable
+                // and the preview reads as a duplicate rather than a result.
+                let painter = &mut self.painter;
+                let selection = self.controller.selection();
+                let scale = self.scale;
+                for object in self.session.document().objects() {
+                    if selection.contains(&object.id()) {
+                        if let Some(faded) = faded(object) {
+                            painter.paint_object(&faded, &mut canvas, scale);
+                        }
+                    } else {
+                        painter.paint_object(object, &mut canvas, scale);
+                    }
+                }
+            } else {
+                self.painter
+                    .paint(self.session.document(), &mut canvas, self.scale);
+            }
         }
 
         // The gesture in flight is drawn but not in the document, which is the
@@ -995,6 +1014,30 @@ impl ActivationHandler for Overlay {
         };
         activation.activate::<Overlay>(window.wl_surface(), token);
     }
+}
+
+/// How much of its opacity an object keeps while it is being dragged away
+/// from.
+///
+/// Faint enough to read as "was here" rather than as a second object, and not
+/// so faint it disappears, which would lose the reference point the user is
+/// dragging relative to.
+const DRAG_ORIGIN_OPACITY: f64 = 0.25;
+
+/// The same object, faded, for showing where a dragged selection came from.
+///
+/// Returns `None` only if the faded opacity is somehow out of range, which the
+/// constant rules out; the object is then simply not drawn rather than drawn
+/// at full strength and confusing the preview.
+fn faded(object: &ink_core::Object) -> Option<ink_core::Object> {
+    let style = object.style();
+    let opacity = ink_core::Opacity::new(style.opacity.get() * DRAG_ORIGIN_OPACITY)?;
+    Some(ink_core::Object::new(
+        object.id(),
+        object.output().clone(),
+        Style::new(style.color, style.width, opacity),
+        object.shape().clone(),
+    ))
 }
 
 /// Draws the selection: a dashed rectangle, corner handles, and a live preview

@@ -457,3 +457,37 @@ fn a_shape_drawn_backwards_looks_the_same() {
         "drag direction is not a style"
     );
 }
+
+#[test]
+fn a_lower_opacity_draws_fainter() {
+    // What the dimmed original of a dragged selection relies on: the same
+    // geometry at a fraction of the opacity must actually come out fainter,
+    // not merely different.
+    let shape = Shape::stroke(StrokeKind::Pen, vec![point(20.0, 20.0), point(60.0, 20.0)]).unwrap();
+
+    let mut full_pixels = vec![0u8; 80 * 60 * 4];
+    let mut full = Canvas::new(&mut full_pixels, 80, 60).unwrap();
+    paint(
+        &document_with(shape.clone(), opaque_magenta()),
+        &mut full,
+        Scale::ONE,
+    );
+
+    let faint_style = Style::new(
+        Rgb::new(255, 0, 255),
+        Width::new(4.0).unwrap(),
+        Opacity::new(0.25).unwrap(),
+    );
+    let mut faint_pixels = vec![0u8; 80 * 60 * 4];
+    let mut faint = Canvas::new(&mut faint_pixels, 80, 60).unwrap();
+    paint(&document_with(shape, faint_style), &mut faint, Scale::ONE);
+
+    let alpha_at = |canvas: &Canvas| canvas.pixel(40, 20).unwrap()[3];
+    assert_eq!(alpha_at(&full), 255);
+    let faded = alpha_at(&faint);
+    assert!(faded > 0, "the faded original vanished entirely");
+    assert!(
+        faded < 128,
+        "the faded original is not noticeably fainter: {faded}"
+    );
+}
