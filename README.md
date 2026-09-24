@@ -28,22 +28,11 @@ the specification documents. Same project.
 | Windows | no overlay yet. A feasibility probe is written and compiles; nobody has run it |
 | macOS | no overlay. `doctor` and `version` run; built and tested on every push |
 
-The Windows and macOS rows say *built and tested*, and that is all they say. CI
-compiles the domain, the controller, the renderer, storage and the platform
-contracts on both, and runs their tests, which keeps the portable half honest.
-**It does not mean the application does anything there.** `yappyink draw` exits
-non-zero with `[failed unsupported]`. macOS is T004 and has not been started. Windows is T003 and is
-**in progress**: `experiments/windows-layered` puts up a layered, top-most,
-click-through window and asks six questions about what Windows actually does.
-It compiles for Windows and CI lints it there. **It has never been run**, and a
-CI runner cannot answer any of its questions, because all six are about what a
-person sees on a screen.
-
-Windows is the interesting one. The two things GNOME measurably cannot do —
-choosing a monitor and registering a global shortcut — both have ordinary Win32
-answers, so if the probe behaves, Windows is where this product first works as
-specified. Whether it behaves is unknown. See
-[ADR-005](docs/adr/ADR-005-windows-bindings.md).
+CI compiles the domain, the controller, the renderer, storage and the platform
+contracts on Windows and macOS and runs their tests, which keeps the portable
+half of the codebase honest. **It does not mean the application does anything
+there.** `yappyink draw` exits non-zero with `[failed unsupported]` on both.
+macOS is T004 and has not been started.
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):
@@ -64,6 +53,55 @@ None of that is worked around by faking anything. See
 A **GNOME Shell extension** that would lift the last two limits lives in
 [integrations/gnome/](integrations/gnome/). It is a prototype and has never been
 loaded by a running Shell, so it is not part of the instructions below.
+
+### How the Windows overlay is meant to work
+
+Windows is T003 and **in progress**. There is no adapter yet; what exists is a
+feasibility probe, [experiments/windows-layered](experiments/windows-layered/),
+in the same throwaway spirit as the GNOME one. It depends on nothing else in
+this repository on purpose, so that a failure cannot be blamed on our renderer.
+
+The whole overlay is one window with four extended style bits, and each one buys
+exactly one thing the specification asks for:
+
+| Flag | What it gives us |
+|---|---|
+| `WS_EX_LAYERED` | per-pixel alpha, painted with `UpdateLayeredWindow`. This *is* the overlay |
+| `WS_EX_TOPMOST` | stays above other windows, without asking the user for anything |
+| `WS_EX_TRANSPARENT` | pass-through: Windows routes the click to whatever is underneath |
+| `WS_EX_NOACTIVATE` | never takes focus, so clicking the ink does not deactivate what you were working in |
+
+`WS_EX_TOOLWINDOW` is set too, to keep it out of the taskbar and Alt-Tab.
+
+Two of those are the ones GNOME **measurably cannot do**, and a third is worth
+its own line:
+
+- **Choosing a monitor** is ordinary window placement here. On GNOME it is
+  impossible by any route, because xdg-shell gives clients no positioning.
+- **Staying on top** is a flag. On GNOME you apply *Always on Top* by hand,
+  once per launch.
+- **A global shortcut** is `RegisterHotKey`, which also *refuses* a chord
+  another application already owns and says which error it failed with. That
+  refusal is FR-005's conflict feedback. Wayland cannot give it, because it has
+  no registration to refuse in the first place.
+
+Pass-through matters most, because [AGENTS.md](AGENTS.md) forbids implementing
+it by forwarding or synthesising input. `WS_EX_TRANSPARENT` is real routing done
+by the window manager: the overlay simply stops being a hit-test candidate. We
+send nothing, so there is nothing to fake.
+
+`WS_EX_NOACTIVATE` has a consequence worth knowing before reading the code: a
+window that never activates **receives no keyboard input at all**. Every control
+has to be a global hot key. That is the price of not stealing focus from the
+thing you are annotating, and it is the kind of constraint a probe is for.
+
+**None of this has been run.** It compiles for Windows, and CI lints it on a
+Windows runner, and that is the entire extent of what is known. A CI runner
+cannot answer any of the probe's six questions, because every one of them is
+about what a person sees on a screen. Until someone runs it, every Windows
+capability is `unknown` — not `unavailable`, and certainly not working.
+[ADR-005](docs/adr/ADR-005-windows-bindings.md) explains the binding choice;
+`docs/handoff.md` says how to run it and what to record.
 
 ## Try it
 
