@@ -22,8 +22,8 @@
 //! pixels to the window manager — and that genuinely cannot be checked without
 //! Windows.
 //!
-//! **That split is a mitigation, not a substitute.** Five capabilities have
-//! been seen working on one machine (E010, E012, E014); every other one is still
+//! **That split is a mitigation, not a substitute.** Six capabilities have
+//! been seen working on one machine (E010, E012, E014, E018); every other one is still
 //! `unknown`.
 
 pub mod keys;
@@ -92,12 +92,15 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
-    let unproven = [
-        (
-            Capability::LiveZoom,
-            "implemented with the Magnification API's full-screen transform, which zooms \
-             without capture (ADR-008, T038); nobody has watched it",
+    report.record(CapabilityFinding::new(
+        Capability::LiveZoom,
+        CapabilityState::available(
+            "E018: MagSetFullscreenTransform zoomed live and followed the pointer from an \
+             unsigned binary, so without UIAccess",
         ),
+        BACKEND,
+    ));
+    let unproven = [
         (
             Capability::KeyboardRelease,
             "dropping the foreground window should return the keyboard; nobody has \
@@ -153,6 +156,7 @@ mod tests {
             (Capability::VisiblePassthrough, "E012"),
             (Capability::GlobalShortcut, "E012"),
             (Capability::FullscreenOverlay, "E014"),
+            (Capability::LiveZoom, "E018"),
         ];
         for finding in capabilities().findings() {
             match &finding.state {

@@ -530,6 +530,8 @@ Probe MagSetFullscreenTransform: whether it needs UIAccess, how mouse input maps
 
 **Built, not yet run, 2026-09-25.** `MagInitialize`, then `MagSetFullscreenTransform(level, x, y)` with the view centred on the pointer and kept on the overlay's monitor (`surface::zoom_offset`, tested). A 16 ms timer moves it with the pointer, running only while zoomed, because in pass-through the window hears no mouse moves. Zoom is offered only if `MagInitialize` succeeds; `z`, `0`, the toolbar button, Ctrl+Alt+Z and Ctrl+Alt+0 drive it, and quitting resets the transform. Compiles and lints for `x86_64-pc-windows-gnu`. The two open questions are still open and are what the first run must answer: whether any of this needs UIAccess, and whether a stroke drawn while zoomed lands under the pointer. Also unknown: whether Windows resets the transform if the process is killed while zoomed.
 
+**Seen working, 2026-09-25 (E018).** The owner reports zoom "working on Windows as expected" against a five-point checklist, from the unsigned release binary, which answers the UIAccess question: it is not needed. `live_zoom` is `available` on Windows, citing E018. Left open until the owner shares the individual checks, as promised.
+
 ## T039 [M3]: Decide live zoom on macOS
 
 Status: not_started. Dependencies: T004, T038.

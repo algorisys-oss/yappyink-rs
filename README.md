@@ -47,8 +47,8 @@ With no command, or on a double-click, it opens the overlay and toolbar.
 | Stays above other windows | press `t` (or the pin button) and choose *Always on Top*, once per launch. **With the extension: automatic** | automatic | automatic |
 | Back from pass-through, from anywhere | `yappyink toggle-draw`, bound to a key in GNOME's keyboard settings | **Ctrl+Alt+D** | **Control+Option+D** |
 | Hide or show the ink, from anywhere | `yappyink hide`, bound to a key | **Ctrl+Alt+H** | **Control+Option+H** |
-| Live zoom | `z` steps 2×, 3×, 4×; `0` resets (GNOME's magnifier) | `z` or **Ctrl+Alt+Z** steps 2×, 3×, 4×; `0` or **Ctrl+Alt+0** resets (Windows' Magnification API). **New, not yet seen working** | not yet: macOS has no public API for its Zoom, so the route is still to be decided (T039) |
-| Seen working | drawing, pass-through, zoom, the extension | drawing, pass-through, both chords, fullscreen apps | drawing, pass-through, both chords, fullscreen apps |
+| Live zoom | `z` steps 2×, 3×, 4×; `0` resets (GNOME's magnifier) | `z` or **Ctrl+Alt+Z** steps 2×, 3×, 4×; `0` or **Ctrl+Alt+0** resets (Windows' Magnification API), seen working ([E018](docs/evidence/E018-windows-live-zoom.md)) | not yet: macOS has no public API for its Zoom, so the route is still to be decided (T039) |
+| Seen working | drawing, pass-through, zoom, the extension | drawing, pass-through, both chords, fullscreen apps, zoom | drawing, pass-through, both chords, fullscreen apps |
 
 **The GNOME extension** is attached to every release as
 `yappyink-gnome-extension.zip`. It keeps the overlay above other windows, on
@@ -88,7 +88,7 @@ global shortcuts above.
 | <img src="docs/images/toolbar/redo.png" width="34" alt="Redo"> | Redo | `r` | Redo it | |
 | <img src="docs/images/toolbar/clear.png" width="34" alt="Clear all"> | Clear all | `x` | Removes everything; undo brings it back | |
 | <img src="docs/images/toolbar/windowmenu.png" width="34" alt="Always on top"> | Always on top | `t` | Opens GNOME's window menu, where *Always on Top* is | **Ubuntu only.** Not needed with the extension. On Windows and macOS the overlay is already on top and the button says so |
-| <img src="docs/images/toolbar/zoom.png" width="34" alt="Zoom"> | Zoom | `z`, `0` off | Live zoom 2×, 3×, 4×, off, following the pointer; the system does the magnifying, so no screen pixels reach yappyink | **Ubuntu** (GNOME's magnifier; your settings are restored afterwards) and **Windows** (Magnification API, also Ctrl+Alt+Z / Ctrl+Alt+0 from anywhere; not yet seen working). Not on macOS yet |
+| <img src="docs/images/toolbar/zoom.png" width="34" alt="Zoom"> | Zoom | `z`, `0` off | Live zoom 2×, 3×, 4×, off, following the pointer; the system does the magnifying, so no screen pixels reach yappyink | **Ubuntu** (GNOME's magnifier; your settings are restored afterwards) and **Windows** (Magnification API, also Ctrl+Alt+Z / Ctrl+Alt+0 from anywhere). Not on macOS yet |
 | <img src="docs/images/toolbar/passthrough.png" width="34" alt="Pass through"> | Pass through | `p` | The ink stays; clicks and keys go to the applications underneath | On Ubuntu the toolbar stays clickable. On Windows and macOS the whole overlay lets clicks through, so come back with the shortcut |
 | <img src="docs/images/toolbar/park.png" width="34" alt="Shrink to toolbar"> | Shrink to toolbar | `g` | Hides the ink and shrinks the overlay to just the toolbar; again to come back | On macOS the window does not shrink yet |
 | <img src="docs/images/toolbar/hide.png" width="34" alt="Hide"> | Hide | `h` | Hides everything, keeping the ink in memory | The overlay has no keyboard while hidden: use the shortcut or `yappyink toggle-draw` |

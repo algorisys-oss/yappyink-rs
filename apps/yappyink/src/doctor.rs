@@ -267,8 +267,8 @@ fn native_section(
     let _ = writeln!(
         *out,
         "  the windows-layered backend is compiled in; live overlay, draw capture, pass-through, \
-         the global chord and fullscreen were seen working on one machine (E010, E012, E014), \
-         and nothing else has been confirmed"
+         the global chord, fullscreen and live zoom were seen working on one machine (E010, \
+         E012, E014, E018), and nothing else has been confirmed"
     );
     for finding in ink_platform_windows::capabilities().findings() {
         capabilities.record(finding.clone());
