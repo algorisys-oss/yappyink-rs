@@ -343,6 +343,78 @@ needs its invariants written where they will be read. That was a reasonable
 response to the problem as posed. It was also an accommodation, and the better
 move was available the whole time.
 
+## 17. Two releases that described code that no longer existed
+
+**What happened.** The Windows backend landed in 0.5.0 and the macOS one in
+0.6.0. The release notes for both said "there is no overlay on Windows or
+macOS... neither has been started", because the notes are fixed text in
+`release.yml`, written at 0.3.0, and nobody changed them. The owner found out
+from the release page. Worse, the CI step that asserted `yappyink draw` fails
+off Linux was still there. Once `draw` had a backend it opened a real overlay
+on a headless runner and waited for a person who was never coming. Both
+portable jobs hit the six-hour limit, and were cancelled, on five pushes in a
+row. The release workflow does not run that step, so every release still went
+green, and a cancelled CI run is easy to read as noise.
+
+**Why.** The claim "Windows cannot draw" was written down in five places: the
+notes, a CI assertion, the README, `docs/ship-it.md` and the usage text. The
+code change made all five false, and the commit changed none of them. A test
+that asserts an absence is a statement about the current state of the world,
+and it goes on asserting it after the world changes.
+
+**What changed.** The CI step now checks what is true in both states, that
+`doctor` reports the backend as compiled in and never run, and every portable
+job has a 30-minute limit. The notes describe what each download does rather
+than what it lacks.
+
+## 18. Reading the code found what the compiler never could
+
+Reading the Windows and macOS adapters line by line, to close their listed
+gaps, turned up seven defects that `clippy -D warnings` and every test had
+passed over. Each one would have shown up on the first real run:
+
+- **Draw would not have caught clicks on empty canvas** (Windows, and likely
+  macOS). Both window systems let a click through wherever alpha is zero, and
+  the canvas was cleared to zero. That is the mistake `AGENTS.md` warns about,
+  made from the other side: transparent pixels are not capturing pixels.
+- **Both overlays started Hidden**, because the controller does and neither
+  adapter asked for Draw, as the Wayland one does at startup.
+- **Hiding or quitting on Windows would probably have aborted.**
+  `ShowWindow` sends `WM_KILLFOCUS` back into the window procedure before it
+  returns, while the state was borrowed. A second borrow panics, and a panic in
+  an `extern "system"` callback aborts the process.
+- **Typed text was invisible on both** until Return, because each adapter had
+  its own copy of the preview code and both skipped text.
+- **A dragged selection would have shown twice at full strength** on both, for
+  the same reason: the fade lived only in the Wayland copy.
+- **macOS never received `mouseMoved:`**, because nothing turned it on.
+- **The Windows frame was sent to (0, 0) on every repaint**, which only works
+  on the primary monitor.
+
+While this was being written, the first real macOS launch was reported (E009):
+the screen appeared to freeze. The startup-Hidden defect, the missing chord,
+and a keyboard that never reached the window explain it, and a fourth problem
+turned up that reading had missed: the only macOS font path was one a stock Mac
+does not have. One user's run found in minutes what the compiler never will.
+
+And one on Wayland, found while comparing: nothing ever calls
+`Controller::set_surface_size`, so the resize corner the controller offers can
+never appear there. `surface::scale_for_dpi` in 0.5.0 was the same shape of bug
+(section 16): tested code that nothing calls is not tested behaviour.
+
+**Why.** Three copies of the same painting drifted, which is the cost
+`ink-ui`'s own documentation warns about. The preview and document painting
+were left behind when the chrome was lifted out, because at the time they did
+not look like chrome.
+
+**What changed.** `paint_document`, `paint_preview` and `clear` are now in
+`ink-ui` with pixel tests. The text-preview test was checked against the old
+behaviour, put back temporarily, and fails there; the others were not
+mutation-checked. Windows messages go through
+a queue so no handler can re-enter. The Wayland resize corner is recorded and
+not fixed here: it can be tested on this machine, and it deserves its own
+change.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

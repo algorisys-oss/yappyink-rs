@@ -25,13 +25,16 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | a backend exists and compiles. Nobody has run it, so nothing is claimed |
-| macOS | a backend exists and compiles. Nobody involved has a Mac, so nothing is claimed |
+| Windows | a complete backend that links and passes its unit tests. **Nobody has run it**, so nothing is claimed |
+| macOS | a complete backend that links and passes its unit tests. Launched once, by a user, on 0.6.0: it found the screen and then appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). Nothing is claimed |
 
-CI compiles the domain, the controller, the renderer, storage and the platform
-contracts on Windows and macOS and runs their tests, which keeps the portable
-half of the codebase honest. **It does not mean the application does anything
-there.** `yappyink draw` exits non-zero with `[failed unsupported]` on both.
+`yappyink draw` starts the overlay on all three. CI builds and links the Windows
+and macOS binaries on real runners and runs the unit tests there, which keeps
+the code honest as far as a compiler can. **It does not mean the overlay works
+on either.** A runner has no one watching a screen, and every question that
+matters — does a window appear, do clicks land, does pass-through let them
+through — is about what a person sees. `yappyink doctor` reports every Windows
+and macOS capability as `unknown` for that reason.
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):
@@ -53,117 +56,84 @@ A **GNOME Shell extension** that would lift the last two limits lives in
 [integrations/gnome/](integrations/gnome/). It is a prototype and has never been
 loaded by a running Shell, so it is not part of the instructions below.
 
-### How the Windows overlay is meant to work
+### The Windows backend
 
-Windows is T003 and **in progress**. There is no adapter yet; what exists is a
-feasibility probe, [experiments/windows-layered](experiments/windows-layered/),
-in the same throwaway spirit as the GNOME one. It depends on nothing else in
-this repository on purpose, so that a failure cannot be blamed on our renderer.
-
-The whole overlay is one window with four extended style bits, and each one buys
-exactly one thing the specification asks for:
+[crates/ink-platform-windows](crates/ink-platform-windows/) is T003, **in
+progress, and never run**. It is one layered window, and each style bit buys
+one thing the specification asks for:
 
 | Flag | What it gives us |
 |---|---|
 | `WS_EX_LAYERED` | per-pixel alpha, painted with `UpdateLayeredWindow`. This *is* the overlay |
 | `WS_EX_TOPMOST` | stays above other windows, without asking the user for anything |
 | `WS_EX_TRANSPARENT` | pass-through: Windows routes the click to whatever is underneath |
-| `WS_EX_NOACTIVATE` | never takes focus, so clicking the ink does not deactivate what you were working in |
+| `WS_EX_TOOLWINDOW` | out of the taskbar and Alt-Tab |
 
-`WS_EX_TOOLWINDOW` is set too, to keep it out of the taskbar and Alt-Tab.
+What it does: drawing, every tool, the full toolbar (**the same toolbar the
+Linux build draws, from the same code** in [crates/ink-ui](crates/ink-ui/)),
+text with live preview and input-method composition, undo, save and load,
+`Ctrl+Alt+D` and `Ctrl+Alt+H` from anywhere through `RegisterHotKey`, and the
+`yappyink toggle-draw` family of verbs, delivered as window messages. It covers
+the whole primary monitor, or another one with `yappyink draw --monitor 2`;
+Parked shrinks it to the toolbar; the grip moves it and the corner resizes it;
+the cursor follows the tool; and a DPI or display change resizes it to fit.
 
-Two of those are the ones GNOME **measurably cannot do**, and a third is worth
-its own line:
+Three things about it are not obvious:
 
-- **Choosing a monitor** is ordinary window placement here. On GNOME it is
-  impossible by any route, because xdg-shell gives clients no positioning.
-- **Staying on top** is a flag. On GNOME you apply *Always on Top* by hand,
-  once per launch.
-- **A global shortcut** is `RegisterHotKey`, which also *refuses* a chord
-  another application already owns and says which error it failed with. That
-  refusal is FR-005's conflict feedback. Wayland cannot give it, because it has
-  no registration to refuse in the first place.
+- **Transparent pixels do not take clicks.** Windows lets a click through a
+  layered window wherever alpha is zero. So in Draw the frame is covered with an
+  alpha-1 floor that nobody can see, or clicks on empty canvas would land in the
+  application underneath. [AGENTS.md](AGENTS.md) warns against equating
+  transparent pixels with input capture; this is the same mistake from the
+  other side.
+- **The toolbar cannot be clicked in pass-through.** `WS_EX_TRANSPARENT` applies
+  to the whole window, and there is no way to make one part of it solid. Wayland
+  narrows an input region instead. `Ctrl+Alt+D` is the way back.
+- **It takes focus in Draw.** `WS_EX_NOACTIVATE` would stop that, but a window
+  that never activates gets no keyboard at all, and the text tool needs one. In
+  pass-through the application underneath keeps focus, which is the case that
+  matters.
 
-Pass-through matters most, because [AGENTS.md](AGENTS.md) forbids implementing
-it by forwarding or synthesising input. `WS_EX_TRANSPARENT` is real routing done
-by the window manager: the overlay simply stops being a hit-test candidate. We
-send nothing, so there is nothing to fake.
+Most of the crate is testable here: `keys` and `surface` take no Windows types,
+and hold monitor choice, fitting, parking, drag arithmetic, the cursor mapping
+and the remote message numbering, with 25 tests in the ordinary suite. Only the
+window itself needs Win32. [ADR-005](docs/adr/ADR-005-windows-bindings.md)
+explains the binding choice.
 
-`WS_EX_NOACTIVATE` has a consequence worth knowing before reading the code: a
-window that never activates **receives no keyboard input at all**. Every control
-has to be a global hot key. That is the price of not stealing focus from the
-thing you are annotating, and it is the kind of constraint a probe is for.
-
-Beyond the probe there is now a real backend,
-[crates/ink-platform-windows](crates/ink-platform-windows/), and `yappyink draw`
-reaches it on Windows: drawing, every tool, modes, undo, save and load,
-`Ctrl+Alt+D` from anywhere, and the full toolbar — **the same toolbar the Linux
-build draws, from the same code**. It was lifted into
-[crates/ink-ui](crates/ink-ui/) rather than copied, because a toolbar that
-behaves differently per platform is two products that merely resemble each
-other.
-
-Most of the Windows crate is testable here too. `keys` and `surface` take no
-Windows types and carry 13 tests that run in the ordinary suite; only the window
-itself needs Win32. That split exists because the Wayland adapter has no tests
-and six bugs were found by a person rather than by the suite.
-
-One small thing fell out nicely: the renderer's premultiplied ARGB8888 is
-byte-identical to what a 32-bit DIB wants, so the canvas is built straight over
-the bitmap's memory with no copy and no conversion.
-
-**The Windows backend is not finished**, and `tasks.md` under T003 lists what
-it does not do. The short version: no input methods at all, one monitor only,
-Parked does not shrink the window, no per-tool cursor, and the `yappyink
-toggle-draw` style verbs are Linux-only.
-
-**And none of it has been run.** It compiles, CI lints and tests it on a Windows
-runner, and that is the entire extent of what is known — a compiler cannot tell
-you whether a window appears. Every Windows capability is `unknown`, not
-`unavailable` and certainly not working, and `yappyink doctor` says so on
-Windows too. [ADR-005](docs/adr/ADR-005-windows-bindings.md) explains the
-binding choice; `docs/handoff.md` says how to run the probe and what to
+**None of it has been run.** A throwaway probe,
+[experiments/windows-layered](experiments/windows-layered/), exists to answer
+the basic questions first, and `docs/handoff.md` says how to run it and what to
 record.
 
-### How the macOS overlay is meant to work
+### The macOS backend
 
-macOS is T004 and **in progress**, with the same shape:
-[experiments/macos-overlay](experiments/macos-overlay/) is a throwaway probe,
-not an adapter.
+[crates/ink-platform-macos](crates/ink-platform-macos/) is T004, **in
+progress, and launched exactly once** — by a user on 0.6.0, and it went badly
+([E009](docs/evidence/E009-first-macos-launch.md)). A borderless `NSWindow` with a clear background at
+window level 1000 (`kCGScreenSaverWindowLevel`), holding a custom `NSView`.
+Pass-through is `setIgnoresMouseEvents:`, which is AppKit's own hit-test
+routing, so nothing is forwarded. It draws with the same toolbar and the same
+tools, and **Control+Option+D** and **Control+Option+H** work from anywhere,
+through Carbon's `RegisterEventHotKey`, which needs no permission
+([ADR-007](docs/adr/ADR-007-macos-global-shortcut.md)). Before that chord
+existed, the only way back from pass-through was the terminal.
 
-A borderless `NSWindow` with `setOpaque:NO`, a clear background colour and a
-window level of 1000 (`kCGScreenSaverWindowLevel`), holding a custom `NSView`
-that paints the frame, the badge and the ink. Pass-through is
-`setIgnoresMouseEvents:`, which is AppKit's own hit-test routing — we send
-nothing, so again there is nothing to fake. Choosing a screen is `NSScreen`,
-which macOS allows and GNOME does not.
-
-Two things came out of writing it, before a line of it ran:
-
-- **The focus tension has no free answer.** Windows gets "never take focus"
-  from `WS_EX_NOACTIVATE`, and pays for it with no keyboard at all — fine,
-  because `RegisterHotKey` supplies global shortcuts. macOS has
-  `NSApplicationActivationPolicy::Accessory`, which keeps the app out of the
-  Dock and stops it activating on launch, but **a window that accepts a key
-  press must be able to become key**, and that takes focus from the application
-  you are annotating. The probe uses ordinary keys and records the tension
-  instead of pretending it is solved.
-- **There is no `RegisterHotKey` here.** A global shortcut on macOS needs
-  either Carbon's `RegisterEventHotKey` or an accessibility-permission grant. A
-  permission prompt is a product decision, so the probe does not attempt one.
+What it does not do yet: input methods, choosing a screen, shrinking when
+Parked, and the CLI verbs. The toolbar is not clickable in pass-through or
+Parked, for the same reason as on Windows.
 
 The question most likely to produce a bad answer is what happens over a
 **fullscreen** application and across **Spaces**. `NSWindowCollectionBehavior`
 is set to join all Spaces and act as a fullscreen auxiliary, which is the
 documented way; whether it is honoured at this window level is exactly the
-unknown.
+unknown. There is also a focus tension with no free answer: a window that
+accepts a key press has to become key, and that takes focus from the
+application being annotated.
 
-**This is the least verified code in the repository, and unlike Windows there is
-no route to fixing that.** Nobody on this project has a Mac. It type-checks for
-`aarch64-apple-darwin` and CI compiles it on a macOS runner, and that is all
-that is known — a compiler cannot tell you whether a window appears. Every macOS
-capability is `unknown`. If nobody ever runs it, the honest outcome is to
-declare macOS unsupported rather than ship it quietly, and
+**This is the least verified code in the repository.** Nobody on this project
+has a Mac. CI builds and links it on a macOS runner, and one user's launch
+showed it finding the screen, finding no font, and appearing to freeze. If nobody ever runs it, the honest outcome is to declare macOS
+unsupported rather than ship it quietly, and
 [ADR-006](docs/adr/ADR-006-macos-bindings.md) says so.
 
 **If you have a Mac and want to help, this is the single most useful thing you
@@ -174,13 +144,16 @@ cargo run -p exp-macos-overlay        # primary screen
 cargo run -p exp-macos-overlay -- 1   # the second one
 ```
 
-It prints its own checklist. `d` switches mode, `q` quits. Open an issue with
-what you saw, failures included — a clear negative result is worth as much here
-as a positive one.
+It prints its own checklist. `d` switches mode, `q` quits. Then try the real
+thing, `yappyink draw`, from the release page. Open an issue with what you saw,
+failures included — a clear negative result is worth as much here as a positive
+one.
 
 ## Try it
 
-Requires Rust 1.95 and a Wayland session.
+Requires Rust 1.95. The instructions below are for Linux, which needs a Wayland
+session. On Windows and macOS the same `yappyink draw` starts the untested
+backends described above.
 
 ```sh
 cargo build --workspace
@@ -389,6 +362,9 @@ crates/ink-app               modes, transitions, gesture rules — no platform
 crates/ink-render            software rasteriser, pixel-tested headlessly
 crates/ink-platform          typed capability and error contracts
 crates/ink-platform-wayland  the Wayland surface and event loop
+crates/ink-platform-windows  the Win32 layered window (never run)
+crates/ink-platform-macos    the AppKit window (launched once; E009)
+crates/ink-ui                the toolbar and chrome every backend draws
 apps/yappyink                the binary: doctor, draw, control commands
 experiments/                 throwaway probes; delete when their ADR closes
 ```

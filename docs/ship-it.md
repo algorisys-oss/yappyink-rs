@@ -70,12 +70,15 @@ construction and the workspace does not build without it elsewhere, so the
 other two runners build the crates that are meant to be portable and the
 binary, and nothing more.
 
-**What the Windows and macOS jobs do not prove:** that yappyink does anything
-there. There is no overlay backend on either (T003, T004). `yappyink draw`
-exits non-zero with `[failed unsupported]`, and `yappyink doctor` reports that
-no adapter is compiled in. Those runners keep the portable core honest — they
-catch the day someone reaches for a Unix path in `ink-core` — and that is all
-they are for. A green tick on three platforms is not three working products.
+**What the Windows and macOS jobs do not prove:** that yappyink works there.
+Both carry an overlay backend (T003, T004), and those runners build it, link
+it, run its unit tests, and check that `yappyink doctor` still reports it as
+compiled in and never run. They do **not** run `yappyink draw`. Until 0.6.0 they
+did, expecting it to fail because there was no backend; once the backends
+landed it opened a real overlay on a runner with nobody to close it, and both
+jobs hung to the six-hour limit on five pushes in a row. Each job now has a
+30-minute limit as well. A green tick on three platforms is not three working
+products.
 
 The Linux job installs `libxkbcommon-dev`, which the overlay links for keysym
 handling. Wayland itself needs nothing installed: the pure-Rust backend is

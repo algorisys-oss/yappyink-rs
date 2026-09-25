@@ -71,6 +71,17 @@ A DPI defect was found and fixed while writing this list: `surface::scale_for_dp
 
 **What has actually been verified: that it compiles, and nothing else.** `cargo check` and `cargo clippy -D warnings` pass against `x86_64-pc-windows-gnu` from the development machine, and CI lints it on a real Windows runner. **No part of it has been run, and a CI runner cannot answer any of the six questions, because every one of them is about what a person sees on a screen.** Every Windows capability stays `unknown` until the owner runs it and reports. This status is `in_progress` and not `implemented` for exactly that reason.
 
+**The gaps closed, and four bugs found by reading, 2026-09-25.** Every item in the list above except "nobody has run it" now has code: IMM32 composition with an inline preedit underline and the candidate window placed at the caret; `--monitor N` over `EnumDisplayMonitors`, covering the whole monitor by default; Parked shrinking the window to the toolbar and taking clicks there; a cursor per tool through `WM_SETCURSOR`; the grip and corner moving and resizing the window by hand, since the system sizing loop ignores a borderless popup; `WM_DPICHANGED` and `WM_DISPLAYCHANGE` resizing the surface; and the CLI verbs, posted to the overlay's window as `WM_APP` messages. The arithmetic behind all of it is in `surface`, now 25 tests.
+
+Four defects came out of the reading, each of which would have shown up on the first run:
+
+- **Draw mode would not have captured clicks on empty canvas.** Windows lets a click through a layered window wherever alpha is zero, and the canvas was cleared to zero. This task's own work item says to check empty transparent hit testing, and the code did not. A capturing frame is now covered with an invisible alpha-1 floor (`ink_ui::clear`), tested headlessly.
+- **The overlay started Hidden.** The controller starts there and the Wayland adapter asks for Draw at startup; this one never did, so it opened as an invisible window that ignored the mouse. The macOS adapter had the same omission.
+- **Hiding or quitting would probably have aborted.** `ShowWindow` and `DestroyWindow` were called while the state was borrowed, and they deliver `WM_KILLFOCUS` back into the window procedure synchronously, which borrowed again. A panic in an `extern "system"` callback aborts. Messages now go through a queue that is drained one at a time.
+- **Typed text was invisible until committed**, because the adapter skipped `Preview::Text`. Painting the document and the gesture in flight moved into `ink-ui` (`paint_document`, `paint_preview`), so all three backends now share it and it is pixel-tested.
+
+**Verified: compiles and lints for `x86_64-pc-windows-gnu` (`cargo clippy -D warnings`), and the unit tests pass on Linux.** A local link was not possible (no MinGW toolchain on the development machine); the Windows CI runner links it. Nothing has been run, every capability is still `unknown`, and the status stays `in_progress`.
+
 ## T004 [M0]: Prove the macOS overlay path
 
 Status: in_progress since 2026-09-24. Dependencies: T001.
@@ -98,6 +109,14 @@ Unlike Windows, **points are not pixels here**: AppKit reports a Retina screen a
 **FR-005 is not addressed and cannot be, yet.** There is no `RegisterHotKey` equivalent. The consequence is concrete and worse than on either other platform: once the overlay is in pass-through it receives no input at all, and the only way back is the terminal that launched it. Both the adapter and the startup banner say so.
 
 **What has been verified: that it compiles.** `cargo check` and `cargo clippy -D warnings` against `aarch64-apple-darwin`, and CI lints and tests it on a macOS runner. **Nobody on this project has a Mac.** It has never been launched, and no CI runner can answer any of its questions, because every one of them is about what a person sees on a screen. Unlike T003, where the owner has the hardware, **there is currently no route to closing this task.** Every macOS capability stays `unknown`. If that does not change, the honest outcome is to declare macOS unsupported rather than ship it quietly; ADR-006 says so explicitly.
+
+**A global chord, and three bugs found by reading, 2026-09-25.** FR-005 now has an answer: Control+Option+D and Control+Option+H through Carbon's `RegisterEventHotKey`, which needs no permission (ADR-007). Before it, the only way back from pass-through was the terminal. The Carbon constants live in a new `chords` module with no platform types, tested against Apple's documented values, because a wrong four-character code registers a different chord silently. Text preview and the capture floor come from `ink-ui`, shared with the other backends.
+
+The same reading found three defects the first run would have hit: the overlay started Hidden (see T003); `mouseMoved:` never arrived because `acceptsMouseMovedEvents` was never set, so hover and the caret hint were dead; and without `acceptsFirstMouse:` the first click after returning from another application would only have activated this one. Quitting now calls `stop:` rather than `terminate:`, which exited the process before the session reached the caller.
+
+**Verified: compiles and lints for `aarch64-apple-darwin`, and the `chords` tests pass on Linux.** Still `in_progress`, with every capability `unknown`.
+
+**First launch, reported 2026-09-25 (E009).** A user ran the 0.6.0 binary on an Apple Silicon Mac. It found the screen (1440×900 points, backing scale 2), found no font, and then appeared to freeze. That fits the three defects above: an overlay that started Hidden but still took clicks, a keyboard that never reached it, and no chord to escape. 0.7.0 fixes all three, adds macOS system font paths, and makes `doctor` report the native backend, which it previously never mentioned on macOS. Second-hand and without screenshots, so no capability moves off `unknown`; it does mean there is now someone who can run it.
 
 ## T005 [M0]: Prove the composited X11 path
 
@@ -419,7 +438,7 @@ Choose exact targets, build installers/packages, review dependency licenses/unsa
 
 **Exit criterion:** Clean-machine installation and uninstall preserve user documents and show truthful permissions/support notes.
 
-**Ahead of this task, 2026-09-24:** a build and release pipeline exists at the owner's request, and the status above is unchanged because none of the work this task actually asks for has been done — no installers, no licence review, no signing or notarisation, and no clean-machine test. What exists is GitHub Actions running the full workspace on Linux and the portable crates on Windows and macOS, and a tag producing three binaries with release notes that state plainly that two of them cannot draw. Versioning also starts here, at 0.3.0; `docs/ship-it.md` holds the scheme. T025 is still the dependency and is still not started.
+**Ahead of this task, 2026-09-24:** a build and release pipeline exists at the owner's request, and the status above is unchanged because none of the work this task actually asks for has been done — no installers, no licence review, no signing or notarisation, and no clean-machine test. What exists is GitHub Actions running the full workspace on Linux and the portable crates on Windows and macOS, and a tag producing three binaries with release notes that state plainly that two of them cannot draw. (Those notes went stale when the backends landed in 0.5.0 and 0.6.0 and were corrected on 2026-09-25, together with a CI step that had been hanging to the six-hour limit since the Windows backend landed.) Versioning also starts here, at 0.3.0; `docs/ship-it.md` holds the scheme. T025 is still the dependency and is still not started.
 
 ## T032 [M3]: Certify V1 support
 

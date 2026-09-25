@@ -57,6 +57,14 @@ impl<'a> Canvas<'a> {
         self.pixels.fill(0);
     }
 
+    /// Fills every pixel with one premultiplied colour, replacing what was
+    /// there rather than blending over it.
+    pub fn fill(&mut self, colour: [u8; 4]) {
+        for pixel in self.pixels.chunks_exact_mut(4) {
+            pixel.copy_from_slice(&colour);
+        }
+    }
+
     /// The four bytes at a pixel, or `None` if out of bounds. For tests.
     pub fn pixel(&self, x: u32, y: u32) -> Option<[u8; 4]> {
         if x >= self.width || y >= self.height {

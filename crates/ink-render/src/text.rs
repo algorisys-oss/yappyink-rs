@@ -13,20 +13,78 @@ use std::path::{Path, PathBuf};
 
 use fontdue::{Font, FontSettings};
 
-/// Where a sans-serif face usually lives.
+/// Where a sans-serif face usually lives, on Linux.
 ///
 /// Probed in order. Listing paths rather than calling out to `fc-match` keeps
 /// this free of a process spawn and of a dependency on fontconfig being
 /// installed; the trade is that an unusual system may have none of these, which
 /// is reported rather than guessed around.
-const CANDIDATES: [&str; 6] = [
+const CANDIDATES: [&str; 5] = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
     "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
     "/usr/share/fonts/truetype/ubuntu/Ubuntu-R.ttf",
     "/usr/share/fonts/TTF/DejaVuSans.ttf",
+];
+
+/// The same on macOS, where the bundled faces live under `/System`.
+///
+/// Until 0.7.0 the only macOS entry was `/Library/Fonts/Arial.ttf`, which a
+/// stock Mac does not have: the first person to run the macOS build got "no
+/// usable font was found" and no text tool (E009). `Supplemental` is where
+/// Arial and Verdana ship on every macOS since 10.15.
+const MACOS_CANDIDATES: [&str; 4] = [
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Verdana.ttf",
+    "/System/Library/Fonts/Supplemental/Tahoma.ttf",
     "/Library/Fonts/Arial.ttf",
 ];
+
+/// macOS faces with wide coverage, for characters the main face lacks.
+const MACOS_FALLBACKS: [&str; 1] = ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf"];
+
+/// Font files under the Windows fonts directory, which is found from `WINDIR`
+/// rather than assumed to be on `C:`.
+const WINDOWS_CANDIDATES: [&str; 3] = ["segoeui.ttf", "arial.ttf", "tahoma.ttf"];
+
+/// Nirmala UI covers the Indic scripts and Microsoft YaHei the CJK ones.
+const WINDOWS_FALLBACKS: [&str; 2] = ["Nirmala.ttf", "msyh.ttc"];
+
+/// The candidates for the operating system this was built for.
+fn candidates() -> Vec<PathBuf> {
+    for_os(
+        std::env::consts::OS,
+        &CANDIDATES,
+        &MACOS_CANDIDATES,
+        &WINDOWS_CANDIDATES,
+    )
+}
+
+fn fallbacks() -> Vec<PathBuf> {
+    for_os(
+        std::env::consts::OS,
+        &FALLBACKS,
+        &MACOS_FALLBACKS,
+        &WINDOWS_FALLBACKS,
+    )
+}
+
+/// Picks the list for an operating system, with the OS passed in so every
+/// branch can be tested on any machine.
+fn for_os(os: &str, linux: &[&str], macos: &[&str], windows: &[&str]) -> Vec<PathBuf> {
+    match os {
+        "macos" => macos.iter().map(PathBuf::from).collect(),
+        "windows" => {
+            let root = std::env::var_os("WINDIR")
+                .map_or_else(|| PathBuf::from(r"C:\Windows"), PathBuf::from);
+            windows
+                .iter()
+                .map(|name| root.join("Fonts").join(name))
+                .collect()
+        }
+        _ => linux.iter().map(PathBuf::from).collect(),
+    }
+}
 
 /// Faces to try when the main one has no glyph for a character.
 ///
@@ -59,13 +117,12 @@ impl TextFont {
     /// Finds and loads a face, or explains why it could not.
     pub fn discover() -> Result<Self, String> {
         let mut tried = Vec::new();
-        for candidate in CANDIDATES {
-            let path = Path::new(candidate);
-            if !path.exists() {
-                tried.push(candidate);
+        for candidate in candidates() {
+            if !candidate.exists() {
+                tried.push(candidate.display().to_string());
                 continue;
             }
-            return Self::load(path);
+            return Self::load(&candidate);
         }
         Err(format!(
             "no sans-serif font was found. Looked in: {}",
@@ -77,14 +134,13 @@ impl TextFont {
         let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let font = Font::from_bytes(bytes, FontSettings::default())
             .map_err(|e| format!("{} is not a usable font: {e}", path.display()))?;
-        let fallbacks = FALLBACKS
-            .iter()
-            .map(Path::new)
-            .filter(|candidate| *candidate != path && candidate.exists())
+        let fallbacks = fallbacks()
+            .into_iter()
+            .filter(|candidate| candidate != path && candidate.exists())
             .filter_map(|candidate| {
-                let bytes = std::fs::read(candidate).ok()?;
+                let bytes = std::fs::read(&candidate).ok()?;
                 let face = Font::from_bytes(bytes, FontSettings::default()).ok()?;
-                Some((face, candidate.to_path_buf()))
+                Some((face, candidate))
             })
             .collect();
 
@@ -160,5 +216,47 @@ impl TextFont {
         self.font
             .horizontal_line_metrics(pixels)
             .map_or(pixels * 0.8, |metrics| metrics.ascent)
+    }
+}
+
+#[cfg(test)]
+mod platform_tests {
+    use super::*;
+
+    /// The E009 bug: a Mac was only offered a path that a stock Mac lacks.
+    /// Every macOS candidate must be a system path, where the OS ships fonts,
+    /// not a user-installed location only.
+    #[test]
+    fn a_mac_is_offered_the_fonts_it_ships_with() {
+        let macos = for_os("macos", &CANDIDATES, &MACOS_CANDIDATES, &WINDOWS_CANDIDATES);
+        assert!(
+            macos
+                .first()
+                .is_some_and(|path| path.starts_with("/System/Library/Fonts")),
+            "{macos:?}"
+        );
+    }
+
+    #[test]
+    fn windows_fonts_are_looked_for_under_the_fonts_directory() {
+        let windows = for_os(
+            "windows",
+            &CANDIDATES,
+            &MACOS_CANDIDATES,
+            &WINDOWS_CANDIDATES,
+        );
+        assert_eq!(windows.len(), WINDOWS_CANDIDATES.len());
+        for path in &windows {
+            assert!(
+                path.parent().is_some_and(|dir| dir.ends_with("Fonts")),
+                "{path:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn linux_keeps_its_own_list() {
+        let linux = for_os("linux", &CANDIDATES, &MACOS_CANDIDATES, &WINDOWS_CANDIDATES);
+        assert_eq!(linux.first(), Some(&PathBuf::from(CANDIDATES[0])));
     }
 }

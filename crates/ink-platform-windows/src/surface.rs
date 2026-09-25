@@ -67,6 +67,160 @@ pub fn scale_for_dpi(dpi: u32) -> f64 {
     f64::from(dpi) / 96.0
 }
 
+/// A rectangle in screen pixels, edges exclusive on the right and bottom, as
+/// Win32's `RECT` has them. Our own type so the arithmetic below needs no
+/// Windows headers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PixelRect {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+
+impl PixelRect {
+    pub const fn width(self) -> i32 {
+        self.right - self.left
+    }
+
+    pub const fn height(self) -> i32 {
+        self.bottom - self.top
+    }
+}
+
+/// One monitor, as enumeration reported it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Monitor {
+    pub bounds: PixelRect,
+    pub dpi: u32,
+    pub primary: bool,
+}
+
+/// Which monitor to cover, from a 1-based number the user typed.
+///
+/// With nothing asked for, the primary. A number that names no monitor is an
+/// error that lists what exists, rather than a silent fallback to the primary:
+/// an overlay on the wrong screen during a presentation is exactly the surprise
+/// FR-015 is meant to prevent.
+pub fn choose_monitor(monitors: &[Monitor], requested: Option<usize>) -> Result<usize, String> {
+    if monitors.is_empty() {
+        return Err("Windows reported no monitors at all".to_owned());
+    }
+    match requested {
+        None => Ok(monitors.iter().position(|m| m.primary).unwrap_or(0)),
+        Some(number) if (1..=monitors.len()).contains(&number) => Ok(number - 1),
+        Some(number) => Err(format!(
+            "there is no monitor {number}; this machine has {} (numbered from 1)",
+            monitors.len()
+        )),
+    }
+}
+
+/// Where the overlay goes on a monitor.
+///
+/// The whole monitor unless a size was asked for, because on Windows nothing
+/// stops a transparent window covering a screen. (Mutter does, which is why the
+/// Linux build defaults to a smaller floating window.) A requested size is in
+/// logical units and becomes pixels at this monitor's scale, then is clamped so
+/// the overlay never extends off the monitor it was put on.
+pub fn fit(monitor: Monitor, requested: Option<(f64, f64)>) -> PixelRect {
+    let bounds = monitor.bounds;
+    let Some((width, height)) = requested else {
+        return bounds;
+    };
+    let scale = scale_for_dpi(monitor.dpi);
+    let clamp =
+        |logical: f64, limit: i32| ((logical * scale).round() as i32).clamp(1, limit.max(1));
+    PixelRect {
+        left: bounds.left,
+        top: bounds.top,
+        right: bounds.left + clamp(width, bounds.width()),
+        bottom: bounds.top + clamp(height, bounds.height()),
+    }
+}
+
+/// The window size while Parked: the toolbar, with the same margin on the far
+/// side as it has on the near one.
+///
+/// The same arithmetic the Wayland adapter uses, so parking looks alike on both.
+pub fn parked_size(toolbar: ink_core::LogicalRect, scale: f64) -> (i32, i32) {
+    let side = |near: f64, far: f64| (((far + near) * scale).round() as i32).max(1);
+    (
+        side(toolbar.min.x, toolbar.max.x),
+        side(toolbar.min.y, toolbar.max.y),
+    )
+}
+
+/// The smallest the overlay can be resized to, in pixels. Smaller and the
+/// toolbar no longer fits, which would leave nothing to click to get it back.
+pub const MIN_RESIZE: (i32, i32) = (240, 120);
+
+/// A window dragged by its grip: the same size, offset by how far the pointer
+/// has moved since the press. Positions are screen pixels.
+pub const fn moved(start: PixelRect, from: (i32, i32), to: (i32, i32)) -> PixelRect {
+    let (dx, dy) = (to.0 - from.0, to.1 - from.1);
+    PixelRect {
+        left: start.left + dx,
+        top: start.top + dy,
+        right: start.right + dx,
+        bottom: start.bottom + dy,
+    }
+}
+
+/// A window resized from its bottom-right corner, never below `minimum`.
+pub fn resized(
+    start: PixelRect,
+    from: (i32, i32),
+    to: (i32, i32),
+    minimum: (i32, i32),
+) -> PixelRect {
+    PixelRect {
+        right: (start.right + to.0 - from.0).max(start.left + minimum.0),
+        bottom: (start.bottom + to.1 - from.1).max(start.top + minimum.1),
+        ..start
+    }
+}
+
+/// The system cursor resource for a controller cursor.
+///
+/// These are the numeric ids behind `IDC_ARROW` and friends, which Win32
+/// defines as `MAKEINTRESOURCE` values. Kept as numbers so the mapping is
+/// testable here; `overlay` hands them to `LoadCursorW`.
+pub const fn cursor_resource(cursor: ink_app::Cursor) -> u16 {
+    match cursor {
+        ink_app::Cursor::Default => 32512,           // IDC_ARROW
+        ink_app::Cursor::Text => 32513,              // IDC_IBEAM
+        ink_app::Cursor::Crosshair => 32515,         // IDC_CROSS
+        ink_app::Cursor::ResizeBottomRight => 32642, // IDC_SIZENWSE
+        ink_app::Cursor::Move => 32646,              // IDC_SIZEALL
+    }
+}
+
+/// `WM_APP`, the first message number an application may define for itself.
+const WM_APP: u32 = 0x8000;
+
+/// How many remote verbs there can be. Anything posted above this range is
+/// not ours and is ignored.
+pub const MAX_REMOTE: u32 = 32;
+
+/// The window message that carries remote verb number `index`.
+pub const fn remote_message(index: u32) -> Option<u32> {
+    if index < MAX_REMOTE {
+        Some(WM_APP + index)
+    } else {
+        None
+    }
+}
+
+/// The remote verb number a message carries, if it is one of ours.
+pub const fn remote_index(message: u32) -> Option<u32> {
+    if message >= WM_APP && message < WM_APP + MAX_REMOTE {
+        Some(message - WM_APP)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,5 +281,133 @@ mod tests {
         let scale = scale_for_dpi(0);
         assert!(scale.is_finite());
         assert_eq!(scale, 1.0);
+    }
+
+    fn monitor(left: i32, width: i32, dpi: u32, primary: bool) -> Monitor {
+        Monitor {
+            bounds: PixelRect {
+                left,
+                top: 0,
+                right: left + width,
+                bottom: 1080,
+            },
+            dpi,
+            primary,
+        }
+    }
+
+    /// The primary is not always first in enumeration order, and assuming it
+    /// is puts the overlay on the laptop screen instead of the projector.
+    #[test]
+    fn with_nothing_asked_for_the_primary_is_chosen() {
+        let monitors = [monitor(-1920, 1920, 96, false), monitor(0, 1920, 96, true)];
+        assert_eq!(choose_monitor(&monitors, None), Ok(1));
+    }
+
+    #[test]
+    fn a_monitor_is_chosen_by_its_number_from_one() {
+        let monitors = [monitor(0, 1920, 96, true), monitor(1920, 2560, 144, false)];
+        assert_eq!(choose_monitor(&monitors, Some(1)), Ok(0));
+        assert_eq!(choose_monitor(&monitors, Some(2)), Ok(1));
+    }
+
+    #[test]
+    fn a_monitor_that_does_not_exist_is_refused_rather_than_guessed() {
+        let monitors = [monitor(0, 1920, 96, true)];
+        let refusal = choose_monitor(&monitors, Some(2)).unwrap_err();
+        assert!(refusal.contains("has 1"), "{refusal}");
+        assert!(choose_monitor(&monitors, Some(0)).is_err());
+        assert!(choose_monitor(&[], None).is_err());
+    }
+
+    #[test]
+    fn with_no_size_asked_for_the_whole_monitor_is_covered() {
+        let second = monitor(1920, 2560, 144, false);
+        assert_eq!(fit(second, None), second.bounds);
+    }
+
+    /// Logical units become pixels at the monitor's own scale, and the result
+    /// starts on that monitor rather than at the desktop origin.
+    #[test]
+    fn a_requested_size_is_scaled_and_placed_on_its_monitor() {
+        let second = monitor(1920, 2560, 144, false);
+        let rect = fit(second, Some((800.0, 400.0)));
+        assert_eq!((rect.left, rect.top), (1920, 0));
+        assert_eq!((rect.width(), rect.height()), (1200, 600));
+    }
+
+    #[test]
+    fn a_size_larger_than_the_monitor_is_clamped_to_it() {
+        let small = monitor(0, 1366, 96, true);
+        let rect = fit(small, Some((5000.0, 5000.0)));
+        assert_eq!((rect.width(), rect.height()), (1366, 1080));
+    }
+
+    #[test]
+    fn parking_keeps_the_toolbar_and_its_margin() {
+        let toolbar = ink_core::LogicalRect {
+            min: ink_core::LogicalPoint { x: 12.0, y: 12.0 },
+            max: ink_core::LogicalPoint { x: 412.0, y: 56.0 },
+        };
+        assert_eq!(parked_size(toolbar, 1.0), (424, 68));
+        assert_eq!(parked_size(toolbar, 1.5), (636, 102));
+    }
+
+    #[test]
+    fn a_drag_moves_without_resizing() {
+        let start = PixelRect {
+            left: 100,
+            top: 100,
+            right: 900,
+            bottom: 700,
+        };
+        let after = moved(start, (150, 120), (170, 90));
+        assert_eq!((after.left, after.top), (120, 70));
+        assert_eq!((after.width(), after.height()), (800, 600));
+    }
+
+    #[test]
+    fn a_resize_moves_only_the_far_corner_and_stops_at_the_minimum() {
+        let start = PixelRect {
+            left: 100,
+            top: 100,
+            right: 900,
+            bottom: 700,
+        };
+        let bigger = resized(start, (900, 700), (1000, 750), MIN_RESIZE);
+        assert_eq!((bigger.left, bigger.top), (100, 100));
+        assert_eq!((bigger.width(), bigger.height()), (900, 650));
+
+        let crushed = resized(start, (900, 700), (0, 0), MIN_RESIZE);
+        assert_eq!((crushed.width(), crushed.height()), MIN_RESIZE);
+    }
+
+    #[test]
+    fn every_cursor_has_a_distinct_system_resource() {
+        use ink_app::Cursor;
+        let all = [
+            Cursor::Default,
+            Cursor::Text,
+            Cursor::Crosshair,
+            Cursor::ResizeBottomRight,
+            Cursor::Move,
+        ];
+        let mut ids: Vec<u16> = all.iter().map(|c| cursor_resource(*c)).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), all.len());
+        assert_eq!(cursor_resource(Cursor::Default), 32512);
+    }
+
+    #[test]
+    fn remote_messages_round_trip_and_stay_in_their_range() {
+        for index in 0..MAX_REMOTE {
+            let message = remote_message(index).unwrap();
+            assert_eq!(remote_index(message), Some(index));
+        }
+        assert_eq!(remote_message(MAX_REMOTE), None);
+        // Ordinary window messages are not mistaken for ours.
+        assert_eq!(remote_index(0x0201), None);
+        assert_eq!(remote_index(0x8000 + MAX_REMOTE), None);
     }
 }

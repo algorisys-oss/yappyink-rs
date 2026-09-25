@@ -261,3 +261,45 @@ fn a_scaled_surface_does_not_panic() {
         ink_ui::paint_swatches(&mut canvas, &controller, scale);
     }
 }
+
+/// Win32 layered windows and clear AppKit windows let a click through wherever
+/// alpha is zero. A capturing frame must therefore have no such pixel anywhere,
+/// including after the chrome is painted over it, or clicks on empty canvas in
+/// Draw mode land in the application underneath.
+#[test]
+fn a_capturing_frame_has_no_pixel_a_click_can_fall_through() {
+    let controller = Controller::new();
+    let mut pixels = blank();
+    let mut canvas = Canvas::new(&mut pixels, WIDTH, HEIGHT).unwrap();
+
+    ink_ui::clear(&mut canvas, true);
+    ink_ui::paint_chrome(
+        &mut canvas,
+        Mode::Draw,
+        controller.style(),
+        controller.tool(),
+    );
+
+    assert_eq!(
+        painted(&canvas),
+        (WIDTH * HEIGHT) as usize,
+        "some pixel has alpha zero, so a click there would pass through"
+    );
+}
+
+/// The floor has to be invisible, and in pass-through it must not be there at
+/// all: the window manager should see nothing to hit.
+#[test]
+fn the_floor_is_invisible_and_absent_when_not_capturing() {
+    let [blue, green, red, alpha] = ink_ui::CAPTURE_FLOOR;
+    assert!(alpha <= 1, "the floor darkens what is underneath visibly");
+    assert!(
+        blue <= alpha && green <= alpha && red <= alpha,
+        "not premultiplied"
+    );
+
+    let mut pixels = vec![0xAB; (WIDTH * HEIGHT * 4) as usize];
+    let mut canvas = Canvas::new(&mut pixels, WIDTH, HEIGHT).unwrap();
+    ink_ui::clear(&mut canvas, false);
+    assert_eq!(painted(&canvas), 0);
+}

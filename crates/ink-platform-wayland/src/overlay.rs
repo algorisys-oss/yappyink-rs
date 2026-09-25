@@ -22,9 +22,7 @@
 //! layer-shell backend (T006) or a GNOME companion (ADR-002) removes these
 //! limits; nothing in this file can.
 
-use ink_app::{
-    Action, Controller, Effect, Icon, Mode, PlatformEvent, Preview, Tool, Toolbar, TransitionId,
-};
+use ink_app::{Action, Controller, Effect, Icon, Mode, PlatformEvent, Tool, Toolbar, TransitionId};
 use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session, Shape, Style};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Scale};
@@ -826,87 +824,23 @@ impl Overlay {
             return;
         };
         canvas.clear();
-        if Toolbar::ink_is_visible(self.controller.mode()) {
-            if self.controller.selection_drag().is_some() {
-                // A selection being dragged is drawn twice: once where it
-                // still is, faded, and once where it is going, at full
-                // strength. Without the fade the two are indistinguishable
-                // and the preview reads as a duplicate rather than a result.
-                let painter = &mut self.painter;
-                let selection = self.controller.selection();
-                let scale = self.scale;
-                for object in self.session.document().objects() {
-                    if selection.contains(&object.id()) {
-                        if let Some(faded) = ink_ui::faded(object) {
-                            painter.paint_object(&faded, &mut canvas, scale);
-                        }
-                    } else {
-                        painter.paint_object(object, &mut canvas, scale);
-                    }
-                }
-            } else {
-                self.painter
-                    .paint(self.session.document(), &mut canvas, self.scale);
-            }
-        }
+        ink_ui::paint_document(
+            &mut canvas,
+            &self.controller,
+            self.session.document(),
+            &mut self.painter,
+            self.scale,
+        );
 
-        // The gesture in flight is drawn but not in the document, which is the
-        // whole point of keeping the preview separate from committed state.
-        let mut preedit_underline = None;
-        if let Some(preview) = self.controller.preview() {
-            let built = match preview {
-                Preview::Stroke {
-                    points,
-                    kind,
-                    style,
-                } => Shape::stroke(kind, points.to_vec())
-                    .ok()
-                    .map(|shape| (shape, style)),
-                Preview::Shape { shape, style } => Some((shape, style)),
-                // Text being typed. A caret is appended so an empty editor is
-                // still visible: a click that opened one and drew nothing
-                // would otherwise look like the tool failing.
-                Preview::Text {
-                    at,
-                    content,
-                    preedit,
-                    size,
-                    style,
-                } => {
-                    // Composition is drawn inline where it will land, and
-                    // underlined below so the user can see what is still
-                    // provisional. The caret sits after both.
-                    preedit_underline = (!preedit.is_empty())
-                        .then(|| (at, content.to_owned(), preedit.to_owned(), size));
-                    let shown = format!("{content}{preedit}|");
-                    Shape::text(at, shown, size)
-                        .ok()
-                        .map(|shape| (shape, style))
-                }
-                // The eraser's sweep is drawn as a faint grey trail so the
-                // user can see what it is about to take. It is chrome: never
-                // in the document, and it commits nothing.
-                Preview::Erase { path, radius } => {
-                    Shape::stroke(ink_core::StrokeKind::Pen, path.to_vec())
-                        .ok()
-                        .and_then(|shape| {
-                            let width = ink_core::Width::new(radius * 2.0)?;
-                            let faint = ink_core::Opacity::new(0.35)?;
-                            let grey = ink_core::Rgb::new(200, 200, 200);
-                            Some((shape, Style::new(grey, width, faint)))
-                        })
-                }
-            };
-            if let Some((shape, style)) = built {
-                let object = Object::new(
-                    ink_core::ObjectId::from_raw(u64::MAX),
-                    self.session.document().output().clone(),
-                    style,
-                    shape,
-                );
-                self.painter.paint_object(&object, &mut canvas, self.scale);
-            }
-        }
+        // The gesture in flight, drawn but never in the document. Shared with
+        // the other backends, which is how they got text preview at all.
+        ink_ui::paint_preview(
+            &mut canvas,
+            &self.controller,
+            self.session.document().output(),
+            &mut self.painter,
+            self.scale,
+        );
 
         ink_ui::paint_chrome(
             &mut canvas,
@@ -914,28 +848,6 @@ impl Overlay {
             self.controller.style(),
             self.controller.tool(),
         );
-        // Drawn after the preview, so it sits under the glyphs it marks.
-        if let Some((at, content, preedit, size)) = preedit_underline
-            && let Some(font) = self.painter.font()
-        {
-            let scale = self.scale.get();
-            let pixels = (size * scale) as f32;
-            // The last line only: a composition never spans one.
-            let before = content.rsplit('\n').next().unwrap_or("");
-            let start = (at.x * scale) as f32 + font.line_width(before, pixels);
-            let width = font.line_width(&preedit, pixels);
-            let down = content.matches('\n').count() as f64 * size * 1.25 * scale;
-            let baseline = (at.y * scale + down) as f32 + font.ascent(pixels) + 2.0;
-            let thickness = (scale.round() as i64).max(1);
-            let colour = [0xD0, 0xD0, 0xD0, 0xD0];
-            canvas.fill_rect(
-                start.round() as i64,
-                baseline.round() as i64,
-                width.round() as i64,
-                thickness,
-                colour,
-            );
-        }
 
         ink_ui::paint_caret_hint(&mut canvas, &self.controller, self.last_pointer, self.scale);
 

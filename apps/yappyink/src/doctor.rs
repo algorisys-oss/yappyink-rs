@@ -92,10 +92,25 @@ pub fn report() -> String {
                     .to_owned(),
             );
         }
+        // On Windows and macOS there is never a Wayland or X11 server to
+        // answer, and that is not a failure: the native backend below is the
+        // one that counts. Saying "no adapter ran" there was wrong, and one
+        // user on a Mac read it, reasonably, as "this cannot draw".
+        SessionKind::None { .. } if cfg!(any(windows, target_os = "macos")) => {}
         SessionKind::None { .. } => {
             not_probed
                 .push("every capability: no display server answered, so no adapter ran".to_owned());
         }
+    }
+
+    // Reported whatever the session detection found, because it looks only for
+    // Linux display servers. Until 0.7.0 this was reachable only from the
+    // Wayland branch above, so on a real Windows or macOS machine the backend
+    // was never mentioned at all.
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        let _ = writeln!(out, "native backend");
+        native_section(&mut out, &mut capabilities, &mut not_probed);
     }
 
     not_probed.push(
@@ -103,8 +118,10 @@ pub fn report() -> String {
          was never queried (T012, FR-005)"
             .to_owned(),
     );
+    #[cfg(target_os = "linux")]
     not_probed.push(
-        "Windows and macOS: this binary has never been built or run on them (T003, T004)"
+        "Windows and macOS: a Linux build cannot probe them; their own builds report their \
+         backends (T003, T004)"
             .to_owned(),
     );
     not_probed.push(
@@ -235,14 +252,14 @@ fn wayland_section(
 /// distinction the constitution insists on: a documented behaviour is not a
 /// measured one, and reporting it as available would be inventing evidence.
 #[cfg(windows)]
-fn wayland_section(
+fn native_section(
     out: &mut String,
     capabilities: &mut CapabilityReport,
     not_probed: &mut Vec<String>,
 ) {
     let _ = writeln!(
         *out,
-        "  the windows-layered backend is compiled in, and has never been run"
+        "  the windows-layered backend is compiled in, and none of its capabilities has been confirmed"
     );
     for finding in ink_platform_windows::capabilities().findings() {
         capabilities.record(finding.clone());
@@ -254,27 +271,29 @@ fn wayland_section(
 
 /// On macOS the adapter is linked and reports what it would offer.
 ///
-/// Every state is `Unknown`, and unlike Windows there is not even a plan for
-/// measuring them: nobody on this project has a Mac.
+/// Every state is `Unknown`. One person has launched it (E009), which showed a
+/// screen being found and nothing else that a capability could rest on.
 #[cfg(target_os = "macos")]
-fn wayland_section(
+fn native_section(
     out: &mut String,
     capabilities: &mut CapabilityReport,
     not_probed: &mut Vec<String>,
 ) {
     let _ = writeln!(
         *out,
-        "  the macos-appkit backend is compiled in, and has never been run"
+        "  the macos-appkit backend is compiled in, and none of its capabilities has been confirmed"
     );
     for finding in ink_platform_macos::capabilities().findings() {
         capabilities.record(finding.clone());
     }
-    not_probed
-        .push("every macos capability: the backend compiles but nobody has watched it".to_owned());
+    not_probed.push(
+        "every macos capability: launched once (E009), but nothing on screen was recorded"
+            .to_owned(),
+    );
 }
 
-/// On any other build no adapter is linked, so nothing can be said.
-#[cfg(not(any(target_os = "linux", windows, target_os = "macos")))]
+/// Off Linux no Wayland adapter is linked, so nothing can be said about one.
+#[cfg(not(target_os = "linux"))]
 fn wayland_section(
     out: &mut String,
     _capabilities: &mut CapabilityReport,
@@ -303,6 +322,18 @@ mod tests {
                 "{capability} is missing from the report"
             );
         }
+    }
+
+    /// The bug a Mac user hit: session detection only knows Linux display
+    /// servers, and the native backend was only reported from the Wayland
+    /// branch, so on the platforms it exists for it was never mentioned.
+    #[cfg(any(windows, target_os = "macos"))]
+    #[test]
+    fn the_native_backend_is_reported_on_its_own_platform() {
+        let text = report();
+        assert!(text.contains("native backend"), "{text}");
+        assert!(text.contains("compiled in"), "{text}");
+        assert!(!text.contains("no adapter ran"), "{text}");
     }
 
     #[test]

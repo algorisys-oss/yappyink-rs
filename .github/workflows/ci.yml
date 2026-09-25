@@ -43,12 +43,15 @@ jobs:
       - name: Validate specification cross-references
         run: python3 tools/check_specs.py
 
-  # Keeps the portable crates portable. It does not prove the application does
-  # anything on these platforms: there is no overlay backend for either
-  # (T003, T004). See docs/ship-it.md.
+  # Keeps the portable crates portable, and builds and links the Windows and
+  # macOS backends. It does not prove either backend works: nobody has run
+  # them, and a runner cannot (T003, T004). See docs/ship-it.md.
   portable:
     name: Portable core (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # A clean run takes minutes. Without a limit, the hang described below
+    # cost six hours per job per push before anyone noticed.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -84,18 +87,25 @@ jobs:
         run: >
           cargo test
           -p ink-core -p ink-app -p ink-render -p ink-storage -p ink-platform
-          -p ink-platform-windows -p ink-platform-macos -p ink-ui
+          -p ink-platform-windows -p ink-platform-macos -p ink-ui -p yappyink
 
-      # Proves the two verbs that exist off Linux actually run, rather than
-      # only compiling. `draw` is expected to fail here, and the release notes
-      # say so; asserting the failure keeps it from quietly starting to
-      # "succeed" at nothing.
-      - name: The binary runs, and refuses what it cannot do
+      # Proves the binary links and runs off Linux, and that doctor tells the
+      # truth about the backend it carries.
+      #
+      # `draw` is deliberately not run. Until 0.6.0 this step ran it and
+      # expected a failure, because there was no backend. Once the Windows and
+      # macOS backends landed, `draw` opened a real overlay on a runner with no
+      # one to close it, and both jobs sat until the six-hour limit for five
+      # pushes in a row. A headless runner cannot say anything about an overlay
+      # anyway: every question it would answer is about what a person sees.
+      - name: The binary runs, and doctor admits what it has not seen
         shell: bash
         run: |
           cargo run -q -p yappyink -- version
-          cargo run -q -p yappyink -- doctor
-          if cargo run -q -p yappyink -- draw; then
-            echo "draw exited 0 on a platform with no backend"
+          report=$(cargo run -q -p yappyink -- doctor)
+          echo "$report"
+          if ! grep -q "backend is compiled in, and none of its capabilities has been confirmed" <<<"$report"; then
+            echo "doctor no longer says the backend is unconfirmed; if something has been"
+            echo "confirmed, record the evidence and change this check with it"
             exit 1
           fi

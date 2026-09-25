@@ -15,7 +15,11 @@
         "FR-002"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-ui/tests/chrome.rs"
+      ],
+      "note": "Only a precondition is tested, headlessly: a capturing frame has no alpha-zero pixel, which Win32 layered windows and clear AppKit windows would let clicks through. No capture has been observed on Windows or macOS."
     },
     {
       "id": "AC-FR-003",
@@ -45,9 +49,11 @@
       "file": "tests/acceptance/overlay.feature",
       "status": "partially_implemented",
       "tests": [
-        "apps/yappyink/src/control.rs"
+        "apps/yappyink/src/control.rs",
+        "apps/yappyink/src/verbs.rs",
+        "crates/ink-platform-macos/src/chords.rs"
       ],
-      "note": "Socket route verified end to end (E005). No shortcut is registered, so conflict feedback is untested."
+      "note": "Socket route verified end to end on Linux (E005). Windows registers chords with RegisterHotKey and macOS with RegisterEventHotKey (ADR-007), and both report a refused chord, but neither backend has been run, so conflict feedback is untested."
     },
     {
       "id": "AC-FR-006",
@@ -70,7 +76,8 @@
       "status": "partially_implemented",
       "tests": [
         "crates/ink-app/tests/tools.rs",
-        "crates/ink-render/tests/painting.rs"
+        "crates/ink-render/tests/painting.rs",
+        "crates/ink-ui/tests/preview.rs"
       ],
       "note": "Headless rules and pixel fixtures pass. Native use of the tools has not been observed."
     },
@@ -167,7 +174,7 @@
       "tests": [
         "crates/ink-storage/tests/roundtrip.rs"
       ],
-      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; there is no Windows backend."
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; the Windows backend has never been run."
     },
     {
       "id": "AC-FR-016",
@@ -187,7 +194,7 @@
       "tests": [
         "crates/ink-storage/tests/roundtrip.rs"
       ],
-      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; there is no Windows backend."
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; the Windows backend has never been run."
     },
     {
       "id": "AC-FR-018",
@@ -247,9 +254,10 @@
       "tests": [
         "crates/ink-app/tests/text.rs",
         "crates/ink-app/tests/selection.rs",
-        "crates/ink-render/tests/text.rs"
+        "crates/ink-render/tests/text.rs",
+        "crates/ink-ui/tests/preview.rs"
       ],
-      "note": "Latin text entry and editing pass headlessly. IME and preedit are not implemented, so the scenario cannot pass."
+      "note": "Latin text entry and editing pass headlessly, and the live preview and composition underline are pixel-tested in ink-ui. Composition is wired on Wayland (text-input-v3) and Windows (IMM32) but has not been confirmed on screen on either, so the scenario cannot pass."
     },
     {
       "id": "AC-FR-024",

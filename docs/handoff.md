@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-24, release 0.6.0. Three backends exist; two have never run.
+**Last updated:** 2026-09-25, release 0.7.0. Three backends exist. Windows has never run; macOS has been launched once, by a user, and appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
 
 ## What this is
 
@@ -18,7 +18,7 @@ Developed on Ubuntu 24.04, GNOME Shell 46, Wayland, two monitors.
 | File | Why |
 |---|---|
 | `AGENTS.md` | the contract: what may and may not be claimed |
-| `docs/learning.md` | fourteen mistakes so far, one of them twice, and what changed |
+| `docs/learning.md` | eighteen entries so far, and what changed after each |
 | `docs/evidence/` | what was actually run on a real machine, including failures |
 | `tasks.md` | per-task status, with evidence and what is still missing |
 | `docs/ship-it.md` | the version scheme, what "Ship it" does, what CI does and does not prove |
@@ -34,10 +34,20 @@ platform's spelling of a key into `Key`; the chrome lives once in `ink-ui`. Both
 were extracted rather than copied, because the alternative is three products
 that resemble each other.
 
-Neither the Windows nor the macOS backend has ever been run. `tasks.md` under
-T003 and T004 lists what each one does not do; the macOS one is worse off,
-because it has no global shortcut at all and so no way back from pass-through
-except killing it from a terminal.
+Neither the Windows nor the macOS backend has ever been run. As of 0.7.0 the
+Windows one has closed every gap in its list: IME composition, `--monitor N`,
+Parked shrinking, cursors per tool, window move and resize, DPI and display
+changes, and the CLI verbs as window messages. macOS gained a global chord
+(Control+Option+D, Carbon, ADR-007), so pass-through has a way back there too.
+Reading both adapters for that work found seven defects that would have shown
+on the first run, including Draw not catching clicks on empty canvas and both
+overlays starting Hidden; `docs/learning.md` §18 lists them.
+
+The gesture preview and document painting moved into `ink-ui`
+(`paint_preview`, `paint_document`, `clear`), so all three backends share them.
+**Known and not fixed:** the Wayland adapter never calls
+`Controller::set_surface_size`, so its resize corner never appears. It is
+testable on this machine and deserves its own change.
 
 **Implemented:** T001 workspace, T009 document model, T010 reducer, T013
 toolbar, T014 rendering, T015 pen and highlighter, T016 shapes, T017 eraser and
@@ -53,11 +63,11 @@ unprobed), T007 (GNOME route; extension prototype written, never loaded), T011
 portal, no bound chord, no conflict feedback).
 
 **Not started:** 21 tasks, including output and DPI correctness (T018), the
-capability and settings UX (T019), text and IME (T028), and everything on
-Windows, macOS, X11 and layer-shell Wayland, none of which has any backend at
-all.
+capability and settings UX (T019), text and IME (T028), and X11 and
+layer-shell Wayland, which have no backend at all. (T003 Windows and T004 macOS
+are `in_progress`: backends written, nothing confirmed on screen.)
 
-260 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+330 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
@@ -81,17 +91,26 @@ refuses a tag that disagrees with `Cargo.toml`, because a rule with nothing
 enforcing it is a preference. `docs/ship-it.md` has the increment table.
 
 CI runs the full workspace on Linux and the portable crates plus the binary on
-Windows and macOS. The second job keeps `ink-core` and friends free of Unix
-assumptions; **it does not mean the app works there**, and `docs/ship-it.md`
-says so in as many words. The Linux job installs `libxkbcommon-dev`, which the
-overlay links; Wayland needs nothing because the pure-Rust backend is used.
+Windows and macOS, where it builds, links and unit-tests both backends and
+checks that `doctor` still calls them unverified. **It does not run `draw`
+there, and it does not mean the app works there.** From the Windows backend
+landing until 0.7.0 it did run `draw`, which hung both jobs to the six-hour
+limit on every push (`docs/learning.md` §17); each job now has a 30-minute
+limit. The Linux job installs `libxkbcommon-dev`, which the overlay links.
 
-Neither workflow has run yet — they were written and pushed in the same commit,
-so the first push to `main` is their first execution. Expect to fix something.
+The release notes are fixed text in `release.yml`. **When what a download does
+changes, change that text in the same commit.** It went stale for two releases.
 
 ## The immediate next action, if you have a Windows machine
 
-**Run the T003 probe and write down what happens.** It is written, it compiles,
+**Run `yappyink draw` from the 0.7.0 release, then the probe, and write down
+what happens.** The first run should answer, in this order: does the frame
+appear, do clicks on *empty* canvas draw rather than reach the window
+underneath (the alpha-1 floor), does `Ctrl+Alt+D` switch to pass-through and
+back, does `yappyink toggle-draw` from a second terminal do the same, and does
+`--monitor 2` land on the second monitor.
+
+The probe is the narrower check. It is written, it compiles,
 CI lints it on a Windows runner, and **nobody has ever run it**. It cannot
 answer anything until someone does: all six of its questions are about what
 appears on a screen.
@@ -112,17 +131,14 @@ is the first platform where the product works as specified, and ADR-002's
 
 ### macOS, which nobody here can run
 
-`experiments/macos-overlay` exists on the same terms and **has no route to being
-tested**: nobody on this project has a Mac. It compiles for
-`aarch64-apple-darwin` and CI lints it on a macOS runner; that is the whole of
-what is known.
+`experiments/macos-overlay` and the real backend exist on the same terms and
+**have no route to being tested**: nobody on this project has a Mac. They
+compile for `aarch64-apple-darwin` and CI builds and links them on a macOS
+runner; that is the whole of what is known.
 
-Two findings came out of writing it anyway, and both are design-level rather
-than bugs. macOS has no `RegisterHotKey` equivalent that works without either
-Carbon or an accessibility-permission prompt, so FR-005 needs its own ADR there.
-And `Accessory` activation policy plus a key-accepting window are in tension:
-Windows resolves it by taking no keyboard at all, and macOS cannot copy that
-without a global shortcut to replace it. ADR-006 has both.
+FR-005 is settled on paper by ADR-007: Carbon's `RegisterEventHotKey`, no
+permission prompt. The focus tension from ADR-006 remains: a key-accepting
+window takes focus from the application being annotated.
 
 If a Mac ever becomes available, run it and write `docs/evidence/E0NN`. If one
 never does, the honest end state is to declare macOS unsupported.

@@ -57,6 +57,9 @@ permission. That is a product decision with a permission prompt attached, not an
 implementation detail, and it needs its own ADR once the basic overlay is known
 to work.
 
+*Settled on 2026-09-25 by
+[ADR-007](ADR-007-macos-global-shortcut.md): Carbon, no permission prompt.*
+
 ## Consequences
 
 - Three dependencies, one target, pinned in `Cargo.lock`.

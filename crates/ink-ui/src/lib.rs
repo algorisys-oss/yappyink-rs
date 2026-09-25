@@ -30,9 +30,47 @@
 //! export must exclude all of it (FR-024). If something ought to survive a
 //! save, it is not chrome and does not belong in this crate.
 
-use ink_app::{Button, Controller, Icon, Mode, Tool, Toolbar};
-use ink_core::{Document, LogicalPoint, LogicalRect, Object, Opacity, Rgb, Style};
+use ink_app::{Button, Controller, Icon, Mode, Preview, Tool, Toolbar};
+use ink_core::{
+    Document, LogicalPoint, LogicalRect, Object, ObjectId, Opacity, OutputId, Rgb, Shape,
+    StrokeKind, Style, Width,
+};
 use ink_render::{Canvas, Painter, Scale};
+
+/// The faintest pixel a window system still counts as part of the window:
+/// black at alpha 1 of 255, premultiplied. Over white it reads as 254, which
+/// nobody can see.
+pub const CAPTURE_FLOOR: [u8; 4] = [0, 0, 0, 1];
+
+/// Starts a frame: fully transparent, or covered by [`CAPTURE_FLOOR`] where the
+/// surface has to take the pointer.
+///
+/// # Why a backend would want the floor
+///
+/// Win32 layered windows let mouse input through wherever a pixel's alpha is
+/// zero; Microsoft documents it under "Layered Windows". AppKit does the same
+/// for a window with a clear background. On both, a canvas cleared to nothing
+/// in Draw mode would receive clicks only on the frame, the toolbar and ink
+/// already drawn, and every click on empty space would land in the application
+/// underneath. AGENTS.md puts it as "do not equate transparent pixels with
+/// correct input capture", and this is the same statement the other way round:
+/// transparent pixels are not capturing pixels either, unless something makes
+/// them so.
+///
+/// Wayland does not need this. Input there is decided by an explicit input
+/// region, independent of what is painted (E003 finding 1), so its adapter
+/// keeps clearing to nothing.
+///
+/// Only the backend knows which kind of window system it is on, so it says
+/// whether it is `capturing` rather than this function inferring it from a
+/// mode.
+pub fn clear(canvas: &mut Canvas, capturing: bool) {
+    if capturing {
+        canvas.fill(CAPTURE_FLOOR);
+    } else {
+        canvas.clear();
+    }
+}
 
 /// Draws the frame and mode badge.
 ///
@@ -126,6 +164,134 @@ pub fn faded(object: &Object) -> Option<Object> {
         Style::new(style.color, style.width, opacity),
         object.shape().clone(),
     ))
+}
+
+/// Draws the document, as the current mode and selection want it seen.
+///
+/// Nothing at all while the mode hides ink (Parked keeps the document but does
+/// not show it). While a selection is being dragged, the selected objects are
+/// drawn faded where they still are, and [`paint_selection`] draws them at full
+/// strength where they are going; without the fade the two read as a duplicate
+/// rather than a move.
+///
+/// Lifted from the Wayland adapter for the same reason as [`paint_preview`]:
+/// the other two painted the whole document unconditionally, so on Windows and
+/// macOS a drag showed two identical copies and a parked overlay kept its ink.
+pub fn paint_document(
+    canvas: &mut Canvas,
+    controller: &Controller,
+    document: &Document,
+    painter: &mut Painter,
+    scale: Scale,
+) {
+    if !Toolbar::ink_is_visible(controller.mode()) {
+        return;
+    }
+    if controller.selection_drag().is_none() {
+        painter.paint(document, canvas, scale);
+        return;
+    }
+    let selection = controller.selection();
+    for object in document.objects() {
+        if selection.contains(&object.id()) {
+            if let Some(faded) = faded(object) {
+                painter.paint_object(&faded, canvas, scale);
+            }
+        } else {
+            painter.paint_object(object, canvas, scale);
+        }
+    }
+}
+
+/// Draws the gesture in flight: a stroke or shape while it is being dragged,
+/// the eraser's sweep, and text while it is being typed.
+///
+/// None of it is in the document, which is the point of keeping the preview
+/// separate from committed state: an abandoned gesture leaves nothing behind.
+///
+/// This lived in the Wayland adapter until the other two backends needed it,
+/// and they did not have it. Both skipped `Preview::Text`, so on Windows and
+/// macOS typed text was invisible until Return committed it. That is the
+/// "correct in the model, absent on screen" failure `docs/learning.md` §1 is
+/// about, found by reading rather than by a user this time.
+///
+/// The preview is given the largest possible id. It is never stored, so it
+/// cannot collide with anything, and drawing it does not spend an id from the
+/// document's own sequence on every frame.
+pub fn paint_preview(
+    canvas: &mut Canvas,
+    controller: &Controller,
+    output: &OutputId,
+    painter: &mut Painter,
+    scale: Scale,
+) {
+    let Some(preview) = controller.preview() else {
+        return;
+    };
+    let mut preedit_underline = None;
+    let built = match preview {
+        Preview::Stroke {
+            points,
+            kind,
+            style,
+        } => Shape::stroke(kind, points.to_vec())
+            .ok()
+            .map(|shape| (shape, style)),
+        Preview::Shape { shape, style } => Some((shape, style)),
+        // A caret is appended so an empty editor is still visible: a click that
+        // opened one and drew nothing would otherwise look like the tool
+        // failing. Composition is drawn inline where it will land, and
+        // underlined below so the user can see what is still provisional.
+        Preview::Text {
+            at,
+            content,
+            preedit,
+            size,
+            style,
+        } => {
+            if !preedit.is_empty() {
+                preedit_underline = Some((at, content, preedit, size));
+            }
+            Shape::text(at, format!("{content}{preedit}|"), size)
+                .ok()
+                .map(|shape| (shape, style))
+        }
+        // Faint and at the full width it will clear, so the user can see what
+        // it is about to take.
+        Preview::Erase { path, radius } => Shape::stroke(StrokeKind::Pen, path.to_vec())
+            .ok()
+            .and_then(|shape| {
+                let width = Width::new(radius * 2.0)?;
+                let faint = Opacity::new(0.35)?;
+                Some((shape, Style::new(Rgb::new(200, 200, 200), width, faint)))
+            }),
+    };
+    if let Some((shape, style)) = built {
+        let object = Object::new(ObjectId::from_raw(u64::MAX), output.clone(), style, shape);
+        painter.paint_object(&object, canvas, scale);
+    }
+
+    // After the glyphs, so it sits under the characters it marks.
+    if let Some((at, content, preedit, size)) = preedit_underline
+        && let Some(font) = painter.font()
+    {
+        let scale = scale.get();
+        let pixels = (size * scale) as f32;
+        // The last line only: a composition never spans one.
+        let before = content.rsplit('\n').next().unwrap_or("");
+        let start = (at.x * scale) as f32 + font.line_width(before, pixels);
+        let width = font.line_width(preedit, pixels);
+        let down = content.matches('\n').count() as f64 * size * 1.25 * scale;
+        let baseline = (at.y * scale + down) as f32 + font.ascent(pixels) + 2.0;
+        let thickness = (scale.round() as i64).max(1);
+        canvas.fill_rect(
+            start.round() as i64,
+            baseline.round() as i64,
+            width.round() as i64,
+            thickness,
+            [0xD0, 0xD0, 0xD0, 0xD0],
+        );
+    }
 }
 
 /// Draws the selection: a dashed rectangle, corner handles, and a live preview

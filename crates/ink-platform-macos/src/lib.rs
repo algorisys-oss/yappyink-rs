@@ -10,6 +10,9 @@
 //!   the key then means is decided by `ink_app::keymap`, shared with every
 //!   backend.
 //! - [`surface`] is bitmap-layout arithmetic and the backing scale.
+//! - [`chords`] is the global shortcut's Carbon constants and what each chord
+//!   does. A wrong constant registers the wrong chord silently, which is why
+//!   they are tested rather than trusted.
 //!
 //! Both compile and run their tests anywhere. What is left in `overlay` is a
 //! window, an event loop and a bitmap handed to Core Graphics, and that is
@@ -20,9 +23,12 @@
 //! never changes the honest outcome is to declare macOS unsupported rather
 //! than ship it quietly.
 
+pub mod chords;
 pub mod keys;
 pub mod surface;
 
+#[cfg(target_os = "macos")]
+mod hotkey;
 #[cfg(target_os = "macos")]
 pub mod overlay;
 
@@ -61,9 +67,8 @@ pub fn capabilities() -> CapabilityReport {
         ),
         (
             Capability::GlobalShortcut,
-            "there is no equivalent of RegisterHotKey. Carbon's RegisterEventHotKey or an \
-             accessibility grant are the options and neither is implemented; a permission \
-             prompt is a product decision needing its own ADR",
+            "Carbon's RegisterEventHotKey binds Control+Option+D and Control+Option+H \
+             without an accessibility grant (ADR-007); nobody has pressed them",
         ),
         (
             Capability::OutputEnumeration,

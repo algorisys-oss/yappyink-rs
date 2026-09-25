@@ -9,10 +9,14 @@
 mod control;
 #[cfg(target_os = "linux")]
 mod draw;
+#[cfg(any(windows, test))]
+mod draw_args;
 #[cfg(target_os = "macos")]
 mod draw_macos;
 #[cfg(windows)]
 mod draw_windows;
+#[cfg(any(target_os = "linux", windows))]
+mod verbs;
 
 mod doctor;
 
@@ -26,7 +30,7 @@ fn main() -> std::process::ExitCode {
         #[cfg(target_os = "linux")]
         Some("draw") => draw::run(),
         #[cfg(windows)]
-        Some("draw") => draw_windows::run(),
+        Some("draw") => draw_windows::run(&args[1..]),
         #[cfg(target_os = "macos")]
         Some("draw") => draw_macos::run(),
         // Present on every platform, and refuses on the ones without a
@@ -57,6 +61,19 @@ fn main() -> std::process::ExitCode {
                 }
             }
         }
+        // The same verbs on Windows, posted to the overlay's window instead of
+        // written to a socket.
+        #[cfg(windows)]
+        Some(verb) if verbs::ControlCommand::parse(verb).is_some() => {
+            let command = verbs::ControlCommand::parse(verb).expect("just checked");
+            match ink_platform_windows::overlay::send_remote(command.index()) {
+                Ok(()) => std::process::ExitCode::SUCCESS,
+                Err(reason) => {
+                    eprintln!("{reason}");
+                    std::process::ExitCode::FAILURE
+                }
+            }
+        }
         Some("--version" | "version") => {
             println!("yappyink {}", env!("CARGO_PKG_VERSION"));
             std::process::ExitCode::SUCCESS
@@ -66,13 +83,15 @@ fn main() -> std::process::ExitCode {
                 eprintln!("unknown command: {command}");
             }
             eprintln!("usage: yappyink <draw|doctor|version>");
-            // The control verbs talk to a running overlay over a local socket,
-            // so they are listed only where an overlay can run. Offering them
-            // on a platform with no backend would advertise a command that
-            // cannot succeed.
-            #[cfg(target_os = "linux")]
+            #[cfg(windows)]
+            eprintln!("       yappyink draw --monitor N   cover monitor N, as listed at startup");
+            // The verbs reach a running overlay over a local socket on Linux
+            // and as a window message on Windows. macOS has no transport for
+            // them yet, so they are not offered there: advertising a command
+            // that cannot succeed is worse than not listing it.
+            #[cfg(any(target_os = "linux", windows))]
             {
-                let verbs: Vec<&str> = control::ControlCommand::all()
+                let verbs: Vec<&str> = verbs::ControlCommand::all()
                     .iter()
                     .map(|c| c.as_str())
                     .collect();
@@ -81,8 +100,9 @@ fn main() -> std::process::ExitCode {
                 eprintln!("         bind one to a chord in your desktop's keyboard settings.");
             }
             eprintln!(
-                "draw starts the overlay on Wayland. doctor reports what this machine offers. \
-                 Windows, macOS, and X11 have no backend yet (T003, T004, T005)."
+                "draw starts the overlay: on GNOME Wayland, Windows and macOS, though the \
+                 Windows and macOS backends have never been run by anyone (T003, T004). \
+                 doctor reports what this machine offers. X11 and wlroots have no backend (T005)."
             );
             std::process::ExitCode::from(2)
         }

@@ -6,19 +6,25 @@
 //!
 //! # What is here
 //!
-//! Drawing, every tool, mode switching, undo and redo, save and load, and the
-//! full toolbar, which is the same `ink-ui` chrome the other two backends draw.
+//! Drawing, every tool, mode switching, undo and redo, save and load, the full
+//! toolbar, which is the same `ink-ui` chrome the other two backends draw, text
+//! with its live preview, and global Control+Option+D and Control+Option+H
+//! through Carbon's `RegisterEventHotKey` (ADR-007), which is the way back from
+//! pass-through, where this window takes no input at all.
+//!
+//! Input capture in Draw is painted as well as declared: a window with a clear
+//! background lets clicks through wherever alpha is zero, so the frame is
+//! covered with an invisible alpha-1 floor (`ink_ui::clear`).
 //!
 //! # What is not, and why
 //!
-//! - **No global shortcut.** There is no `RegisterHotKey` here. The options are
-//!   Carbon's `RegisterEventHotKey` or an accessibility-permission grant, and a
-//!   permission prompt is a product decision that needs its own ADR. The
-//!   consequence is real: in PassThrough this window gets no input, so **the
-//!   only way back is the terminal that launched it**. That is worse than
-//!   either other platform and it is not hidden.
-//! - **No input methods.** Latin only, like the Windows backend.
+//! - **No input methods.** Latin only. `NSTextInputClient` is the route.
 //! - **One screen.** `NSScreen` makes choosing easy and the adapter does not.
+//! - **Parked does not shrink the window**, and the toolbar is not clickable in
+//!   PassThrough or Parked, because both ignore mouse events on the whole
+//!   window. The chords are the way back.
+//! - **No CLI verbs.** The Linux socket needs `XDG_RUNTIME_DIR`, which macOS
+//!   does not set.
 //!
 //! # The focus tension, which is unresolved
 //!
@@ -34,8 +40,8 @@ use std::cell::RefCell;
 use std::ffi::c_void;
 use std::ptr::NonNull;
 
-use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, Preview, TransitionId, keymap};
-use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session, Shape, Style};
+use ink_app::{Action, Controller, Effect, Mode, PlatformEvent, TransitionId, keymap};
+use ink_core::{IdSource, LogicalPoint, LogicalSize, Object, OutputId, Session};
 use ink_platform::PlatformError;
 use ink_render::{Canvas, Painter, Scale};
 
@@ -151,6 +157,15 @@ define_class!(
         fn accepts_first_responder(&self) -> bool {
             true
         }
+
+        /// Without this, the first click on the overlay while another
+        /// application is active only activates this one and never reaches the
+        /// view, so the first stroke after coming back from pass-through would
+        /// silently not start.
+        #[unsafe(method(acceptsFirstMouse:))]
+        fn accepts_first_mouse(&self, _event: Option<&NSEvent>) -> bool {
+            true
+        }
     }
 );
 
@@ -202,8 +217,11 @@ impl OverlayView {
         }
 
         if keymap::quits(key) {
+            // `stop`, not `terminate`: terminate exits the process from inside
+            // the run loop, so the session never came back to the caller and
+            // the exit summary was never printed.
             let mtm = MainThreadMarker::from(self);
-            NSApplication::sharedApplication(mtm).terminate(None);
+            NSApplication::sharedApplication(mtm).stop(None);
             return;
         }
         if let Some(action) = keymap::command(key) {
@@ -279,6 +297,9 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     window.setBackgroundColor(Some(&NSColor::clearColor()));
     window.setLevel(SCREEN_SAVER_LEVEL);
     window.setIgnoresMouseEvents(false);
+    // Off by default. Without it `mouseMoved:` never arrives, so tooltips,
+    // the toolbar hover and the text caret hint never follow the pointer.
+    window.setAcceptsMouseMovedEvents(true);
     window.setCollectionBehavior(
         NSWindowCollectionBehavior::CanJoinAllSpaces
             | NSWindowCollectionBehavior::FullScreenAuxiliary
@@ -335,7 +356,14 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         }
     });
 
+    crate::hotkey::register(act);
     print_orientation();
+
+    // The same first step as the other adapters. The controller starts Hidden,
+    // and a hidden overlay paints nothing and takes nothing, so without this
+    // the window opened as an invisible rectangle that ignored the mouse.
+    act(Action::EnterDraw);
+
     app.run();
     finish()
 }
@@ -480,9 +508,9 @@ fn apply(effects: Vec<Effect>) {
                 Effect::Save => save(overlay),
                 Effect::Load => load(overlay),
                 Effect::Quit => {
-                    overlay.window.close();
+                    overlay.window.orderOut(None);
                     if let Some(mtm) = MainThreadMarker::new() {
-                        NSApplication::sharedApplication(mtm).terminate(None);
+                        NSApplication::sharedApplication(mtm).stop(None);
                     }
                 }
                 // The window is borderless and covers the screen, so there is
@@ -507,6 +535,20 @@ fn apply_mode(overlay: &mut Overlay, mode: Mode, transition: TransitionId) {
                 overlay.window.makeKeyAndOrderFront(None);
                 overlay.hidden = false;
             }
+            // Draw takes the keyboard, as it does on Windows. An `Accessory`
+            // application is not activated on launch, so without this every
+            // key press went to the terminal that launched it: the first
+            // person to run this build found `d` and `q` doing nothing and
+            // the screen apparently frozen (E009). `activate` would be the
+            // modern call but exists only from macOS 14, and sending it to an
+            // older system is an unrecognised selector.
+            if mode == Mode::Draw
+                && let Some(mtm) = MainThreadMarker::new()
+            {
+                #[allow(deprecated)]
+                NSApplication::sharedApplication(mtm).activateIgnoringOtherApps(true);
+                overlay.window.makeKeyAndOrderFront(None);
+            }
             // The whole pass-through mechanism. AppKit stops hit-testing the
             // window and routes the event to whatever is underneath, so
             // nothing is forwarded or synthesised, which is what FR-003
@@ -515,10 +557,7 @@ fn apply_mode(overlay: &mut Overlay, mode: Mode, transition: TransitionId) {
             overlay.window.setIgnoresMouseEvents(transparent);
             overlay.pass_through = transparent;
             if transparent {
-                eprintln!(
-                    "[mode] this window now ignores input, and there is no global shortcut on \
-                     macOS, so the only way back is this terminal"
-                );
+                eprintln!("[mode] this window now ignores input; Control+Option+D brings it back");
             }
         }
     }
@@ -584,50 +623,37 @@ fn load(overlay: &mut Overlay) {
 /// Paints the document and the chrome, then blits the result.
 fn paint(view: &OverlayView) {
     let image = OVERLAY.with(|slot| {
-        let mut borrowed = slot.borrow_mut();
+        // `try_borrow_mut`: AppKit may display the window synchronously from
+        // inside `makeKeyAndOrderFront:`, which is called while the state is
+        // held. A plain borrow would panic there, and a panic in an
+        // Objective-C callback aborts. Skipping that one frame is harmless,
+        // because every action asks for another as soon as it finishes.
+        let mut borrowed = slot.try_borrow_mut().ok()?;
         let overlay = borrowed.as_mut()?;
 
         let (width, height, scale) = (overlay.width, overlay.height, overlay.scale);
         debug_assert!(surface::layout_matches(overlay.pixels.len(), width, height));
         let mut canvas = Canvas::new(&mut overlay.pixels, width, height)?;
-        canvas.clear();
+        // Only Draw takes the pointer here; the other modes ignore mouse
+        // events on the whole window. See `ink_ui::clear` for the floor.
+        let mode = overlay.controller.mode();
+        ink_ui::clear(&mut canvas, mode == Mode::Draw);
 
-        overlay
-            .painter
-            .paint(overlay.session.document(), &mut canvas, scale);
-
-        // A gesture in flight, so a stroke appears while it is being drawn
-        // rather than only on release.
-        let built = match overlay.controller.preview() {
-            Some(Preview::Stroke {
-                points,
-                kind,
-                style,
-            }) => Shape::stroke(kind, points.to_vec())
-                .ok()
-                .map(|shape| (shape, style)),
-            Some(Preview::Shape { shape, style }) => Some((shape, style)),
-            Some(Preview::Erase { path, radius }) => {
-                Shape::stroke(ink_core::StrokeKind::Pen, path.to_vec())
-                    .ok()
-                    .and_then(|shape| {
-                        let width = ink_core::Width::new(radius * 2.0)?;
-                        let faint = ink_core::Opacity::new(0.35)?;
-                        let grey = ink_core::Rgb::new(200, 200, 200);
-                        Some((shape, Style::new(grey, width, faint)))
-                    })
-            }
-            // Text in progress needs the caret and preedit underline, which
-            // the Wayland adapter still computes inline. It arrives when that
-            // moves into `ink-ui` too.
-            Some(Preview::Text { .. }) | None => None,
-        };
-        if let Some((shape, style)) = built {
-            let id = overlay.ids.next_id();
-            let output = overlay.session.document().output().clone();
-            let object = Object::new(id, output, style, shape);
-            overlay.painter.paint_object(&object, &mut canvas, scale);
-        }
+        let output = overlay.session.document().output().clone();
+        ink_ui::paint_document(
+            &mut canvas,
+            &overlay.controller,
+            overlay.session.document(),
+            &mut overlay.painter,
+            scale,
+        );
+        ink_ui::paint_preview(
+            &mut canvas,
+            &overlay.controller,
+            &output,
+            &mut overlay.painter,
+            scale,
+        );
 
         // The same chrome the other backends draw, from the same code.
         ink_ui::paint_chrome(
@@ -755,15 +781,18 @@ fn make_image(pixels: &[u8], width: u32, height: u32) -> Option<CFRetained<CGIma
 fn print_orientation() {
     eprintln!();
     eprintln!("The overlay is the thin outlined rectangle; everything inside it is");
-    eprintln!("transparent. The corner square is amber in draw mode, cyan in pass-through.");
+    eprintln!("transparent. The frame and corner square are cyan in draw mode and");
+    eprintln!("amber in pass-through.");
     eprintln!();
-    eprintln!("  d / p / h   draw, pass through, hide");
-    eprintln!("  1-9         tools, u/r undo and redo, w/o write and open, q quit");
+    eprintln!("  Control+Option+D   draw or pass through, from anywhere");
+    eprintln!("  Control+Option+H   hide the ink, from anywhere");
+    eprintln!();
+    eprintln!("With the overlay focused: d / p / h draw, pass through, hide; 1-9 tools,");
+    eprintln!("u/r undo and redo, w/o write and open, q quit.");
+    eprintln!();
+    eprintln!("If the screen ever seems stuck, press Control+Option+D to let clicks");
+    eprintln!("through, or Control+C in this terminal to quit.");
     eprintln!();
     eprintln!("The toolbar is the same one the Linux and Windows builds draw.");
-    eprintln!();
-    eprintln!("WARNING: macOS has no global shortcut here. Once you switch to");
-    eprintln!("pass-through this window stops receiving keys, and the only way back");
-    eprintln!("is to quit from this terminal. See docs/adr/ADR-006-macos-bindings.md.");
     eprintln!();
 }
