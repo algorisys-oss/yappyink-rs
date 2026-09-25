@@ -159,8 +159,9 @@ one.
 ## Try it
 
 Requires Rust 1.95. The instructions below are for Linux, which needs a Wayland
-session. On Windows and macOS the same `yappyink draw` starts the untested
-backends described above.
+session. On Windows and macOS, download the binary from the release page and
+double-click it, or run `yappyink` from a terminal: with no command it opens
+the overlay and toolbar. `yappyink help` lists the rest.
 
 ```sh
 cargo build --workspace

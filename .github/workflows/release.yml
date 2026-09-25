@@ -150,6 +150,10 @@ jobs:
           Nothing is signed or notarised. Windows SmartScreen will warn, and
           macOS will refuse the binary until you clear it by hand.
 
+          **To start it, double-click the download** or run it with no
+          arguments: the overlay and toolbar open. `yappyink help` lists the
+          other commands.
+
           Run `chmod +x` on the Linux and macOS downloads.
           EOF
 
