@@ -97,3 +97,15 @@ A tag builds three and attaches them to the GitHub release:
 Nothing is signed or notarised, so macOS will refuse the binary until it is
 cleared by hand. That is expected and is not worth working around before there
 is something on macOS worth running.
+
+## The Linux binary and Ubuntu 22.04
+
+The release's Linux binary is built on `ubuntu-22.04`, not `ubuntu-latest`. A
+binary needs the glibc of the system it was built on or newer; built on 24.04
+it needed glibc 2.39 and would not start on 22.04 (2.35). Both the release and
+CI refuse a Linux binary that needs anything newer than 2.35, and CI builds it
+that way on every push so a breakage shows up before a tag.
+
+Each release also carries `yappyink-gnome-extension.zip`, the GNOME Shell
+extension, installable with `gnome-extensions install`.
+

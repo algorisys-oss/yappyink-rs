@@ -43,6 +43,33 @@ jobs:
       - name: Validate specification cross-references
         run: python3 tools/check_specs.py
 
+  # The release's Linux binary is built on Ubuntu 22.04 so it runs there and
+  # on everything newer. This builds it the same way on every push, so a
+  # dependency that stops building there is found before a tag, not by it.
+  linux-oldest:
+    name: Linux release binary (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y libxkbcommon-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p yappyink
+      - name: It runs, and needs no glibc newer than 2.35
+        run: |
+          ./target/release/yappyink version
+          ./target/release/yappyink doctor | head -5
+          needed=$(objdump -T target/release/yappyink | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "needs $needed"
+          if [ "$(printf '%s\nGLIBC_2.35\n' "$needed" | sort -V | tail -1)" != "GLIBC_2.35" ]; then
+            echo "::error::$needed is newer than Ubuntu 22.04's glibc 2.35"
+            exit 1
+          fi
+
   # Keeps the portable crates portable, and builds and links the Windows and
   # macOS backends. It does not prove either backend works: nobody has run
   # them, and a runner cannot (T003, T004). See docs/ship-it.md.

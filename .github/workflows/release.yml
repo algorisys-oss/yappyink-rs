@@ -62,8 +62,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The only one whose overlay has been seen working.
-          - os: ubuntu-latest
+          # Built on the oldest supported Ubuntu, because a binary needs the
+          # glibc of the system it was built on or newer. Built on 24.04 it
+          # needed glibc 2.39 and would not start on 22.04.
+          - os: ubuntu-22.04
             artifact: yappyink-x86_64-linux
             binary: yappyink
           # Both carry an overlay backend with nothing confirmed on screen (T003, T004).
@@ -87,6 +89,18 @@ jobs:
 
       - name: Build
         run: cargo build --release -p yappyink
+
+      # Refuses a Linux binary that would not start on Ubuntu 22.04.
+      - name: The Linux binary runs, and needs no glibc newer than 2.35
+        if: runner.os == 'Linux'
+        run: |
+          ./target/release/yappyink version
+          needed=$(objdump -T target/release/yappyink | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "needs $needed"
+          if [ "$(printf '%s\nGLIBC_2.35\n' "$needed" | sort -V | tail -1)" != "GLIBC_2.35" ]; then
+            echo "::error::$needed is newer than Ubuntu 22.04's glibc 2.35"
+            exit 1
+          fi
 
       - name: Name it after the platform it was built for
         shell: bash
@@ -114,6 +128,14 @@ jobs:
       # Written here rather than taken from the tag message, so that the
       # limitations travel with every download. Somebody will find this page
       # without having read the README.
+      # The GNOME Shell extension, as a zip `gnome-extensions install` accepts:
+      # metadata.json at the root. Without it a release user had to clone the
+      # repository to get the one thing that makes GNOME behave.
+      - name: Package the GNOME extension
+        run: |
+          cd integrations/gnome/yappyink@algorisys-oss.github.io
+          zip -r "$GITHUB_WORKSPACE/dist/yappyink-gnome-extension.zip" .
+
       - name: Compose the notes
         shell: bash
         run: |
@@ -155,6 +177,28 @@ jobs:
           other commands.
 
           Run `chmod +x` on the Linux and macOS downloads.
+
+          ## Installing on Ubuntu
+
+          Needs **Ubuntu 22.04 or newer**, in the default GNOME (Wayland)
+          session. Nothing else to install on a standard desktop.
+
+          ```sh
+          chmod +x yappyink-x86_64-linux
+          ./yappyink-x86_64-linux
+          ```
+
+          **Strongly recommended on GNOME:** the extension, which keeps the
+          overlay above other windows, on every workspace, across the whole
+          monitor. Without it you apply *Always on Top* by hand each launch.
+          It declares GNOME Shell 46, which Ubuntu 24.04 ships.
+
+          ```sh
+          gnome-extensions install yappyink-gnome-extension.zip
+          ```
+
+          Then log out and back in, and run
+          `gnome-extensions enable yappyink@algorisys-oss.github.io`.
           EOF
 
       - name: Publish
