@@ -662,14 +662,33 @@ pub fn paint_toolbar(
                 ]);
                 draw(&[(0.45, 1.0), (1.0, 1.0)]);
             }
-            // An arrow curling back on itself.
-            Icon::Undo => {
-                draw(&[(1.0, 0.85), (0.45, 0.85), (0.1, 0.5), (0.45, 0.15)]);
-                draw(&[(0.1, 0.5), (0.45, 0.5)]);
-            }
-            Icon::Redo => {
-                draw(&[(0.0, 0.85), (0.55, 0.85), (0.9, 0.5), (0.55, 0.15)]);
-                draw(&[(0.9, 0.5), (0.55, 0.5)]);
+            // An arrow that turns back on itself, the way every editor draws
+            // it: a head, a shaft across the top, and a half-turn underneath.
+            // The first version was a wedge with a tail, which read as "<"
+            // rather than as going back. Redo is the same shape mirrored.
+            Icon::Undo | Icon::Redo => {
+                let mirror = |u: f64| {
+                    if button.icon == Icon::Redo {
+                        1.0 - u
+                    } else {
+                        u
+                    }
+                };
+                let (turn_x, turn_y, radius) = (0.60, 0.61, 0.25);
+                let mut path = vec![(mirror(0.06), 0.36)];
+                for step in 0..=12 {
+                    let angle = -std::f64::consts::FRAC_PI_2
+                        + std::f64::consts::PI * f64::from(step) / 12.0;
+                    let u = turn_x + radius * angle.cos();
+                    path.push((mirror(u), turn_y + radius * angle.sin()));
+                }
+                path.push((mirror(0.30), turn_y + radius));
+                draw(&path);
+                draw(&[
+                    (mirror(0.28), 0.14),
+                    (mirror(0.06), 0.36),
+                    (mirror(0.28), 0.58),
+                ]);
             }
             // A cross: everything goes.
             Icon::Clear => {
