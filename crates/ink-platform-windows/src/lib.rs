@@ -22,7 +22,7 @@
 //! pixels to the window manager — and that genuinely cannot be checked without
 //! Windows.
 //!
-//! **That split is a mitigation, not a substitute.** Three capabilities have
+//! **That split is a mitigation, not a substitute.** Four capabilities have
 //! been seen working on one machine (E010, E012); every other one is still
 //! `unknown`.
 
@@ -76,16 +76,19 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
+    report.record(CapabilityFinding::new(
+        Capability::GlobalShortcut,
+        CapabilityState::available(
+            "E012: Ctrl+Alt+D, registered with RegisterHotKey, brought the overlay back from \
+             pass-through while another application had focus",
+        ),
+        BACKEND,
+    ));
     let unproven = [
         (
             Capability::KeyboardRelease,
             "dropping the foreground window should return the keyboard; nobody has \
              watched it",
-        ),
-        (
-            Capability::GlobalShortcut,
-            "RegisterHotKey should bind a chord and refuse one another application owns; \
-             nobody has watched it",
         ),
         (
             Capability::OutputEnumeration,
@@ -140,6 +143,7 @@ mod tests {
             (Capability::LiveOverlay, "E010"),
             (Capability::DrawPointerCapture, "E010"),
             (Capability::VisiblePassthrough, "E012"),
+            (Capability::GlobalShortcut, "E012"),
         ];
         for finding in capabilities().findings() {
             match &finding.state {

@@ -28,7 +28,7 @@
       ],
       "file": "tests/acceptance/overlay.feature",
       "status": "partially_implemented",
-      "note": "Native: on one Windows machine, pass-through kept ink visible and let clicks reach the application underneath, through WS_EX_TRANSPARENT with nothing forwarded (E012, a verbal report). Not yet observed on macOS, so the scenario is not passed."
+      "note": "Native: on one Windows machine (E012, WS_EX_TRANSPARENT) and one Mac (E013, setIgnoresMouseEvents), pass-through kept ink visible and let the application underneath be used, with nothing forwarded. Both are verbal reports from single machines, so the scenario is not passed."
     },
     {
       "id": "AC-FR-004",
@@ -54,7 +54,7 @@
         "apps/yappyink/src/verbs.rs",
         "crates/ink-platform-macos/src/chords.rs"
       ],
-      "note": "Socket route verified end to end on Linux (E005). Windows registers chords with RegisterHotKey and macOS with RegisterEventHotKey (ADR-007), and both report a refused chord, but neither backend has been run, so conflict feedback is untested."
+      "note": "Socket route verified end to end on Linux (E005). Global chords confirmed firing from another application on one Windows machine (Ctrl+Alt+D, RegisterHotKey, E012) and one Mac (Control+Option+D, RegisterEventHotKey, E013), both verbal reports. Conflict feedback is untested on every platform, so the scenario is not passed."
     },
     {
       "id": "AC-FR-006",

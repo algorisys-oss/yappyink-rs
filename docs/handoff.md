@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-25, release 0.7.2. Three backends exist. Windows draws and passes clicks through, seen on one machine (E010, E012), and 0.7.1 fixes saving there; macOS draws too, seen on one Mac (E011), after a first launch that appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
+**Last updated:** 2026-09-25, release 0.7.2. Three backends exist. Windows draws, passes clicks through, and Ctrl+Alt+D brings it back, seen on one machine (E010, E012), and 0.7.1 fixes saving there; macOS draws, passes clicks through, and its Control+Option+D chord brings it back, seen on one Mac (E011, E013), after a first launch that appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
 
 ## What this is
 

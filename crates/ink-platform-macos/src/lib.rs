@@ -18,7 +18,7 @@
 //! window, an event loop and a bitmap handed to Core Graphics, and that is
 //! genuinely unverifiable without the hardware.
 //!
-//! **Two capabilities have been seen working on one Mac (E011).** Every other
+//! **Four capabilities have been seen working on one Mac (E011, E013).** Every other
 //! capability this crate reports is `unknown`, and `docs/adr/ADR-006-macos-bindings.md` records that if that
 //! never changes the honest outcome is to declare macOS unsupported rather
 //! than ship it quietly.
@@ -62,21 +62,27 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
-    let unproven = [
-        (
-            Capability::VisiblePassthrough,
-            "setIgnoresMouseEvents: should let AppKit route clicks underneath with nothing \
-             forwarded by us; nobody has watched it",
+    report.record(CapabilityFinding::new(
+        Capability::GlobalShortcut,
+        CapabilityState::available(
+            "E013: Control+Option+D, registered with Carbon's RegisterEventHotKey and no \
+             permission grant, brought the overlay back from pass-through to Draw",
         ),
+        BACKEND,
+    ));
+    report.record(CapabilityFinding::new(
+        Capability::VisiblePassthrough,
+        CapabilityState::available(
+            "E013: with setIgnoresMouseEvents on, the ink stayed visible and the application \
+             underneath could be used",
+        ),
+        BACKEND,
+    ));
+    let unproven = [
         (
             Capability::KeyboardRelease,
             "resigning key window should return the keyboard, but an accessory application \
              that accepts keys takes focus in the first place; unresolved, see ADR-006",
-        ),
-        (
-            Capability::GlobalShortcut,
-            "Carbon's RegisterEventHotKey binds Control+Option+D and Control+Option+H \
-             without an accessibility grant (ADR-007); nobody has pressed them",
         ),
         (
             Capability::OutputEnumeration,
@@ -126,16 +132,26 @@ mod tests {
     /// list below means adding the evidence first.
     #[test]
     fn nothing_is_claimed_before_it_is_measured() {
-        let observed = [Capability::LiveOverlay, Capability::DrawPointerCapture];
+        let observed = [
+            (Capability::LiveOverlay, "E011"),
+            (Capability::DrawPointerCapture, "E011"),
+            (Capability::GlobalShortcut, "E013"),
+            (Capability::VisiblePassthrough, "E013"),
+        ];
         for finding in capabilities().findings() {
             match &finding.state {
                 CapabilityState::Available { evidence } => {
-                    assert!(
-                        observed.contains(&finding.capability),
-                        "{:?} claims availability with no evidence file",
-                        finding.capability
-                    );
-                    assert!(evidence.starts_with("E011"), "{evidence}");
+                    let cited = observed
+                        .iter()
+                        .find(|(capability, _)| *capability == finding.capability)
+                        .map(|(_, file)| *file);
+                    let Some(file) = cited else {
+                        panic!(
+                            "{:?} claims availability with no evidence file",
+                            finding.capability
+                        );
+                    };
+                    assert!(evidence.starts_with(file), "{evidence}");
                 }
                 CapabilityState::Unknown { .. } => {}
                 other => panic!("{:?} claims {other:?} without evidence", finding.capability),
