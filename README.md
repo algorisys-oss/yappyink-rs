@@ -52,9 +52,12 @@ On GNOME specifically, measured rather than assumed
 None of that is worked around by faking anything. See
 [ADR-002](docs/adr/ADR-002-gnome.md) for why GNOME is a limited preview.
 
-A **GNOME Shell extension** that would lift the last two limits lives in
-[integrations/gnome/](integrations/gnome/). It is a prototype and has never been
-loaded by a running Shell, so it is not part of the instructions below.
+The **GNOME Shell extension** in [integrations/gnome/](integrations/gnome/)
+lifts the last two limits: with it the overlay stays above other windows, is on
+every workspace, and covers the whole monitor, top bar included, and stays
+transparent ([E007](docs/evidence/E007-gnome-shell-extension.md)). Verified on
+GNOME Shell 46 only. Install it once with `integrations/gnome/install.sh`, then
+log out and back in.
 
 ### The Windows backend
 

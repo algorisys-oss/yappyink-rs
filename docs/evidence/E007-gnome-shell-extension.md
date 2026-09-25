@@ -122,3 +122,26 @@ which would have refused the extension's resize; that is reverted.
 the question this file exists for, whether a window sized to the whole monitor
 keeps its transparency.
 
+## 2026-09-25, after a log-out: it works
+
+GNOME Shell restarted at 19:20:55 with the fixed extension. The journal:
+
+```
+19:20:58 [yappyink] enabled, watching for windows with app id dev.yappyink.Overlay
+19:21:47 [yappyink] took charge of "yappyink" (wm_class dev.yappyink.Overlay): above, sticky, and sized to monitor 0 at 1366x768+0+0
+19:23:03 [yappyink] took charge of "yappyink" (wm_class dev.yappyink.Overlay): above, sticky, and sized to monitor 0 at 1366x768+0+0
+```
+
+The owner: "Yes it works." The overlay covered the whole monitor, top bar
+included, stayed above other windows without Always on Top being applied by
+hand, and was still transparent.
+
+**That answers the question this file exists for: a window sized to the whole
+monitor keeps its transparency on GNOME Shell 46.** Only real fullscreen is
+unredirected and loses it (E002 finding 1). The extension therefore delivers
+both things a Wayland client cannot do for itself on GNOME, staying above and
+being placed and sized, and ADR-002 has a verified route.
+
+**Not established:** GNOME Shell versions other than 46, a second monitor,
+and workspace switching with the window made sticky.
+

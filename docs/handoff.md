@@ -65,6 +65,10 @@ machine), then Windows' Magnification API (T038), then a macOS decision
 T037's probe: switch the magnifier on with the overlay running and check that
 drawing while zoomed lands under the pointer.
 
+**The GNOME extension works (E007, T007 closed).** With it installed the
+overlay is above, sticky and monitor-sized, and stays transparent. It must be
+installed from the repository; release downloads do not include it yet.
+
 **Known and not fixed:** the Wayland adapter never calls
 `Controller::set_surface_size`, so its resize corner never appears. It is
 testable on this machine and deserves its own change.

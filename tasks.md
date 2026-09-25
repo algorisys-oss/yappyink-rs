@@ -154,13 +154,15 @@ Create a correctly assigned layer surface, configure/scale lifecycle, input-regi
 
 ## T007 [M0]: Resolve the GNOME implementation route
 
-Status: in_progress since 2026-09-23. Dependencies: T002.
+Status: implemented on 2026-09-25, on the evidence of E007 (in progress from 2026-09-23). Dependencies: T002.
 
 Requirements: FR-001, FR-002, FR-003, FR-005, FR-013.
 
 Measure standalone xdg-shell behavior, then prototype the minimum companion only if needed. Record install, lifecycle, and Rust/helper boundaries.
 
 **Exit criterion:** ADR-002 identifies a verified route or explicitly leaves full GNOME parity blocked. A limited fallback is not a pass.
+
+**Closed, 2026-09-25 (E007).** The Shell companion is the verified route, on GNOME Shell 46. After fixing it to recognise the overlay (it decided on window creation, before the app id existed), it made the window above, sticky and monitor-sized, and the owner confirmed it stays on top and transparent across the whole monitor. Other Shell versions are not declared, and without the extension the application remains the limited preview ADR-002 describes.
 
 **Step 3 (2026-09-23):** a GNOME Shell companion prototype exists in `integrations/gnome/`, scoped to the two things a Wayland client cannot do for itself: staying above other windows, and being placed and sized. About 100 lines of GJS, declaring Shell 46 only. **It has never been loaded by a running Shell**; `docs/evidence/E007-gnome-shell-extension.md` holds the checklist and the question it exists to answer, which is whether a window sized to the whole monitor keeps its transparency when a fullscreen one does not.
 

@@ -1,6 +1,6 @@
 # ADR-002: GNOME Wayland parity
 
-Status: open; full cross-platform release gate.
+Status: outcome (b), the GNOME Shell companion, verified on GNOME Shell 46 (E007, 2026-09-25). Other Shell versions are undeclared. Still a full cross-platform release gate.
 
 ## Context
 
