@@ -379,7 +379,12 @@
         "FR-029"
       ],
       "file": "tests/acceptance/v1.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-app/tests/zoom.rs",
+        "crates/ink-platform-wayland/src/magnifier.rs"
+      ],
+      "note": "GNOME: zoom, drawing while zoomed, restore on off, exit and after kill -9 observed on one machine (E017). A video staying live is not yet observed; Windows and macOS are T038 and T039."
     }
   ],
   "requirements": [
@@ -942,7 +947,7 @@
       ],
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "ADR-008: the compositor's magnifier on GNOME and Windows, so no pixels reach the app; macOS undecided. GNOME mechanism confirmed on the E001 machine (E017): zoom, drawing while zoomed and settings restore all work. The feature itself (button, chord, steps) is not built."
+      "notes": "ADR-008. GNOME built and observed on the E001 machine (E017): zoom steps, drawing while zoomed, and restoring the user's settings on off, exit and after a kill. Windows (T038) and macOS (T039) report unknown."
     }
   ]
 }

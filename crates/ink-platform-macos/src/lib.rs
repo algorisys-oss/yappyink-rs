@@ -88,6 +88,11 @@ pub fn capabilities() -> CapabilityReport {
     ));
     let unproven = [
         (
+            Capability::LiveZoom,
+            "no public API drives the system Zoom; capture or deferring to it is T039's \
+             decision (ADR-008)",
+        ),
+        (
             Capability::KeyboardRelease,
             "resigning key window should return the keyboard, but an accessory application \
              that accepts keys takes focus in the first place; unresolved, see ADR-006",
@@ -167,7 +172,7 @@ mod tests {
     fn every_capability_is_accounted_for() {
         assert_eq!(
             capabilities().findings().len(),
-            11,
+            12,
             "a capability was added or dropped without a reason being written"
         );
     }

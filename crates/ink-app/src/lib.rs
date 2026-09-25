@@ -315,6 +315,10 @@ pub enum Action {
     Quit,
     /// Shrink to the toolbar, or come back from it.
     TogglePark,
+    /// Off, then each zoom step in turn, then off again (FR-029).
+    CycleZoom,
+    /// Straight back to no zoom.
+    ZoomOff,
     /// Text typed into an open editor.
     ///
     /// Separate from a key press, because while the editor is open a key is a
@@ -461,7 +465,17 @@ pub enum Effect {
     BeginWindowResize,
     /// A transition failed. Always preceded by [`Effect::WithdrawImmediately`].
     Faulted { error: PlatformError },
+    /// Set the platform magnifier to this factor, or switch it off with
+    /// `None` (FR-029). The adapter drives the compositor's own magnifier; no
+    /// pixels come back to us (ADR-008).
+    Zoom { factor: Option<f64> },
+    /// Zoom was asked for on a platform whose adapter has not offered it.
+    /// Reported rather than ignored, so the key explains itself.
+    ZoomUnavailable,
 }
+
+/// The zoom levels [`Action::CycleZoom`] steps through, after off.
+pub const ZOOM_STEPS: [f64; 3] = [2.0, 3.0, 4.0];
 
 /// Text size as a multiple of the tool's width setting.
 ///
@@ -633,6 +647,10 @@ pub struct Controller {
     button_held: bool,
     faulted: bool,
     toolbar: Toolbar,
+    /// Whether the adapter can zoom; see [`Controller::offer_zoom`].
+    zoom_offered: bool,
+    /// 0 for off, otherwise an index one past its step in [`ZOOM_STEPS`].
+    zoom_level: usize,
     /// The surface's size in logical units, once the compositor has said.
     /// Needed to know where the resize corner is.
     surface: Option<LogicalSize>,
@@ -683,6 +701,8 @@ impl Controller {
             button_held: false,
             faulted: false,
             toolbar: Toolbar::new(),
+            zoom_offered: false,
+            zoom_level: 0,
             surface: None,
             scene: Vec::new(),
             selection: Vec::new(),
@@ -896,6 +916,20 @@ impl Controller {
             .find(|button| button.icon == icon)
     }
 
+    /// Tells the controller the platform can zoom, which puts the zoom button
+    /// on the toolbar. Called once by an adapter that found a magnifier.
+    pub fn offer_zoom(&mut self) {
+        self.zoom_offered = true;
+        self.toolbar = Toolbar::with_zoom(true);
+    }
+
+    /// The current zoom factor, or `None` when not zoomed.
+    pub fn zoom(&self) -> Option<f64> {
+        self.zoom_level
+            .checked_sub(1)
+            .and_then(|step| ZOOM_STEPS.get(step).copied())
+    }
+
     /// The toolbar, for drawing it and for tests.
     pub fn toolbar(&self) -> &Toolbar {
         &self.toolbar
@@ -1048,6 +1082,21 @@ impl Controller {
                 Mode::Parked => self.request(Mode::Draw),
                 _ => self.request(Mode::Parked),
             },
+            // Independent of the mode: zoom works while drawing, passing
+            // through and hidden alike (specs/004-live-zoom).
+            Action::CycleZoom | Action::ZoomOff if !self.zoom_offered => {
+                vec![Effect::ZoomUnavailable]
+            }
+            Action::CycleZoom => {
+                self.zoom_level = (self.zoom_level + 1) % (ZOOM_STEPS.len() + 1);
+                vec![Effect::Zoom {
+                    factor: self.zoom(),
+                }]
+            }
+            Action::ZoomOff => {
+                self.zoom_level = 0;
+                vec![Effect::Zoom { factor: None }]
+            }
             // Tool changes never touch a gesture in flight. The stroke keeps
             // the tool and style it was started with, so a setting changed
             // mid-drag cannot rewrite what the user drew.

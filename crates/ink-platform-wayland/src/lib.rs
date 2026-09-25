@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ime;
+pub mod magnifier;
 pub mod overlay;
 
 use ink_platform::{
@@ -261,6 +262,13 @@ pub fn capabilities(probe: &WaylandProbe) -> CapabilityReport {
     record(
         Capability::CaptureExclusion,
         CapabilityState::unknown("not probed: belongs with capture (FR-027)"),
+    );
+    record(
+        Capability::LiveZoom,
+        CapabilityState::unknown(
+            "not a protocol question: the GNOME Shell magnifier is found through its settings \
+             (magnifier::state)",
+        ),
     );
 
     report

@@ -526,6 +526,11 @@ fn apply(effects: Vec<Effect>) {
                 | Effect::BeginWindowDrag
                 | Effect::BeginWindowResize => {}
                 Effect::Faulted { error } => eprintln!("[failed {}] {error}", error.class()),
+                // Zoom is not offered here: macOS has no public API that drives
+                // its own Zoom, and the choice is still open (T039, ADR-008).
+                Effect::Zoom { .. } | Effect::ZoomUnavailable => {
+                    eprintln!("[zoom] not on macOS yet; T039 decides how, see ADR-008");
+                }
             }
         });
     }

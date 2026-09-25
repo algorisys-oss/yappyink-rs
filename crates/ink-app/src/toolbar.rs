@@ -67,6 +67,9 @@ pub enum Icon {
     /// Shows the row of colour swatches. Drawn in the current colour, so the
     /// button is itself the answer to "what am I drawing with?".
     Color,
+    /// Steps the platform's magnifier through its zoom levels and off
+    /// (FR-029). Only on the toolbar where the adapter has a magnifier.
+    Zoom,
 }
 
 /// One control.
@@ -104,6 +107,7 @@ impl Button {
             Icon::Park => "SHRINK TO TOOLBAR (G)",
             Icon::Hide => "HIDE (H)",
             Icon::Quit => "SAVE AND QUIT (Q)",
+            Icon::Zoom => "ZOOM 2X 3X 4X OFF (Z)",
         }
     }
 
@@ -130,10 +134,20 @@ impl Default for Toolbar {
 }
 
 impl Toolbar {
+    /// The toolbar without a zoom button, as on a platform with no magnifier.
     pub fn new() -> Self {
+        Self::with_zoom(false)
+    }
+
+    /// The toolbar, with a zoom button if the platform can zoom.
+    ///
+    /// Optional rather than always present: FR-029 says a platform without a
+    /// mechanism shows no button, because a button that does nothing is the
+    /// control FR-006 forbids.
+    pub fn with_zoom(zoom: bool) -> Self {
         // Tools first, then history, then the two ways out. Grouped by what
         // the user is thinking about rather than by how often each is pressed.
-        let entries = [
+        let mut entries = vec![
             (Icon::Select, Action::SelectTool(Tool::Select)),
             (Icon::Pen, Action::SelectTool(Tool::Pen)),
             (Icon::Highlighter, Action::SelectTool(Tool::Highlighter)),
@@ -154,6 +168,14 @@ impl Toolbar {
             (Icon::Hide, Action::ToggleVisibility),
             (Icon::Quit, Action::Quit),
         ];
+        if zoom {
+            // With the other view controls, after the window menu.
+            let at = entries
+                .iter()
+                .position(|(icon, _)| *icon == Icon::PassThrough)
+                .unwrap_or(entries.len());
+            entries.insert(at, (Icon::Zoom, Action::CycleZoom));
+        }
 
         let buttons: Vec<Button> = entries
             .iter()

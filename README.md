@@ -22,7 +22,7 @@ the specification documents. Same project.
 
 | Environment | State |
 |---|---|
-| Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
+| Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket, **live zoom** through the GNOME magnifier (`z`, [E017](docs/evidence/E017-gnome-live-zoom.md)) — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
 | Windows | **drawing, pass-through and the chord work**, seen on one machine: the overlay stays above other windows, every tool draws ([E010](docs/evidence/E010-first-windows-run.md)), in pass-through clicks reach the application underneath, and Ctrl+Alt+D brings it back ([E012](docs/evidence/E012-windows-pass-through.md)). `Ctrl+Alt+H` hides and restores it, and it works over a fullscreen application ([E014](docs/evidence/E014-hide-and-fullscreen.md)). T003 is done. Other monitors and virtual desktops are not yet confirmed |

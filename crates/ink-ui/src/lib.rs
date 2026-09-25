@@ -701,6 +701,19 @@ pub fn paint_toolbar(
                     (mirror(0.28), 0.58),
                 ]);
             }
+            // A magnifying glass with a plus in the lens.
+            Icon::Zoom => {
+                let ring: Vec<(f64, f64)> = (0..=20)
+                    .map(|step| {
+                        let angle = std::f64::consts::TAU * f64::from(step) / 20.0;
+                        (0.40 + 0.34 * angle.cos(), 0.40 + 0.34 * angle.sin())
+                    })
+                    .collect();
+                draw(&ring);
+                draw(&[(0.65, 0.65), (1.0, 1.0)]);
+                draw(&[(0.24, 0.40), (0.56, 0.40)]);
+                draw(&[(0.40, 0.24), (0.40, 0.56)]);
+            }
             // A cross: everything goes.
             Icon::Clear => {
                 draw(&[(0.0, 0.0), (1.0, 1.0)]);

@@ -1220,6 +1220,11 @@ fn apply(effects: Vec<Effect>) {
             Effect::Faulted { error } => {
                 eprintln!("[failed {}] {error}", error.class());
             }
+            // Zoom is not offered here yet, so only the refusal can arrive.
+            // The Magnification API is T038 (ADR-008).
+            Effect::Zoom { .. } | Effect::ZoomUnavailable => {
+                eprintln!("[zoom] not on Windows yet: the Magnification API route is T038");
+            }
             Effect::Quit => unreachable!("handled before borrowing"),
         });
     }

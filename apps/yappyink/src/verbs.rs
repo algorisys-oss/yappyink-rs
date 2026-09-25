@@ -31,6 +31,10 @@ pub enum ControlCommand {
     Load,
     /// Ask the running overlay to exit.
     Quit,
+    /// Step the magnifier: 2x, 3x, 4x, off (FR-029).
+    Zoom,
+    /// Turn the magnifier off, restoring the user's own settings.
+    ZoomOff,
 }
 
 impl ControlCommand {
@@ -45,6 +49,8 @@ impl ControlCommand {
             "save" => Some(Self::Save),
             "load" => Some(Self::Load),
             "quit" => Some(Self::Quit),
+            "zoom" => Some(Self::Zoom),
+            "zoom-off" => Some(Self::ZoomOff),
             _ => None,
         }
     }
@@ -59,6 +65,8 @@ impl ControlCommand {
             Self::Save => "save",
             Self::Load => "load",
             Self::Quit => "quit",
+            Self::Zoom => "zoom",
+            Self::ZoomOff => "zoom-off",
         }
     }
 
@@ -73,11 +81,13 @@ impl ControlCommand {
             Self::Save => Some(Action::Save),
             Self::Load => Some(Action::Load),
             Self::Quit => None,
+            Self::Zoom => Some(Action::CycleZoom),
+            Self::ZoomOff => Some(Action::ZoomOff),
         }
     }
 
     /// Every verb. Used for help text and to keep the tests exhaustive.
-    pub const fn all() -> [Self; 8] {
+    pub const fn all() -> [Self; 10] {
         [
             Self::ToggleDraw,
             Self::Draw,
@@ -87,6 +97,8 @@ impl ControlCommand {
             Self::Save,
             Self::Load,
             Self::Quit,
+            Self::Zoom,
+            Self::ZoomOff,
         ]
     }
 }

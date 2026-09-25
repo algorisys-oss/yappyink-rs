@@ -52,7 +52,12 @@ budget. Fallback fonts load on first use: startup 125 ms, 32 MB. Before quoting 
 still takes one slow frame per commit, which incremental layer updates would
 fix.
 
-**Live zoom is specified, not started (FR-029, ADR-008, specs/004-live-zoom).**
+**Live zoom works on GNOME (FR-029, ADR-008, E017):** `z`, a toolbar button,
+`yappyink zoom` / `zoom-off`, with the user's magnifier settings restored on
+off, exit, and the next launch after a kill. Windows (T038) and macOS (T039)
+are next. What follows is the original plan, kept for the reasoning.
+
+**Live zoom was specified (FR-029, ADR-008, specs/004-live-zoom).**
 The compositor's own magnifier where one exists, so no desktop pixels reach the
 app: the GNOME Shell magnifier through its settings first (T037, on this
 machine), then Windows' Magnification API (T038), then a macOS decision

@@ -291,7 +291,21 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         },
         pending_confirmations: Vec::new(),
         quit: false,
+        magnifier: None,
     };
+
+    // FR-029: zoom is offered only where the Shell magnifier is. Probing also
+    // restores settings a previous run left if it was killed while zoomed.
+    overlay.magnifier = crate::magnifier::Magnifier::probe();
+    if overlay.magnifier.is_some() {
+        overlay.controller.offer_zoom();
+        eprintln!(
+            "[zoom] the GNOME magnifier is available: z steps 2x, 3x, 4x and off. \
+             If yappyink is ever killed while zoomed, Alt+Super+8 turns it off."
+        );
+    } else {
+        eprintln!("[zoom] no GNOME magnifier found, so there is no zoom on this desktop");
+    }
 
     // FR-004: startup is Hidden. Launching with the intent to draw is itself
     // the activation, so the first thing the run does is ask for Draw. Until
@@ -394,6 +408,7 @@ fn print_controls() {
          \x20 p      pass through: ink stays, input goes to what is underneath\n\
          \x20 h      hide the ink, keeping it in memory\n\
          \x20 g      shrink to just the toolbar, and back\n\
+         \x20 z      zoom 2x, 3x, 4x, off (the GNOME magnifier)\n\
          \x20 1 / 2  pen / highlighter\n\
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 7 or e eraser: removes whole objects its sweep touches\n\
@@ -482,6 +497,9 @@ pub struct Overlay {
     /// the next loop iteration, once the commit has reached the compositor.
     pending_confirmations: Vec<TransitionId>,
     quit: bool,
+    /// The GNOME Shell magnifier, if there is one (FR-029). Dropping it
+    /// restores the user's own settings.
+    magnifier: Option<crate::magnifier::Magnifier>,
 }
 
 impl Overlay {
@@ -567,6 +585,14 @@ impl Overlay {
                 Effect::BeginWindowResize => self.begin_interactive(InteractiveGrab::Resize),
                 Effect::Faulted { error } => {
                     eprintln!("[fault {}] {error}", error.class());
+                }
+                Effect::Zoom { factor } => {
+                    if let Some(magnifier) = &self.magnifier {
+                        magnifier.set(factor);
+                    }
+                }
+                Effect::ZoomUnavailable => {
+                    eprintln!("[zoom] not available: no GNOME magnifier was found at startup");
                 }
             }
         }

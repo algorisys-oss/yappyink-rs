@@ -76,6 +76,7 @@ pub fn command(key: Key) -> Option<Action> {
         'p' => Some(Action::ToggleDraw),
         'h' => Some(Action::ToggleVisibility),
         'g' => Some(Action::TogglePark),
+        'z' => Some(Action::CycleZoom),
         'w' => Some(Action::Save),
         'o' => Some(Action::Load),
         'u' => Some(Action::Undo),

@@ -94,6 +94,11 @@ pub fn capabilities() -> CapabilityReport {
     ));
     let unproven = [
         (
+            Capability::LiveZoom,
+            "the Magnification API's full-screen transform should zoom without capture \
+             (ADR-008); not implemented, T038",
+        ),
+        (
             Capability::KeyboardRelease,
             "dropping the foreground window should return the keyboard; nobody has \
              watched it",
@@ -176,7 +181,7 @@ mod tests {
         // it actually means "nobody thought about it".
         assert_eq!(
             capabilities().findings().len(),
-            11,
+            12,
             "a capability was added or dropped without a reason being written"
         );
     }

@@ -14,7 +14,7 @@ use ink_platform::{
     Capability, CapabilityReport, EnvSnapshot, PlatformSocketProbe, SessionKind, detect_session,
 };
 
-const ALL_CAPABILITIES: [Capability; 11] = [
+const ALL_CAPABILITIES: [Capability; 12] = [
     Capability::LiveOverlay,
     Capability::DrawPointerCapture,
     Capability::VisiblePassthrough,
@@ -26,6 +26,7 @@ const ALL_CAPABILITIES: [Capability; 11] = [
     Capability::WorkspaceOverlay,
     Capability::Capture,
     Capability::CaptureExclusion,
+    Capability::LiveZoom,
 ];
 
 /// Runs every probe available on this build and renders the report.
@@ -229,6 +230,12 @@ fn wayland_section(
                 "        so the effective scale is not established here (FR-012, T018)."
             );
             *capabilities = ink_platform_wayland::capabilities(&probe);
+            // Not a protocol question, so refined here from the settings.
+            capabilities.record(CapabilityFinding::new(
+                Capability::LiveZoom,
+                ink_platform_wayland::magnifier::state(),
+                "gnome-magnifier",
+            ));
         }
         Err(error) => {
             let _ = writeln!(*out, "  probe failed [{}]: {error}", error.class());

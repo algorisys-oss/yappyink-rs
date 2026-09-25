@@ -51,6 +51,26 @@ throughout.
 - **The magnifier does not disturb the overlay**: no faults at the maximized
   1366×697 size in any run, after the 0.8.2 buffer fix.
 
+## The feature, same day
+
+The zoom feature was then built (`magnifier.rs`, the `z` key, the toolbar
+button, `yappyink zoom` and `zoom-off`) and driven over the control socket on
+this machine, reading the settings after each step:
+
+| Step | `screen-magnifier-enabled`, `mag-factor` | Restore file |
+|---|---|---|
+| before | false, 2.0 | absent |
+| `yappyink zoom` | true, 2.0 | written |
+| `yappyink zoom` again | true, 3.0 | present |
+| `yappyink zoom-off` | false, 2.0 | removed |
+| `zoom`, then `yappyink quit` | false, 2.0 | removed |
+| `zoom`, then `kill -9` | true, 2.0 | left behind |
+| next launch | false, 2.0 | removed |
+
+The relaunch logged "a previous run ended while zoomed; your magnifier
+settings are restored". The toolbar button and the `z` key were not pressed by
+a person; they reach the same controller action as the socket verb.
+
 ## Not established
 
 - Whether a video underneath kept updating while magnified. The owner did not

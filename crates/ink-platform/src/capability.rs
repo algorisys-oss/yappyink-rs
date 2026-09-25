@@ -38,6 +38,9 @@ pub enum Capability {
     Capture,
     /// Capture can exclude our own surfaces, avoiding self-capture (FR-027).
     CaptureExclusion,
+    /// A live, pointer-following zoom of the screen, through the platform's
+    /// own magnifier, with no pixels reaching the application (FR-029).
+    LiveZoom,
 }
 
 impl Capability {
@@ -54,6 +57,7 @@ impl Capability {
             Self::WorkspaceOverlay => "workspace_overlay",
             Self::Capture => "capture",
             Self::CaptureExclusion => "capture_exclusion",
+            Self::LiveZoom => "live_zoom",
         }
     }
 }
