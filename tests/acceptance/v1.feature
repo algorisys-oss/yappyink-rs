@@ -28,6 +28,9 @@ Feature: ScreenInk v1 contract
 
   @AC-FR-029 @FR-029 @specified_not_implemented
   Scenario: [AC-FR-029] Live zoom
-    Given a video is playing under the overlay and the platform has a compositor magnifier
+    Given a video is playing under the overlay on a platform that offers zoom
     When I zoom in, draw a stroke while zoomed, and zoom out again
-    Then the magnified view keeps updating, the stroke lands under the pointer and stays on the content it marks, no desktop pixels reach the application, and the user's magnifier settings are restored when zoom is turned off or the application quits
+    Then the magnified view keeps updating and the stroke lands under the pointer
+    And where the compositor magnifies, the stroke stays on the content it marks and no desktop pixels reach the application
+    And where yappyink captures instead, permission was asked once, refusing it left the overlay working, and no frame outlives the screen
+    And quitting while zoomed leaves the screen, and any setting of the user's, as it was

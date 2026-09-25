@@ -20,6 +20,23 @@ winit exposes general hit-test APIs, but its generic WindowLevel abstraction doe
 
 Layer-shell controls surface stacking and keyboard policy. A zero-sized/empty input region means the surface does not take pointer input; keyboard interactivity must be configured separately. Detection is based on advertised protocols, not a desktop-name string. [S08, S12]
 
+## As built, 2026-09-25
+
+The plan above is kept as written; its proof obligations still apply. What was
+actually built differs in route, and the evidence files record what each route
+has shown.
+
+| Environment | Route as built | Shortcut route | Live zoom route | Evidence |
+|---|---|---|---|---|
+| Windows | direct Win32 layered window through `windows-sys`, no winit (ADR-005) | `RegisterHotKey` | Magnification API | E010, E012, E014, E018 |
+| macOS | AppKit `NSWindow` through `objc2`, no winit (ADR-006) | Carbon `RegisterEventHotKey`, no permission (ADR-007) | ScreenCaptureKit capture, Screen Recording permission (ADR-008 amended) | E009, E011, E013, E014; zoom not yet run |
+| GNOME Wayland | xdg-shell toplevel, plus the GNOME Shell companion for above, sticky and monitor-sized (ADR-002 outcome (b), Shell 46 only) | control socket command bound in desktop settings | the Shell magnifier through its settings | E002–E007, E017 |
+| Other Wayland, X11 | not built (T005, T006) | | | |
+
+On Windows, the alpha-zero pass-through warned about above was real: Draw
+covers the canvas with an alpha-1 floor so empty canvas captures input
+(E010).
+
 ## GNOME release decision
 
 First test stock GNOME Wayland on the actual Ubuntu development machine and record its versions. Run the same contract scenarios as every other backend. Do not make “switch to X11” the acceptance criterion for GNOME.
@@ -36,7 +53,7 @@ The actual app ID, desktop file, portal backend, session lifetime, and bindings 
 
 ## Capability vocabulary
 
-Capabilities include live_overlay, draw_pointer_capture, visible_passthrough, keyboard_release, global_shortcut, output_enumeration, simultaneous_outputs, fullscreen_overlay, workspace_overlay, capture, and capture_exclusion.
+Capabilities include live_overlay, draw_pointer_capture, visible_passthrough, keyboard_release, global_shortcut, output_enumeration, simultaneous_outputs, fullscreen_overlay, workspace_overlay, capture, capture_exclusion, and live_zoom (FR-029).
 
 Each runtime entry records state (unknown/available/needs_user_action/unavailable), reason, backend, and scope. Version-specific test evidence belongs in a separate certification record. An API call returning success is not itself certification.
 

@@ -382,9 +382,12 @@
       "status": "partially_implemented",
       "tests": [
         "crates/ink-app/tests/zoom.rs",
-        "crates/ink-platform-wayland/src/magnifier.rs"
+        "crates/ink-platform-wayland/src/magnifier.rs",
+        "crates/ink-platform-windows/src/surface.rs",
+        "crates/ink-platform-macos/src/surface.rs",
+        "crates/ink-platform-macos/src/chords.rs"
       ],
-      "note": "GNOME: zoom, drawing while zoomed, restore on off, exit and after kill -9 observed on one machine (E017). A video staying live is not yet observed; Windows and macOS are T038 and T039."
+      "note": "GNOME: zoom, drawing while zoomed, restore on off, exit and after kill -9 observed (E017). Windows: working as expected from the unsigned release, no UIAccess needed (E018). macOS: built with ScreenCaptureKit, not yet run. A video staying live is not yet observed anywhere."
     }
   ],
   "requirements": [
@@ -947,7 +950,7 @@
       ],
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "ADR-008. GNOME built and observed on the E001 machine (E017): zoom steps, drawing while zoomed, and restoring the user's settings on off, exit and after a kill. Windows (T038) and macOS (T039) report unknown."
+      "notes": "ADR-008, amended for macOS. GNOME (E017) and Windows (E018) observed; macOS built with ScreenCaptureKit and not yet run."
     }
   ]
 }

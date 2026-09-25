@@ -108,6 +108,8 @@ Serialize to a same-directory temporary file, flush as appropriate, then use pla
 
 Live overlay does not require a desktop image. Later CaptureService manages user selection, permissions, and optional pixel acquisition. Linux may use screenshot/screencast portals; macOS evaluates ScreenCaptureKit; Windows selects a documented native capture API during that feature's design. [S17, S18, S19]
 
+Live zoom on macOS (FR-029, ADR-008 as amended) is the one capture consumer built so far, and it is not the CaptureService: it holds no pixels beyond the frames on screen and excludes our own windows from what it captures. GNOME and Windows zoom through the compositor's magnifier and capture nothing.
+
 Composite exports must avoid capturing the existing ink and drawing it again. Prefer explicit capture exclusion where supported, otherwise carefully withdraw application surfaces and synchronize before capture. Specify cancellation, self-capture, permission revocation, and toolbar exclusion before implementation. Capture success never implies overlay success.
 
 ## Concurrency and resource budget

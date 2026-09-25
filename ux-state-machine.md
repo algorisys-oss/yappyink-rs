@@ -24,6 +24,8 @@ Additional internal states: Transitioning and Faulted. These are not alternative
 
 **Escape in Draw:** cancel an active transient gesture/text composition first. When there is no transient operation, request PassThrough. Escape is not globally captured in PassThrough and must continue to belong to the underlying app.
 
+**CycleZoom / ZoomOff (FR-029):** step the platform magnifier through its levels and off, or straight off. Independent of the stable mode: zoom neither changes nor requires Draw, PassThrough or Hidden, and changing mode never changes the zoom. Offered only where the platform has a mechanism (specs/004-live-zoom).
+
 **Clear:** clear committed objects on the active output through one undoable command. Hidden/PassThrough do not globally hijack the ordinary Delete or Ctrl/Cmd+Z shortcuts.
 
 ## Pointer sequence safety
