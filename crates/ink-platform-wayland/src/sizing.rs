@@ -35,21 +35,18 @@ pub fn floating_size(requested: (u32, u32), outputs: &[(u32, u32)]) -> (u32, u32
     (requested.0.min(cap(width)), requested.1.min(cap(height)))
 }
 
-/// The first size when the user chose one last time: theirs, only capped to
-/// the smallest output so it cannot open larger than a screen.
+/// The first size when the user chose one last time: theirs, capped by the
+/// same [`FLOATING_SHARE`] as the default.
 ///
-/// Not shrunk by [`FLOATING_SHARE`]: someone who dragged the overlay out to
-/// the whole work area wants it back that size. If GNOME auto-maximizes it,
-/// the adapter asks once for it to float, which keeps the size.
+/// The cap is not caution; it is the most a plain Wayland client can restore
+/// on GNOME. A client chooses its size and never its position. A larger size
+/// is auto-maximized, and however it is brought back to floating (asked to
+/// float, or grown after it appears), GNOME keeps the top-left corner where it
+/// placed a smaller window and the rest runs off the screen. Observed on the
+/// owner's 1366x768 screen with 1366x697 remembered. Only the Shell extension
+/// can place the window, so only it can restore a full-screen size.
 pub fn remembered_size(saved: (u32, u32), outputs: &[(u32, u32)]) -> (u32, u32) {
-    let smallest = outputs
-        .iter()
-        .filter(|(w, h)| *w > 0 && *h > 0)
-        .min_by_key(|(w, h)| u64::from(*w) * u64::from(*h));
-    match smallest {
-        Some(&(w, h)) => (saved.0.min(w).max(1), saved.1.min(h).max(1)),
-        None => saved,
-    }
+    floating_size(saved, outputs)
 }
 
 /// The remembered size, as the file holds it: `WIDTHxHEIGHT`.
@@ -91,18 +88,18 @@ pub fn save(size: (u32, u32)) {
 mod tests {
     use super::*;
 
-    /// The case this exists for: the owner dragged the overlay out to the
-    /// whole work area and wants it back that size.
+    /// A size the user chose that GNOME can place is restored exactly.
     #[test]
-    fn a_remembered_size_is_kept_as_the_user_left_it() {
-        assert_eq!(remembered_size((1366, 697), &[(1366, 768)]), (1366, 697));
+    fn a_smaller_remembered_size_is_kept_as_the_user_left_it() {
+        assert_eq!(remembered_size((900, 500), &[(1366, 768)]), (900, 500));
     }
 
-    /// A size remembered on a bigger monitor must not open larger than the
-    /// screen it lands on now.
+    /// The owner's full-work-area size cannot be restored in place on GNOME,
+    /// so it opens at the largest size that can be.
     #[test]
-    fn a_remembered_size_is_capped_to_the_screen() {
-        assert_eq!(remembered_size((1900, 1000), &[(1366, 768)]), (1366, 768));
+    fn a_full_screen_size_is_capped_to_what_gnome_places_correctly() {
+        assert_eq!(remembered_size((1366, 697), &[(1366, 768)]), (1092, 614));
+        assert_eq!(remembered_size((1900, 1000), &[(1366, 768)]), (1092, 614));
         assert_eq!(remembered_size((1900, 1000), &[]), (1900, 1000));
     }
 

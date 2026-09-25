@@ -332,25 +332,33 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             Some((u32::try_from(w).ok()?, u32::try_from(h).ok()?))
         })
         .collect();
-    // A remembered size is opened directly and kept: if GNOME auto-maximizes
-    // it, the window asks to float, and GNOME's suggested floating size is
-    // declined (see `configure`). Without one, a size GNOME will not
-    // auto-maximize in the first place. Three earlier designs failed here
+    // A remembered size is restored, capped to what GNOME will neither
+    // auto-maximize nor misplace (see `sizing::remembered_size`); without one,
+    // the default under the same cap. Four other designs failed here
     // (docs/learning.md section 23).
-    let remembered =
-        crate::sizing::load().map(|saved| crate::sizing::remembered_size(saved, &outputs));
-    let (width, height) = match remembered {
-        Some(size) => {
-            eprintln!(
-                "[output] opening at {}x{}, the size it was left at last time",
-                size.0, size.1
-            );
-            overlay.desired = Some(size);
+    let saved = crate::sizing::load();
+    let (width, height) = match saved {
+        Some(saved) => {
+            let size = crate::sizing::remembered_size(saved, &outputs);
+            if size == saved {
+                eprintln!(
+                    "[output] opening at {}x{}, the size it was left at last time",
+                    size.0, size.1
+                );
+            } else {
+                eprintln!(
+                    "[output] opening at {}x{} rather than the {}x{} it was left at: GNOME would \
+                     maximize the larger size, and a Wayland window cannot place itself to undo \
+                     that. Drag the corner to enlarge it; the GNOME extension removes the limit",
+                    size.0, size.1, saved.0, saved.1
+                );
+            }
             size
         }
         None => crate::sizing::floating_size((overlay.width, overlay.height), &outputs),
     };
-    if remembered.is_none() && (width, height) != (overlay.width, overlay.height) {
+    overlay.desired = Some((width, height));
+    if saved.is_none() && (width, height) != (overlay.width, overlay.height) {
         eprintln!(
             "[output] asking for {width}x{height} rather than {}x{}: GNOME would maximize the \
              larger one on this screen, and a maximized window cannot be kept on top or resized",

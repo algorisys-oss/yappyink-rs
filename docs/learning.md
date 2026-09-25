@@ -501,10 +501,18 @@ configure still carrying the old 1092x614, the adapter obeyed it, shrank, and
 saved the small size. The fourth pinned the first size (minimum = maximum) so
 it could not be maximized; GNOME 46 maximized it anyway.
 
-What works is the rule underneath all four: xdg-shell makes a floating
-window's configure size a suggestion the client may decline. The adapter now
-keeps the size the user left it at while floating, and follows the compositor
-only when maximized, fullscreen, tiled, or mid-resize.
+The fifth kept the remembered 1366x697 by declining GNOME's floating size
+suggestions, which xdg-shell allows. The size held, and the window sat where
+GNOME had centred a 1024x522 one, running off the right and bottom of the
+screen: a Wayland client chooses its size, never its position.
+
+So the real limit was never the size logic. On GNOME, without the Shell
+extension, a size larger than GNOME will place without maximizing cannot be
+restored in place. The remembered size is now capped at that (80% of each
+side), smaller sizes are restored exactly, and the rule of declining floating
+suggestions stays, because it is what fixed the shrink on focus. Five designs,
+and the lesson from the first should have been the question to ask: what does
+this platform let a client decide at all?
 
 None of these mistakes was visible in the code or the unit tests, which were
 right about the arithmetic. Each took a live run to find, and one only showed
