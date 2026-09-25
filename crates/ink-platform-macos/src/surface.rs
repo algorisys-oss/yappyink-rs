@@ -56,6 +56,45 @@ pub fn scale_for_backing(backing: f64) -> f64 {
     }
 }
 
+/// A rectangle in display points, origin at the display's top-left, which is
+/// how ScreenCaptureKit's `sourceRect` is expressed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DisplayRect {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The part of the display to magnify at `level`, centred on the pointer and
+/// kept inside the display (FR-029).
+///
+/// `display` is the display's size in points; `cursor` is in the same
+/// top-left coordinates. The capture scales this rectangle up to the full
+/// display, which is the zoom.
+pub fn zoom_source(display: (f64, f64), level: f64, cursor: (f64, f64)) -> DisplayRect {
+    let level = level.max(1.0);
+    let (width, height) = (display.0 / level, display.1 / level);
+    let x = (cursor.0 - width / 2.0).clamp(0.0, (display.0 - width).max(0.0));
+    let y = (cursor.1 - height / 2.0).clamp(0.0, (display.1 - height).max(0.0));
+    DisplayRect {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+/// Converts the pointer from AppKit's global coordinates, bottom-left origin
+/// on the primary display, to top-left coordinates on a screen whose frame is
+/// given in the same global coordinates.
+///
+/// AppKit counts y upwards and ScreenCaptureKit downwards. Getting this wrong
+/// does not fail: the zoom follows the pointer upside down.
+pub fn cursor_on_screen(mouse: (f64, f64), origin: (f64, f64), size: (f64, f64)) -> (f64, f64) {
+    (mouse.0 - origin.0, origin.1 + size.1 - mouse.1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +131,54 @@ mod tests {
             let scale = scale_for_backing(bad);
             assert!(scale.is_finite() && scale > 0.0, "{bad} gave {scale}");
         }
+    }
+
+    #[test]
+    fn the_zoom_is_centred_on_the_pointer() {
+        let rect = zoom_source((1440.0, 900.0), 2.0, (720.0, 450.0));
+        assert_eq!(
+            rect,
+            DisplayRect {
+                x: 360.0,
+                y: 225.0,
+                width: 720.0,
+                height: 450.0
+            }
+        );
+    }
+
+    #[test]
+    fn the_zoom_stays_on_the_display() {
+        let corner = zoom_source((1440.0, 900.0), 2.0, (0.0, 0.0));
+        assert_eq!((corner.x, corner.y), (0.0, 0.0));
+        let far = zoom_source((1440.0, 900.0), 4.0, (1440.0, 900.0));
+        assert_eq!((far.x, far.y), (1080.0, 675.0));
+    }
+
+    #[test]
+    fn no_zoom_is_the_whole_display() {
+        let rect = zoom_source((1440.0, 900.0), 0.5, (100.0, 100.0));
+        assert_eq!((rect.width, rect.height), (1440.0, 900.0));
+        assert_eq!((rect.x, rect.y), (0.0, 0.0));
+    }
+
+    /// AppKit's y goes up from the bottom; the capture's goes down from the
+    /// top. The pointer at the bottom-left corner of the main screen is at the
+    /// display's bottom-left in top-left terms.
+    #[test]
+    fn the_pointer_is_flipped_into_top_left_coordinates() {
+        assert_eq!(
+            cursor_on_screen((0.0, 0.0), (0.0, 0.0), (1440.0, 900.0)),
+            (0.0, 900.0)
+        );
+        assert_eq!(
+            cursor_on_screen((100.0, 850.0), (0.0, 0.0), (1440.0, 900.0)),
+            (100.0, 50.0)
+        );
+        // A second screen to the right and higher up.
+        assert_eq!(
+            cursor_on_screen((1540.0, 1000.0), (1440.0, 200.0), (1920.0, 1080.0)),
+            (100.0, 280.0)
+        );
     }
 }

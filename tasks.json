@@ -686,7 +686,7 @@
     {
       "id": "T039",
       "phase": "M3",
-      "status": "not_started",
+      "status": "in_progress",
       "depends_on": [
         "T004",
         "T038"

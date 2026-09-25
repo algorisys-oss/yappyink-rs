@@ -30,6 +30,8 @@ pub mod surface;
 #[cfg(target_os = "macos")]
 mod hotkey;
 #[cfg(target_os = "macos")]
+mod magnifier;
+#[cfg(target_os = "macos")]
 pub mod overlay;
 
 use ink_platform::{Capability, CapabilityFinding, CapabilityReport, CapabilityState};
@@ -89,8 +91,8 @@ pub fn capabilities() -> CapabilityReport {
     let unproven = [
         (
             Capability::LiveZoom,
-            "no public API drives the system Zoom; capture or deferring to it is T039's \
-             decision (ADR-008)",
+            "implemented with ScreenCaptureKit, which needs Screen Recording permission and \
+             does not magnify the ink (ADR-008, T039); nobody has watched it",
         ),
         (
             Capability::KeyboardRelease,

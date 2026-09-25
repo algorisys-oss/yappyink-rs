@@ -17,12 +17,40 @@ ink-ui.workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", features = ["NSGeometry", "NSString"] }
+# Live zoom (FR-029, ADR-008 as amended for macOS). ScreenCaptureKit is the
+# only public way to see the screen; the rest carry its frames to a layer.
+block2 = "0.6"
+dispatch2 = "0.3"
+objc2-screen-capture-kit = { version = "0.3", features = [
+    "SCStream",
+    "SCShareableContent",
+    "block2",
+    "dispatch2",
+    "objc2-core-graphics",
+    "objc2-core-media",
+] }
+objc2-core-media = { version = "0.3", features = ["CMSampleBuffer", "CMTime", "objc2-core-video"] }
+objc2-core-video = { version = "0.3", features = ["CVBuffer", "CVImageBuffer", "CVPixelBuffer", "objc2-io-surface"] }
+objc2-io-surface = { version = "0.3", features = ["IOSurfaceRef"] }
+objc2-quartz-core = { version = "0.3", features = ["CALayer"] }
+objc2-foundation = { version = "0.3", features = [
+    "NSArray",
+    "NSDate",
+    "NSDictionary",
+    "NSError",
+    "NSGeometry",
+    "NSRunLoop",
+    "NSString",
+    "NSTimer",
+    "NSValue",
+    "block2",
+] }
 objc2-core-foundation = { version = "0.3", features = ["CFCGTypes"] }
 objc2-core-graphics = { version = "0.3", features = [
     "CGColorSpace",
     "CGContext",
     "CGDataProvider",
+    "CGDirectDisplay",
     "CGImage",
 ] }
 objc2-app-kit = { version = "0.3", features = [
@@ -35,4 +63,5 @@ objc2-app-kit = { version = "0.3", features = [
     "NSScreen",
     "NSView",
     "NSWindow",
+    "objc2-quartz-core",
 ] }

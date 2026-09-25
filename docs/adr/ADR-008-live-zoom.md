@@ -80,6 +80,43 @@ capture contract, or deferring to macOS's own Zoom (Accessibility settings)
 and documenting it. **Not decided here.** T039 must amend this ADR before any
 capture code is written.
 
+**Amended 2026-09-25: capture, by the owner's decision.** Offered both, the
+owner chose a ScreenCaptureKit magnifier over deferring to the system Zoom.
+What that commits to, and what it costs:
+
+- **Mechanism.** `SCStream` captures a rectangle of the main display around
+  the pointer, scaled by ScreenCaptureKit to the display's full pixel size,
+  and each frame's IOSurface is set as the contents of a layer in a
+  borderless, click-through window one level below the overlay. A 30 Hz
+  timer moves the rectangle with the pointer.
+- **Permission.** macOS asks for Screen Recording the first time. Refusing it
+  leaves the overlay working and zoom off, with a message saying where to
+  grant it (NFR-005: a typed refusal, not a silent failure).
+- **Pixels.** They exist only in the IOSurfaces ScreenCaptureKit recycles and
+  in the layer showing them. Nothing is copied into our memory, stored,
+  written, logged or sent (FR-027's "sensitive and ephemeral by default").
+  Both yappyink windows are excluded from the capture.
+- **Two limits the compositor-based platforms do not have.** The ink is not
+  magnified, because the overlay is excluded to avoid capturing itself. And in
+  pass-through, clicks go to the real positions, not the magnified ones;
+  mapping them would be input injection, which AGENTS.md forbids. Making the
+  ink zoom with the picture needs a view transform in the macOS adapter and is
+  left for a later change.
+- **Dependencies.** `objc2-screen-capture-kit` and `objc2-core-media`, both
+  0.3.2 from the same objc2 release as the pinned `objc2-app-kit`, and
+  `objc2-core-video`, `objc2-io-surface`, `objc2-quartz-core`, `block2` and
+  `dispatch2`, which were already in the lockfile through the existing macOS
+  stack. Target-gated to macOS. `objc2-av-foundation` arrives transitively.
+- **One `Send` assertion.** The stream is built in a ScreenCaptureKit
+  completion handler on a queue it chooses and is used from the main thread,
+  so it is kept in one mutex with `unsafe impl Send` on its holder. Swift
+  declares these classes `Sendable`; the Rust bindings do not yet. No AppKit
+  object crosses threads: the window and layer stay on the main thread, and
+  frames reach them through the main queue.
+- **Never run.** Nobody on this project has a Mac. It type-checks against
+  `aarch64-apple-darwin` and CI links it; the owner's Mac tester is the first
+  run.
+
 ## Rejected
 
 - **Capturing the screen on every platform, ZoomIt-style.** Uniform, but it

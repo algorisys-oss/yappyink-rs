@@ -534,7 +534,7 @@ Probe MagSetFullscreenTransform: whether it needs UIAccess, how mouse input maps
 
 ## T039 [M3]: Decide live zoom on macOS
 
-Status: not_started. Dependencies: T004, T038.
+Status: in_progress since 2026-09-25. Dependencies: T004, T038.
 
 Requirements: FR-029, FR-026.
 
@@ -543,3 +543,5 @@ No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Re
 **Exit criterion:** ADR-008 records the macOS decision; if capture is chosen, it has its own permission and privacy contract before implementation.
 
 **Deferred by the owner, 2026-09-25.** Offered the choice between a capture-based magnifier (Screen Recording permission) and deferring to macOS's own Zoom, the owner chose to ship Windows first and decide macOS after the Windows test.
+
+**Decided and built, not yet run, 2026-09-25.** After the Windows test the owner chose the ScreenCaptureKit magnifier, and ADR-008 is amended accordingly before the code: permission, pixel handling, the two limits (ink not magnified; pass-through clicks go to real positions), the dependencies and the one `Send` assertion. `crates/ink-platform-macos/src/magnifier.rs` captures a pointer-centred rectangle scaled to the display and shows it in a click-through window below the overlay; `z`, `0`, the toolbar button, Control+Option+Z and Control+Option+0 drive it. The rectangle arithmetic and the AppKit-to-capture y flip are pure and tested. A refused permission resets zoom and says where to grant it. Type-checks for `aarch64-apple-darwin`; nobody has run it.

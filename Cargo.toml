@@ -20,7 +20,7 @@ members = [
 # Versioning started at 0.3.0 on 2026-09-24; see docs/ship-it.md for the scheme
 # and why the first number is not 0.1.0. Bumped on every release, without
 # exception: an unbumped release overwrites the meaning of the previous tag.
-version = "0.10.0"
+version = "0.11.0"
 edition = "2024"
 rust-version = "1.95"
 license = "MIT"

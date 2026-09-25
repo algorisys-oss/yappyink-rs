@@ -38,6 +38,8 @@ pub const OPTION: u32 = 1 << 11;
 /// keys, and it is why the chord is described by position in the docs.
 pub const KEY_D: u32 = 0x02;
 pub const KEY_H: u32 = 0x04;
+pub const KEY_Z: u32 = 0x06;
+pub const KEY_0: u32 = 0x1D;
 
 /// One chord and what it does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,7 +58,7 @@ pub struct Chord {
 /// Control is not decoration. macOS 15 refuses a hot key whose only modifiers
 /// are Option, or Option and Shift, because those produce characters on many
 /// layouts. A chord that includes Control or Command is unaffected.
-pub const CHORDS: [Chord; 2] = [
+pub const CHORDS: [Chord; 4] = [
     Chord {
         id: 1,
         key: KEY_D,
@@ -70,6 +72,22 @@ pub const CHORDS: [Chord; 2] = [
         modifiers: CONTROL | OPTION,
         name: "Control+Option+H",
         action: Action::ToggleVisibility,
+    },
+    // Live zoom from anywhere, as on Windows (FR-029). In pass-through the
+    // window takes no keys, so these are the only way to zoom there.
+    Chord {
+        id: 3,
+        key: KEY_Z,
+        modifiers: CONTROL | OPTION,
+        name: "Control+Option+Z",
+        action: Action::CycleZoom,
+    },
+    Chord {
+        id: 4,
+        key: KEY_0,
+        modifiers: CONTROL | OPTION,
+        name: "Control+Option+0",
+        action: Action::ZoomOff,
     },
 ];
 
@@ -118,8 +136,12 @@ mod tests {
 
     #[test]
     fn the_chords_are_distinct_and_recognised() {
-        assert_ne!(CHORDS[0].id, CHORDS[1].id);
-        assert_ne!(CHORDS[0].key, CHORDS[1].key);
+        for (i, a) in CHORDS.iter().enumerate() {
+            for b in &CHORDS[i + 1..] {
+                assert_ne!(a.id, b.id);
+                assert_ne!(a.key, b.key);
+            }
+        }
         for chord in CHORDS {
             assert_eq!(action_for(SIGNATURE, chord.id), Some(chord.action));
         }

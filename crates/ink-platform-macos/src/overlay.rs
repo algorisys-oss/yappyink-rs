@@ -342,7 +342,15 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             height,
             pixels: vec![0u8; surface::buffer_len(width, height)],
             scale,
-            controller: Controller::new(),
+            controller: {
+                let mut controller = Controller::new();
+                // FR-029 through ScreenCaptureKit (ADR-008 as amended). Offered
+                // only where it exists, macOS 12.3 and later.
+                if crate::magnifier::available() {
+                    controller.offer_zoom();
+                }
+                controller
+            },
             session: Session::new(OutputId::new("primary"), size),
             ids: IdSource::starting_at(1),
             painter,
@@ -364,6 +372,14 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     });
 
     crate::hotkey::register(act);
+    crate::magnifier::prepare(
+        crate::magnifier::Screen {
+            origin: (frame.origin.x, frame.origin.y),
+            size: (frame.size.width, frame.size.height),
+            backing,
+        },
+        zoom_failed,
+    );
     print_orientation();
 
     // The same first step as the other adapters. The controller starts Hidden,
@@ -380,7 +396,15 @@ fn make_view(mtm: MainThreadMarker, frame: NSRect) -> Retained<OverlayView> {
     unsafe { msg_send![super(view), initWithFrame: frame] }
 }
 
+/// Capture failed or was refused: put the zoom level back to off, so the next
+/// `z` starts again at the first step.
+fn zoom_failed() {
+    act(Action::ZoomOff);
+}
+
 fn finish() -> Result<Session, PlatformError> {
+    // A capture must never outlive the overlay.
+    crate::magnifier::stop();
     OVERLAY.with(|slot| {
         slot.borrow_mut()
             .take()
@@ -526,10 +550,13 @@ fn apply(effects: Vec<Effect>) {
                 | Effect::BeginWindowDrag
                 | Effect::BeginWindowResize => {}
                 Effect::Faulted { error } => eprintln!("[failed {}] {error}", error.class()),
-                // Zoom is not offered here: macOS has no public API that drives
-                // its own Zoom, and the choice is still open (T039, ADR-008).
-                Effect::Zoom { .. } | Effect::ZoomUnavailable => {
-                    eprintln!("[zoom] not on macOS yet; T039 decides how, see ADR-008");
+                Effect::Zoom { factor } => {
+                    if let Some(mtm) = MainThreadMarker::new() {
+                        crate::magnifier::set(mtm, &overlay.window, factor);
+                    }
+                }
+                Effect::ZoomUnavailable => {
+                    eprintln!("[zoom] not available: ScreenCaptureKit needs macOS 12.3 or later");
                 }
             }
         });
@@ -798,6 +825,8 @@ fn print_orientation() {
     eprintln!();
     eprintln!("  Control+Option+D   draw or pass through, from anywhere");
     eprintln!("  Control+Option+H   hide the ink, from anywhere");
+    eprintln!("  Control+Option+Z   zoom 2x, 3x, 4x, from anywhere; Control+Option+0 resets");
+    eprintln!("                     (macOS asks for Screen Recording permission the first time)");
     eprintln!();
     eprintln!("With the overlay focused: d / p / h draw, pass through, hide; 1-9 tools,");
     eprintln!("u/r undo and redo, w/o write and open, q quit.");
