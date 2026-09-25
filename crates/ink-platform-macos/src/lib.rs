@@ -102,7 +102,8 @@ pub fn capabilities() -> CapabilityReport {
         ),
         (
             Capability::WorkspaceOverlay,
-            "Spaces are covered by the same collection behaviour and are equally unmeasured",
+            "CanJoinAllSpaces should keep the overlay on every desktop, but switching Spaces \
+             has never been observed; T004 was closed with it deferred",
         ),
         (
             Capability::Capture,

@@ -90,7 +90,7 @@ Four defects came out of the reading, each of which would have shown up on the f
 
 ## T004 [M0]: Prove the macOS overlay path
 
-Status: in_progress since 2026-09-24. Dependencies: T001.
+Status: implemented on 2026-09-25, on the evidence of E011, E013 and E014, with Spaces deferred by the owner (in progress from 2026-09-24). Dependencies: T001.
 
 Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
 
@@ -129,6 +129,8 @@ The same reading found three defects the first run would have hit: the overlay s
 **The chord, 2026-09-25 (E013).** The owner reports that Control+Option+D brought the overlay back from pass-through to Draw on the same Mac. That is ADR-007's Carbon route working in an `Accessory` application with no permission grant, and the first global shortcut confirmed on any platform. `global_shortcut` is now `available`, citing E013. Asked, the owner confirmed the application underneath could be used during pass-through, so `visible_passthrough` is `available` too, citing E013. Spaces and fullscreen, the most doubtful part of this task, are what remain.
 
 **Hide and fullscreen, 2026-09-25 (E014).** `Control+Option+H` hides and restores the ink, and after an application went fullscreen the overlay could still be toggled and drawn on, which answers the question ADR-006 marked most likely to fail. `fullscreen_overlay` is `available`, citing E014. The exit criterion's last item is **Spaces**: switching desktops with the overlay running. Until that is recorded the status stays `in_progress`.
+
+**Closed by the owner, 2026-09-25, with Spaces deferred.** The owner decided to close this task without the Spaces check. That is an explicit amendment to the exit criterion, recorded here rather than implied: **Spaces behaviour has not been observed**, `workspace_overlay` stays `unknown` in `doctor`, and nothing in this repository may cite T004 as evidence that the overlay follows the user across desktops. Everything else the criterion asks for, ordinary-app behaviour and fullscreen, has native evidence from one Mac (E011, E013, E014). Spaces should be checked before any macOS support claim (T025).
 
 ## T005 [M0]: Prove the composited X11 path
 

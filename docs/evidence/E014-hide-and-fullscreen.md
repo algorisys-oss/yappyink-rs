@@ -36,7 +36,8 @@ over it.
   report cannot speak for. On macOS, native fullscreen puts the application in
   its own Space, so this report suggests the overlay joined it, but Spaces were
   not tested on their own.
-- **Spaces on macOS** (switching desktops with the overlay running). This is
-  the remaining item in T004's exit criterion.
+- **Spaces on macOS** (switching desktops with the overlay running). This was
+  the remaining item in T004's exit criterion; the owner closed T004 with it
+  deferred, so it is still untested.
 - Emergency hide mid-gesture (FR-018), which is a separate path from the chord.
 - Virtual desktops on Windows.
