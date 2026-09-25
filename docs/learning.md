@@ -437,6 +437,24 @@ cache made an empty page twice as slow, which only the numbers showed, and it
 was fixed by compositing only the rows with ink. A deferral should carry the
 measurement that would end it, and the measurement should be cheap to run.
 
+## 20. A fault in the log, twice, unread
+
+**What happened.** On Wayland every frame at 1366×697 failed with "the frame
+buffer is the wrong size", so the overlay drew nothing. SCTK rounds each shared
+memory slot up to 64 bytes, and `Canvas` rightly refuses a buffer that is not
+exactly the frame. 1280×720 is a multiple, so the default size always worked;
+GNOME auto-maximizing the window on a 1366-wide screen, and the newly working
+resize corner, produced sizes that are not. The bug had been there since the
+Wayland adapter was written.
+
+Two of my measurement runs that day logged this fault, and I reported startup
+time and memory from them without reading the log. The owner found it.
+
+**What changed.** The adapter hands `Canvas` exactly the frame's bytes. And the
+rule for any live run from now on: grep the log for `fault` and `failed`
+before quoting a number from it. A figure from a run that faulted is a figure
+about something else.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

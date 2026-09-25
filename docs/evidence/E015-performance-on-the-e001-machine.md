@@ -142,8 +142,18 @@ character being drawn, so a face for another script is never read.
 
 | Live overlay, release | before | after |
 |---|---|---|
-| launch to Draw | about 2.4 s | **146 ms** |
-| resident memory | 359 MB | **28 MB** |
+| launch to Draw | about 2.4 s | **125 ms** |
+| resident memory | 359 MB | **32 MB** |
+
+**Correction, same day.** The first "after" run reported 146 ms and 28 MB, and
+the idle run in §2 was taken the same way. Both logged one
+`[fault invalid_data] the frame buffer is the wrong size`, which went unread:
+GNOME had maximized the window to 1366×697, and SCTK rounds each buffer up to a
+multiple of 64 bytes, which that size is not, so **no frame was ever drawn**.
+The idle figures are still right in kind, since an idle overlay draws nothing
+either way, but the window being measured was blank. The owner found the fault
+in a run of their own. With the buffer fixed, the figures above are from a run
+with no faults and a drawn window.
 | `TextFont::discover` | 2,403 ms, +345 MB | 77 ms, +0 MB |
 
 Typing a CJK character still costs the 329 MB and the load time, once, at that

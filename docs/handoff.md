@@ -48,7 +48,7 @@ The gesture preview and document painting moved into `ink-ui`
 **Performance (E015):** idle is essentially free. The committed ink is a
 cached layer (`ink_ui::InkLayer`, keyed on `Document::revision`), so 1080p
 frames are 4–11 ms p95 at any ink density; Retina is 11–30 ms and not yet in
-budget. Fallback fonts load on first use: startup 146 ms, 28 MB. A heavy page
+budget. Fallback fonts load on first use: startup 125 ms, 32 MB. Before quoting any number from a live run, grep its log for `fault` (docs/learning.md §20). A heavy page
 still takes one slow frame per commit, which incremental layer updates would
 fix.
 

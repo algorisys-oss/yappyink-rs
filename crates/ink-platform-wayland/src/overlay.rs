@@ -826,6 +826,13 @@ impl Overlay {
             return;
         };
 
+        // SCTK rounds every slot up to a multiple of 64 bytes, so the slice can
+        // be longer than the frame. 1280x720 happens to be a multiple, which is
+        // how this hid until a maximized 1366x697 window and the first resize
+        // failed every frame. Canvas is strict about length on purpose; the
+        // extra bytes are simply not part of the image.
+        let needed = (stride as usize * self.height as usize).min(bytes.len());
+        let bytes = &mut bytes[..needed];
         let Some(mut canvas) = Canvas::new(bytes, self.width, self.height) else {
             eprintln!("[fault invalid_data] the frame buffer is the wrong size");
             return;
