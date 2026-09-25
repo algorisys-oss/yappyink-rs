@@ -1,0 +1,112 @@
+# E015: performance on the E001 machine
+
+**Measured:** 2026-09-25, release build of 0.8.0 plus the uncommitted Wayland
+resize-corner change, which does not touch painting.
+**Machine:** the E001 laptop. 12th Gen Intel Core i5-1235U, 12 threads, 15 GiB,
+`powersave` governor under the `performance` platform profile; Ubuntu 24.04,
+GNOME 46, Wayland, output `eDP-1` at 1366×768.
+**Tasks:** T024. **Requirements:** NFR-001, NFR-002, NFR-003.
+
+**Conditions, so the numbers are not over-read.** An unrelated `ffmpeg` was
+using about seven of the twelve threads throughout, and the load average was
+13 to 16. Frame timings are therefore pessimistic, probably by a large factor
+on the heavier scenes. The idle figures are per-process CPU time and are not
+affected by other load.
+
+## 1. Frame cost: one pointer move plus a full repaint
+
+What every adapter does on each pointer event: the controller handles the
+move, then the whole frame is repainted (clear, document, gesture preview,
+chrome, selection, toolbar). Scenes are 60-point strokes of width 4, one in
+five a highlighter, scattered across the surface. CPU time only; the
+compositor's part and display latency are not included.
+
+```sh
+cargo test --release -p ink-ui --test frame_cost -- --ignored --nocapture --test-threads=1
+```
+
+| Surface | Scene | p50 | p95 | p99 |
+|---|---|---|---|---|
+| 1280×720 @1× (the Linux window) | empty | 2.0 ms | 2.6 ms | 3.0 ms |
+| | 100 strokes | 11.1 ms | 15.0 ms | 15.3 ms |
+| | 1,000 strokes | 96 ms | 115 ms | 120 ms |
+| | 10,000 strokes (the document limit) | 1.01 s | 1.08 s | 1.09 s |
+| 1920×1080 @1× | empty | 3.2 ms | 4.3 ms | 4.6 ms |
+| | 100 strokes | 14.1 ms | 16.8 ms | 17.4 ms |
+| | 1,000 strokes | 101 ms | 116 ms | 121 ms |
+| | 10,000 strokes | 0.99 s | 1.02 s | 1.04 s |
+| 1440×900 @2× (Retina, 2880×1800 px) | empty | 8.8 ms | 11.8 ms | 12.8 ms |
+| | 100 strokes | 45.6 ms | 53.5 ms | 55.6 ms |
+| | 1,000 strokes | 365 ms | 411 ms | 424 ms |
+| | 10,000 strokes | 3.62 s | 3.71 s | 3.75 s |
+
+Where the time goes, at 1920×1080 with 1,000 strokes and a 100-point stroke
+in flight:
+
+| Part | Cost |
+|---|---|
+| **the committed document** | **101.5 ms** |
+| clear, with the capture floor | 1.5 ms |
+| toolbar | 0.6 ms |
+| gesture preview | 0.3 ms |
+| frame and badge | 0.2 ms |
+| one 60-point stroke, for scale | 0.09 ms |
+
+**Finding: every pointer move re-rasterises every committed object.** Frame
+cost is linear in the amount of ink, and almost all of it is ink that has not
+changed. NFR-001's proposed budget is p95 ≤ 16.7 ms on a 1080p reference
+machine. Under this load it is met with an empty page, missed narrowly at 100
+strokes, and missed by six times at 1,000. On a Retina Mac, 100 strokes already
+takes 53 ms, which is under 20 frames a second while drawing.
+
+E006 deferred a cache of the committed scene until something was measured.
+This is that measurement. A raster of the document, rebuilt only when the
+document, the selection drag or the scale changes, would make a pointer move
+cost roughly the empty-page figure plus the preview, whatever is on screen.
+
+## 2. Idle cost of the live overlay
+
+The release binary, started with no arguments, left alone. CPU time read from
+`/proc/<pid>/stat` over 60 seconds in each state.
+
+| State | CPU over 60 s | Voluntary context switches | Resident memory |
+|---|---|---|---|
+| Draw, visible, static | 0.01 s = **0.017 %** of one core | 189 | 359 MB |
+| Hidden | 0.00 s = **0.000 %** | 0 | 359 MB |
+
+NFR-002's target is under 1 % of one core, averaged over 60 s, while Hidden. It
+is met, with the harder visible case as well. This replaces E006's 10-second
+debug-build figure.
+
+## 3. Memory and startup: the font
+
+```sh
+cargo test --release -p ink-render --test font_cost -- --ignored --nocapture --test-threads=1
+```
+
+| Face | File | Glyphs | Resident memory |
+|---|---|---|---|
+| main and all five fallbacks together | | | **+345 MB** |
+| `NotoSansCJK-Regular.ttc` | 18 MB | 65,535 | **+329 MB** |
+| `NotoSansDevanagari-Regular.ttf` | <1 MB | 954 | +3 MB |
+| Arabic, Hebrew, Thai | <1 MB each | ≤1,648 | ≈0 |
+
+Loading them took **2.4 s**, of which the CJK face was 2.4 s.
+
+**Finding: one fallback face is 92 % of the overlay's memory, and delays the
+window by seconds.** `fontdue` expands every glyph of a face when it loads it.
+All three backends load the font before showing their window, so a
+double-click shows nothing for that long. The same will be true on Windows,
+which loads `msyh.ttc` (E010), and on macOS, which loads `Arial Unicode.ttf`;
+neither has been measured. NFR-003 asks for bounded memory; this is bounded,
+but the bound is a font nobody may ever type in.
+
+Loading fallbacks only when a character first needs one would remove both
+costs for anyone who writes only in the main face's scripts.
+
+## Not measured
+
+Time from a pointer event to the pixels on screen, which needs a camera.
+Compositor cost. Frame pacing on screen. Allocations. Windows and macOS: the
+frame harness is portable and could run there, but has not. Any of this on an
+idle machine.

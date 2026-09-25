@@ -352,13 +352,15 @@ Inject mode failure, stale callbacks, surface loss, shortcut disconnect, and act
 
 ## T024 [M2]: Measure responsiveness and resource use
 
-Status: not_started. Dependencies: T014, T015, T017.
+Status: in_progress since 2026-09-25. Dependencies: T014, T015, T017.
 
 Requirements: NFR-001, NFR-002, NFR-003.
 
 Run documented normal/stress scenes in release mode; record p50/p95/p99 submission delay, frame pacing, idle CPU, allocations, and memory.
 
 **Exit criterion:** A reproducible report separates submission timing from photon latency and explains any missed proposed target.
+
+**First measurement, 2026-09-25 (E015).** Release build on the E001 machine, under heavy unrelated load. Idle is met with room to spare: 0.017 % of a core visible, 0 % hidden. NFR-001 is not: every pointer move re-rasterises the whole committed document, so frame cost is linear in ink, p95 16.8 ms at 1080p with 100 strokes and 116 ms with 1,000. And the overlay holds 359 MB, 329 MB of it one CJK fallback font that also delays the window by about 2.4 s. The harnesses are ignored tests (`ink-ui/tests/frame_cost.rs`, `ink-render/tests/font_cost.rs`), so the report is reproducible. Still missing: an idle-machine run, Windows and macOS, and photon latency.
 
 ## T025 [M2]: Run the MVP acceptance matrix
 
