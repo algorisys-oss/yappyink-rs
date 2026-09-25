@@ -68,8 +68,12 @@ this machine, reading the settings after each step:
 | next launch | false, 2.0 | removed |
 
 The relaunch logged "a previous run ended while zoomed; your magnifier
-settings are restored". The toolbar button and the `z` key were not pressed by
-a person; they reach the same controller action as the socket verb.
+settings are restored".
+
+**By hand, after the keymap fix (23f0b52).** The first build ignored `z` on
+Linux: the Wayland adapter kept its own key table (learning §22). With that
+fixed, the owner pressed `z` through the levels, `0` to reset, and the toolbar's
+zoom button, and reported "Yes it worked".
 
 ## Not established
 
