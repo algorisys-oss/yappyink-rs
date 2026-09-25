@@ -422,6 +422,21 @@ a queue so no handler can re-enter. The Wayland resize corner is recorded and
 not fixed here: it can be tested on this machine, and it deserves its own
 change.
 
+## 19. A deferral that was right, and then was not
+
+E006 deferred caching the rendered document until something was measured,
+following `architecture.md`. That was the right call when it was made. It then
+stayed deferred through three backends while the ink a user could draw grew,
+and the first measurement (E015) found 101 of 104 ms per frame going to ink
+that had not changed. The same run found one fallback font holding 92 % of the
+process's memory, loaded for scripts nobody had typed.
+
+**What changed.** The measurement exists now, as ignored tests that can be run
+again, and both fixes were checked against it rather than assumed: the first
+cache made an empty page twice as slow, which only the numbers showed, and it
+was fixed by compositing only the rows with ink. A deferral should carry the
+measurement that would end it, and the measurement should be cheap to run.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

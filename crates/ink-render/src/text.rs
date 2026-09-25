@@ -9,6 +9,7 @@
 //! When no font can be found the text tool is unavailable and says so, rather
 //! than drawing boxes and pretending.
 
+use std::cell::OnceCell;
 use std::path::{Path, PathBuf};
 
 use fontdue::{Font, FontSettings};
@@ -41,14 +42,18 @@ const MACOS_CANDIDATES: [&str; 4] = [
 ];
 
 /// macOS faces with wide coverage, for characters the main face lacks.
-const MACOS_FALLBACKS: [&str; 1] = ["/System/Library/Fonts/Supplemental/Arial Unicode.ttf"];
+const MACOS_FALLBACKS: [(&str, Script); 1] = [(
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+    Script::Any,
+)];
 
 /// Font files under the Windows fonts directory, which is found from `WINDIR`
 /// rather than assumed to be on `C:`.
 const WINDOWS_CANDIDATES: [&str; 3] = ["segoeui.ttf", "arial.ttf", "tahoma.ttf"];
 
 /// Nirmala UI covers the Indic scripts and Microsoft YaHei the CJK ones.
-const WINDOWS_FALLBACKS: [&str; 2] = ["Nirmala.ttf", "msyh.ttc"];
+const WINDOWS_FALLBACKS: [(&str, Script); 2] =
+    [("Nirmala.ttf", Script::Indic), ("msyh.ttc", Script::Cjk)];
 
 /// The candidates for the operating system this was built for.
 fn candidates() -> Vec<PathBuf> {
@@ -60,13 +65,18 @@ fn candidates() -> Vec<PathBuf> {
     )
 }
 
-fn fallbacks() -> Vec<PathBuf> {
-    for_os(
-        std::env::consts::OS,
-        &FALLBACKS,
-        &MACOS_FALLBACKS,
-        &WINDOWS_FALLBACKS,
-    )
+fn fallbacks() -> Vec<(PathBuf, Script)> {
+    let os = std::env::consts::OS;
+    let table: &[(&str, Script)] = match os {
+        "macos" => &MACOS_FALLBACKS,
+        "windows" => &WINDOWS_FALLBACKS,
+        _ => &FALLBACKS,
+    };
+    let names: Vec<&str> = table.iter().map(|(name, _)| *name).collect();
+    for_os(os, &names, &names, &names)
+        .into_iter()
+        .zip(table.iter().map(|(_, script)| *script))
+        .collect()
 }
 
 /// Picks the list for an operating system, with the OS passed in so every
@@ -97,20 +107,102 @@ fn for_os(os: &str, linux: &[&str], macos: &[&str], windows: &[&str]) -> Vec<Pat
 /// out as a row of separate base glyphs in visual order, which for Devanagari
 /// means matras sit after their consonant instead of around it, and conjuncts do
 /// not form. Correct text for those scripts needs a shaping engine.
-const FALLBACKS: [&str; 6] = [
-    "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-    "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
-    "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+///
+/// Each is tagged with the script it is there for, and loaded only when a
+/// character in that script is first drawn. `fontdue` expands every glyph of a
+/// face when it loads one, and loading all of these eagerly cost 345 MB and
+/// 2.4 s before the window appeared, 329 MB of it the CJK face (E015).
+const FALLBACKS: [(&str, Script); 6] = [
+    (
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+        Script::Indic,
+    ),
+    (
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        Script::Cjk,
+    ),
+    (
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Regular.ttf",
+        Script::Arabic,
+    ),
+    (
+        "/usr/share/fonts/truetype/noto/NotoSansHebrew-Regular.ttf",
+        Script::Hebrew,
+    ),
+    (
+        "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+        Script::Thai,
+    ),
+    (
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        Script::Any,
+    ),
 ];
+
+/// What a fallback face is for.
+///
+/// Decided from Unicode blocks rather than by asking each face, because asking
+/// a face means loading it, which is the cost being avoided. `Any` is tried
+/// last, for characters no specific face was chosen for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Script {
+    Indic,
+    Cjk,
+    Arabic,
+    Hebrew,
+    Thai,
+    Any,
+}
+
+/// The script a character belongs to, if it is one a fallback exists for.
+/// `None` for Latin, Greek, Cyrillic, symbols and everything else the main
+/// face is expected to cover.
+fn script_of(character: char) -> Option<Script> {
+    Some(match u32::from(character) {
+        // Devanagari through Sinhala: the Indic blocks.
+        0x0900..=0x0DFF => Script::Indic,
+        0x0590..=0x05FF | 0xFB1D..=0xFB4F => Script::Hebrew,
+        0x0600..=0x06FF | 0x0750..=0x077F | 0xFB50..=0xFDFF | 0xFE70..=0xFEFF => Script::Arabic,
+        0x0E00..=0x0E7F => Script::Thai,
+        // Hangul Jamo, CJK punctuation and kana, the unified ideographs,
+        // Hangul syllables, compatibility forms, full-width forms, and the
+        // supplementary ideograph planes.
+        0x1100..=0x11FF
+        | 0x2E80..=0x9FFF
+        | 0xAC00..=0xD7AF
+        | 0xF900..=0xFAFF
+        | 0xFE30..=0xFE4F
+        | 0xFF00..=0xFFEF
+        | 0x20000..=0x3FFFF => Script::Cjk,
+        _ => return None,
+    })
+}
+
+/// A fallback face that is loaded the first time it is needed.
+struct Fallback {
+    path: PathBuf,
+    script: Script,
+    /// Empty until needed; `Some(None)` if loading failed, so a broken file is
+    /// read once rather than on every character.
+    face: OnceCell<Option<Font>>,
+}
+
+impl Fallback {
+    fn face(&self) -> Option<&Font> {
+        self.face
+            .get_or_init(|| {
+                let bytes = std::fs::read(&self.path).ok()?;
+                Font::from_bytes(bytes, FontSettings::default()).ok()
+            })
+            .as_ref()
+    }
+}
 
 /// A loaded face, ready to rasterise, with fallbacks behind it.
 pub struct TextFont {
     font: Font,
     source: PathBuf,
-    fallbacks: Vec<(Font, PathBuf)>,
+    fallbacks: Vec<Fallback>,
 }
 
 impl TextFont {
@@ -134,13 +226,15 @@ impl TextFont {
         let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         let font = Font::from_bytes(bytes, FontSettings::default())
             .map_err(|e| format!("{} is not a usable font: {e}", path.display()))?;
+        // Only checked for existence here. Nothing is read until a character
+        // needs it (see `FALLBACKS`).
         let fallbacks = fallbacks()
             .into_iter()
-            .filter(|candidate| candidate != path && candidate.exists())
-            .filter_map(|candidate| {
-                let bytes = std::fs::read(&candidate).ok()?;
-                let face = Font::from_bytes(bytes, FontSettings::default()).ok()?;
-                Some((face, candidate))
+            .filter(|(candidate, _)| candidate != path && candidate.exists())
+            .map(|(path, script)| Fallback {
+                path,
+                script,
+                face: OnceCell::new(),
             })
             .collect();
 
@@ -151,9 +245,18 @@ impl TextFont {
         })
     }
 
-    /// The fallback faces that were loaded, for diagnostics.
+    /// The fallback faces available, loaded or not, for diagnostics.
     pub fn fallbacks(&self) -> Vec<&Path> {
-        self.fallbacks.iter().map(|(_, at)| at.as_path()).collect()
+        self.fallbacks.iter().map(|f| f.path.as_path()).collect()
+    }
+
+    /// The fallback faces actually loaded so far.
+    pub fn loaded_fallbacks(&self) -> Vec<&Path> {
+        self.fallbacks
+            .iter()
+            .filter(|f| matches!(f.face.get(), Some(Some(_))))
+            .map(|f| f.path.as_path())
+            .collect()
     }
 
     /// The face that has a glyph for this character, preferring the main one.
@@ -165,10 +268,19 @@ impl TextFont {
         if self.font.lookup_glyph_index(character) != 0 {
             return &self.font;
         }
-        self.fallbacks
+        // The faces for this character's script first, then the general
+        // ones. A face for any other script is never loaded.
+        let script = script_of(character);
+        let specific = self
+            .fallbacks
             .iter()
-            .find(|(face, _)| face.lookup_glyph_index(character) != 0)
-            .map_or(&self.font, |(face, _)| face)
+            .filter(|f| f.script != Script::Any && Some(f.script) == script);
+        let general = self.fallbacks.iter().filter(|f| f.script == Script::Any);
+        specific
+            .chain(general)
+            .filter_map(Fallback::face)
+            .find(|face| face.lookup_glyph_index(character) != 0)
+            .unwrap_or(&self.font)
     }
 
     /// Whether any loaded face can draw this character.
@@ -258,5 +370,61 @@ mod platform_tests {
     fn linux_keeps_its_own_list() {
         let linux = for_os("linux", &CANDIDATES, &MACOS_CANDIDATES, &WINDOWS_CANDIDATES);
         assert_eq!(linux.first(), Some(&PathBuf::from(CANDIDATES[0])));
+    }
+
+    #[test]
+    fn characters_are_sorted_into_the_scripts_with_fallbacks() {
+        assert_eq!(script_of('a'), None);
+        assert_eq!(script_of('é'), None);
+        assert_eq!(script_of('Ж'), None);
+        assert_eq!(script_of('क'), Some(Script::Indic));
+        assert_eq!(script_of('த'), Some(Script::Indic));
+        assert_eq!(script_of('中'), Some(Script::Cjk));
+        assert_eq!(script_of('あ'), Some(Script::Cjk));
+        assert_eq!(script_of('한'), Some(Script::Cjk));
+        assert_eq!(script_of('م'), Some(Script::Arabic));
+        assert_eq!(script_of('ש'), Some(Script::Hebrew));
+        assert_eq!(script_of('ก'), Some(Script::Thai));
+    }
+
+    /// E015: a Latin-only session must never pay for the CJK face.
+    #[test]
+    fn latin_text_loads_no_fallback() {
+        let Ok(font) = TextFont::discover() else {
+            eprintln!("skipped: no usable font on this machine");
+            return;
+        };
+        assert!(font.loaded_fallbacks().is_empty(), "loaded at startup");
+        for character in "Hello, world".chars() {
+            let _ = font.can_draw(character);
+            let _ = font.line_width(&character.to_string(), 20.0);
+        }
+        assert!(
+            font.loaded_fallbacks().is_empty(),
+            "Latin loaded {:?}",
+            font.loaded_fallbacks()
+        );
+    }
+
+    /// And a character in one script loads that script's face and no other.
+    #[test]
+    fn a_script_loads_only_its_own_face() {
+        let Ok(font) = TextFont::discover() else {
+            return;
+        };
+        let named = |needle: &str, paths: &[&Path]| {
+            paths.iter().any(|p| p.to_string_lossy().contains(needle))
+        };
+        if !named("Devanagari", &font.fallbacks()) || !named("CJK", &font.fallbacks()) {
+            eprintln!("skipped: this machine lacks the Noto fallbacks");
+            return;
+        }
+        assert!(font.can_draw('क'));
+        let loaded = font.loaded_fallbacks();
+        assert!(named("Devanagari", &loaded), "{loaded:?}");
+        assert!(
+            !named("CJK", &loaded),
+            "Devanagari text loaded the CJK face: {loaded:?}"
+        );
     }
 }

@@ -362,6 +362,8 @@ Run documented normal/stress scenes in release mode; record p50/p95/p99 submissi
 
 **First measurement, 2026-09-25 (E015).** Release build on the E001 machine, under heavy unrelated load. Idle is met with room to spare: 0.017 % of a core visible, 0 % hidden. NFR-001 is not: every pointer move re-rasterises the whole committed document, so frame cost is linear in ink, p95 16.8 ms at 1080p with 100 strokes and 116 ms with 1,000. And the overlay holds 359 MB, 329 MB of it one CJK fallback font that also delays the window by about 2.4 s. The harnesses are ignored tests (`ink-ui/tests/frame_cost.rs`, `ink-render/tests/font_cost.rs`), so the report is reproducible. Still missing: an idle-machine run, Windows and macOS, and photon latency.
 
+**Both findings fixed, 2026-09-25 (E015 §4).** The committed ink is now a cached layer keyed on a new process-wide `Document::revision`, composited only where rows hold ink: p95 at 1080p is 7.9 ms with 100 strokes and 10.9 ms with 1,000, all under the 16.7 ms budget even under load. Retina improves from 53 to 21 ms at 100 strokes and does not yet meet it. Fallback fonts load when a character in their script is first drawn: startup 2.4 s to 146 ms, memory 359 MB to 28 MB. Remaining: one slow frame per commit on a heavy page (incremental layer update), Retina's fixed cost, and the items above.
+
 ## T025 [M2]: Run the MVP acceptance matrix
 
 Status: not_started. Dependencies: T017, T018, T019, T021, T022, T023, T024.

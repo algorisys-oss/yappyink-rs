@@ -45,11 +45,12 @@ overlays starting Hidden; `docs/learning.md` §18 lists them.
 
 The gesture preview and document painting moved into `ink-ui`
 (`paint_preview`, `paint_document`, `clear`), so all three backends share them.
-**Performance, measured 2026-09-25 (E015):** idle is essentially free, but
-every pointer move re-rasterises the whole document (p95 116 ms at 1080p with
-1,000 strokes), and one CJK fallback font is 329 MB of the overlay's 359 MB and
-about 2.4 s of startup. A cached document raster and lazily loaded fallbacks
-are the two fixes; neither is started.
+**Performance (E015):** idle is essentially free. The committed ink is a
+cached layer (`ink_ui::InkLayer`, keyed on `Document::revision`), so 1080p
+frames are 4–11 ms p95 at any ink density; Retina is 11–30 ms and not yet in
+budget. Fallback fonts load on first use: startup 146 ms, 28 MB. A heavy page
+still takes one slow frame per commit, which incremental layer updates would
+fix.
 
 **Known and not fixed:** the Wayland adapter never calls
 `Controller::set_surface_size`, so its resize corner never appears. It is

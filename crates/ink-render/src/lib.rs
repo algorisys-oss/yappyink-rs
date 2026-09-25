@@ -160,6 +160,50 @@ impl<'a> Canvas<'a> {
     }
 
     /// Source-over blend of a premultiplied colour at a pixel.
+    /// Composites a whole premultiplied layer of the same size over this
+    /// canvas, source-over, with the same rounding as every other blend here.
+    ///
+    /// For a cached raster of the document. Transparent layer pixels are
+    /// skipped and opaque ones copied, which is most of any real page, so the
+    /// cost is close to a memory pass rather than a blend per pixel. Returns
+    /// false, touching nothing, if the sizes disagree.
+    pub fn composite(&mut self, layer: &[u8]) -> bool {
+        self.composite_range(layer, 0..layer.len())
+    }
+
+    /// [`Canvas::composite`], over one byte range of the layer only.
+    ///
+    /// A cached layer knows which runs of each row hold ink, and compositing
+    /// only those is what keeps an empty or sparse page as cheap as it was
+    /// before there was a cache. The range must be pixel-aligned.
+    pub fn composite_range(&mut self, layer: &[u8], range: std::ops::Range<usize>) -> bool {
+        if layer.len() != self.pixels.len()
+            || range.end > layer.len()
+            || !range.start.is_multiple_of(4)
+            || !range.end.is_multiple_of(4)
+        {
+            return false;
+        }
+        let under_pixels = &mut self.pixels[range.clone()];
+        for (under, over) in under_pixels
+            .chunks_exact_mut(4)
+            .zip(layer[range].chunks_exact(4))
+        {
+            match over[3] {
+                0 => {}
+                255 => under.copy_from_slice(over),
+                alpha => {
+                    let inverse = 255 - u32::from(alpha);
+                    for (below, above) in under.iter_mut().zip(over) {
+                        let blended = u32::from(*above) + (u32::from(*below) * inverse + 127) / 255;
+                        *below = blended.min(255) as u8;
+                    }
+                }
+            }
+        }
+        true
+    }
+
     fn blend(&mut self, x: i64, y: i64, colour: [u8; 4]) {
         if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {
             return;

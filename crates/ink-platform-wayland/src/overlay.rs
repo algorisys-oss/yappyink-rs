@@ -269,11 +269,15 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         controller: Controller::new(),
         session: Session::new(output, config.size),
         ids: IdSource::starting_at(1),
+        ink: ink_ui::InkLayer::new(),
         painter: match ink_render::text::TextFont::discover() {
             Ok(font) => {
                 eprintln!("[font] {}", font.source().display());
                 for fallback in font.fallbacks() {
-                    eprintln!("[font] fallback {}", fallback.display());
+                    eprintln!(
+                        "[font] fallback {}, loaded when first needed",
+                        fallback.display()
+                    );
                 }
                 ink_render::Painter::new().with_font(font)
             }
@@ -471,6 +475,9 @@ pub struct Overlay {
     session: Session,
     ids: IdSource,
     painter: ink_render::Painter,
+    /// The committed ink, rasterised once and reused until it changes, so a
+    /// pointer move does not re-rasterise every stroke on the page (E015).
+    ink: ink_ui::InkLayer,
     /// Transitions whose native work has been issued and will be confirmed on
     /// the next loop iteration, once the commit has reached the compositor.
     pending_confirmations: Vec<TransitionId>,
@@ -824,7 +831,7 @@ impl Overlay {
             return;
         };
         canvas.clear();
-        ink_ui::paint_document(
+        self.ink.paint(
             &mut canvas,
             &self.controller,
             self.session.document(),
@@ -1457,6 +1464,14 @@ impl WindowHandler for Overlay {
         if let (Some(width), Some(height)) = configure.new_size {
             self.width = width.get();
             self.height = height.get();
+            // The controller offers the resize corner only once it knows the
+            // surface's size. Nothing told it until 0.8.1, so on GNOME the
+            // corner never appeared and the 1280x720 window could not be
+            // enlarged from the app, which is the only way to annotate more of
+            // the screen here (E002: fullscreen loses transparency).
+            if let Some(size) = LogicalSize::new(f64::from(width.get()), f64::from(height.get())) {
+                self.controller.set_surface_size(size);
+            }
         }
 
         // Logged on the first configure and whenever the size changes. This is

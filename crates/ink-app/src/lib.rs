@@ -828,7 +828,13 @@ impl Controller {
     }
 
     /// The corner that starts a resize, if the surface size is known.
+    ///
+    /// None while Parked: the surface is only the toolbar then, and a corner
+    /// would sit on top of its buttons.
     pub fn resize_corner(&self) -> Option<LogicalRect> {
+        if self.effective == Mode::Parked {
+            return None;
+        }
         let size = self.surface?;
         let grab = RESIZE_CORNER
             .min(size.width() / 2.0)

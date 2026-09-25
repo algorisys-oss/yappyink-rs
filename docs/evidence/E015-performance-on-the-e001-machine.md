@@ -104,6 +104,51 @@ but the bound is a font nobody may ever type in.
 Loading fallbacks only when a character first needs one would remove both
 costs for anyone who writes only in the main face's scripts.
 
+## 4. After the two fixes, same day, same machine, same kind of load
+
+Both findings were fixed and measured again, with `ffmpeg` still running and
+the load average between 14 and 21.
+
+**The committed ink is cached** (`ink_ui::InkLayer`). It is rasterised once,
+keyed on a process-wide document revision, the size, the scale, whether the
+mode shows ink, and which objects a selection drag fades. Only the rows that
+hold ink are composited each frame, so an empty page costs what it did before.
+
+| p95 | before | after |
+|---|---|---|
+| 1280×720, 100 strokes | 15.0 ms | 5.2 ms |
+| 1280×720, 1,000 strokes | 115 ms | 7.5 ms |
+| 1920×1080, empty | 4.3 ms | 4.1 ms |
+| 1920×1080, 100 strokes | 16.8 ms | **7.9 ms** |
+| 1920×1080, 1,000 strokes | 116 ms | **10.9 ms** |
+| 1920×1080, 10,000 strokes | 1.02 s | **9.9 ms** |
+| Retina, empty | 11.8 ms | 11.3 ms |
+| Retina, 100 strokes | 53.5 ms | **21.5 ms** |
+| Retina, 1,000 strokes | 411 ms | **30.4 ms** |
+
+Every 1080p scene now meets NFR-001's proposed 16.7 ms, under load. Retina
+does not yet: the fixed cost there is filling 5.2 million pixels with the
+capture floor and compositing a dense layer, and 21–30 ms under this load is
+roughly 35–45 frames a second.
+
+The cost moved rather than vanished: the layer is rebuilt when the document
+changes, which is once per committed stroke, undo or erase, and that one frame
+costs what every frame used to. With 1,000 strokes at 1080p that is a single
+frame of about 100 ms when the button is released. Painting only the new
+object onto the layer, rather than rebuilding it, would remove that.
+
+**Fallback fonts load when first needed**, chosen by the script of the
+character being drawn, so a face for another script is never read.
+
+| Live overlay, release | before | after |
+|---|---|---|
+| launch to Draw | about 2.4 s | **146 ms** |
+| resident memory | 359 MB | **28 MB** |
+| `TextFont::discover` | 2,403 ms, +345 MB | 77 ms, +0 MB |
+
+Typing a CJK character still costs the 329 MB and the load time, once, at that
+moment. That is the right place for it: only someone writing CJK pays.
+
 ## Not measured
 
 Time from a pointer event to the pixels on screen, which needs a camera.

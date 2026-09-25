@@ -203,6 +203,111 @@ pub fn paint_document(
     }
 }
 
+/// A raster of the committed document, repainted only when something it
+/// depends on changes.
+///
+/// Every pointer move repaints the frame, and before this every one of them
+/// re-rasterised every committed object. That made a frame cost linear in the
+/// ink on screen: 116 ms at 1080p with 1,000 strokes, against a 16.7 ms budget,
+/// with 101 ms of it ink that had not changed (E015). With the layer, a move
+/// costs one composite of the cached pixels plus the stroke in flight.
+///
+/// The key is everything the pixels depend on: the document's revision, the
+/// surface size, the scale, whether the mode shows ink, and which objects are
+/// faded because a selection is being dragged. Anything else is drawn fresh
+/// every frame, over the layer, by the other functions in this crate.
+#[derive(Default)]
+pub struct InkLayer {
+    pixels: Vec<u8>,
+    /// The byte range of each row that holds any ink, found once per rebuild.
+    /// Only these are composited, so an empty page costs nothing per frame.
+    spans: Vec<std::ops::Range<usize>>,
+    key: Option<LayerKey>,
+    /// How many times the layer was rebuilt, for tests and diagnostics.
+    rebuilds: u64,
+}
+
+/// For each row, the byte range from its first inked pixel to its last.
+/// Rows with no ink contribute nothing.
+fn ink_spans(pixels: &[u8], width: usize) -> Vec<std::ops::Range<usize>> {
+    let stride = width * 4;
+    if stride == 0 {
+        return Vec::new();
+    }
+    pixels
+        .chunks_exact(stride)
+        .enumerate()
+        .filter_map(|(row, bytes)| {
+            let inked = |pixel: &[u8]| pixel[3] != 0;
+            let first = bytes.chunks_exact(4).position(inked)?;
+            let last = bytes.chunks_exact(4).rposition(inked)?;
+            Some(row * stride + first * 4..row * stride + (last + 1) * 4)
+        })
+        .collect()
+}
+
+#[derive(Clone, PartialEq)]
+struct LayerKey {
+    revision: u64,
+    width: u32,
+    height: u32,
+    scale_bits: u64,
+    visible: bool,
+    faded: Vec<ink_core::ObjectId>,
+}
+
+impl InkLayer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// How many times the document has been re-rasterised.
+    pub fn rebuilds(&self) -> u64 {
+        self.rebuilds
+    }
+
+    /// Paints the document onto `canvas`, rebuilding the cached raster first
+    /// only if it is stale. Produces the same pixels as [`paint_document`].
+    pub fn paint(
+        &mut self,
+        canvas: &mut Canvas,
+        controller: &Controller,
+        document: &Document,
+        painter: &mut Painter,
+        scale: Scale,
+    ) {
+        let key = LayerKey {
+            revision: document.revision(),
+            width: canvas.width(),
+            height: canvas.height(),
+            scale_bits: scale.get().to_bits(),
+            visible: Toolbar::ink_is_visible(controller.mode()),
+            faded: if controller.selection_drag().is_some() {
+                controller.selection().to_vec()
+            } else {
+                Vec::new()
+            },
+        };
+        if !key.visible {
+            return;
+        }
+        if self.key.as_ref() != Some(&key) {
+            let length = key.width as usize * key.height as usize * 4;
+            self.pixels.clear();
+            self.pixels.resize(length, 0);
+            if let Some(mut layer) = Canvas::new(&mut self.pixels, key.width, key.height) {
+                paint_document(&mut layer, controller, document, painter, scale);
+            }
+            self.spans = ink_spans(&self.pixels, key.width as usize);
+            self.key = Some(key);
+            self.rebuilds += 1;
+        }
+        for span in &self.spans {
+            canvas.composite_range(&self.pixels, span.clone());
+        }
+    }
+}
+
 /// Draws the gesture in flight: a stroke or shape while it is being dragged,
 /// the eraser's sweep, and text while it is being typed.
 ///

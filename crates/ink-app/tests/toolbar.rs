@@ -453,6 +453,27 @@ fn pressing_the_bottom_right_corner_asks_the_compositor_to_resize() {
     );
 }
 
+/// Parked shrinks the surface to the toolbar, so a corner would sit on the
+/// buttons and a press meant for one would start a resize instead.
+#[test]
+fn there_is_no_resize_corner_while_parked() {
+    let mut controller = drawing();
+    controller.set_surface_size(ink_core::LogicalSize::new(800.0, 600.0).unwrap());
+    assert!(controller.resize_corner().is_some());
+
+    let effects = controller.act(Action::TogglePark);
+    let transition = effects
+        .iter()
+        .find_map(|e| match e {
+            Effect::ApplyMode { transition, .. } => Some(*transition),
+            _ => None,
+        })
+        .expect("TogglePark requests a mode");
+    controller.handle(PlatformEvent::ModeApplied { transition });
+
+    assert!(controller.resize_corner().is_none());
+}
+
 #[test]
 fn the_canvas_next_to_the_resize_corner_still_draws() {
     // The grab area has to be small enough that it does not eat the drawing

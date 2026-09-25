@@ -80,9 +80,16 @@ fn scene(strokes: usize, w: f64, h: f64, style: Style) -> Session {
     s
 }
 
-fn frame(canvas: &mut Canvas, c: &Controller, s: &Session, painter: &mut Painter, scale: Scale) {
+fn frame(
+    canvas: &mut Canvas,
+    ink: &mut ink_ui::InkLayer,
+    c: &Controller,
+    s: &Session,
+    painter: &mut Painter,
+    scale: Scale,
+) {
     ink_ui::clear(canvas, true);
-    ink_ui::paint_document(canvas, c, s.document(), painter, scale);
+    ink.paint(canvas, c, s.document(), painter, scale);
     ink_ui::paint_preview(canvas, c, s.document().output(), painter, scale);
     ink_ui::paint_chrome(canvas, c.mode(), c.style(), c.tool());
     ink_ui::paint_selection(canvas, c, s.document(), painter, scale);
@@ -116,8 +123,11 @@ fn frame_cost() {
             let mut r = Rng(11);
             let (mut x, mut y) = (lw / 2.0, lh / 2.0);
             ctl.handle(PlatformEvent::PointerDown { at: p(x, y) });
-            // warm up
-            frame(&mut canvas, &ctl, &session, &mut painter, scale);
+            // Warm up, which also builds the ink layer. The timed frames are
+            // the steady state while drawing; a rebuild happens once per
+            // commit, and costs what a frame used to (see `breakdown`).
+            let mut ink = ink_ui::InkLayer::new();
+            frame(&mut canvas, &mut ink, &ctl, &session, &mut painter, scale);
             let mut times = Vec::with_capacity(iters);
             for i in 0..iters {
                 if i % 150 == 149 {
@@ -128,7 +138,7 @@ fn frame_cost() {
                 y = (y + (r.next() - 0.5) * 16.0).clamp(80.0, lh - 1.0);
                 let start = Instant::now();
                 ctl.handle(PlatformEvent::PointerMoved { at: p(x, y) });
-                frame(&mut canvas, &ctl, &session, &mut painter, scale);
+                frame(&mut canvas, &mut ink, &ctl, &session, &mut painter, scale);
                 times.push(start.elapsed().as_secs_f64() * 1000.0);
             }
             times.sort_by(|a, b| a.partial_cmp(b).unwrap());

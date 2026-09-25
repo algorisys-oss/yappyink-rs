@@ -86,6 +86,9 @@ struct Overlay {
     session: Session,
     ids: IdSource,
     painter: Painter,
+    /// The committed ink, rasterised once and reused until it changes, so a
+    /// pointer move does not re-rasterise every stroke on the page (E015).
+    ink: ink_ui::InkLayer,
 
     hidden: bool,
     pass_through: bool,
@@ -318,7 +321,10 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         Ok(font) => {
             eprintln!("[font] {}", font.source().display());
             for fallback in font.fallbacks() {
-                eprintln!("[font] fallback {}", fallback.display());
+                eprintln!(
+                    "[font] fallback {}, loaded when first needed",
+                    fallback.display()
+                );
             }
             Painter::new().with_font(font)
         }
@@ -340,6 +346,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             session: Session::new(OutputId::new("primary"), size),
             ids: IdSource::starting_at(1),
             painter,
+            ink: ink_ui::InkLayer::new(),
             hidden: false,
             pass_through: false,
             last_pointer: None,
@@ -640,7 +647,7 @@ fn paint(view: &OverlayView) {
         ink_ui::clear(&mut canvas, mode == Mode::Draw);
 
         let output = overlay.session.document().output().clone();
-        ink_ui::paint_document(
+        overlay.ink.paint(
             &mut canvas,
             &overlay.controller,
             overlay.session.document(),
