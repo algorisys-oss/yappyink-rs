@@ -104,3 +104,21 @@ is the much larger one: hosting the overlay as a Shell actor, which means the
 drawing surface living inside the Shell process. That is a different project,
 and ADR-002's outcome (c), an honestly limited preview, becomes the likely
 answer.
+
+## 2026-09-25: loaded for hours, and never took charge of a window
+
+The journal on the E001 machine shows the extension enabled and disabled
+around every screen lock since 15:47, so GNOME Shell has been loading it. It
+never logged "took charge of": it never recognised a yappyink window.
+
+The cause, by reading: `window-created` fires when a Wayland toplevel is
+created, before the client's `set_app_id` and `set_title` requests are
+processed, so both are empty then. `_adopt` decided at that instant, saw an
+anonymous window, and did not look again. Fixed to wait for `shown` and decide
+then. The adapter had also, for an hour, declined floating size suggestions,
+which would have refused the extension's resize; that is reverted.
+
+**Not yet observed:** the fixed extension, which needs a log-out to load, and
+the question this file exists for, whether a window sized to the whole monitor
+keeps its transparency.
+

@@ -268,7 +268,6 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         first_configure: false,
         framed: false,
         floating: None,
-        desired: None,
         maximized: false,
         needs_redraw: false,
         controller: Controller::new(),
@@ -357,7 +356,6 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         }
         None => crate::sizing::floating_size((overlay.width, overlay.height), &outputs),
     };
-    overlay.desired = Some((width, height));
     if saved.is_none() && (width, height) != (overlay.width, overlay.height) {
         eprintln!(
             "[output] asking for {width}x{height} rather than {}x{}: GNOME would maximize the \
@@ -558,10 +556,6 @@ pub struct Overlay {
     /// The last size GNOME confirmed while floating and not parked, written
     /// out on exit so the next launch opens the same size.
     floating: Option<(u32, u32)>,
-    /// The size the user wants while floating: remembered from last time, or
-    /// set by their own resize. GNOME's floating suggestions are declined in
-    /// its favour; see `configure`.
-    desired: Option<(u32, u32)>,
     /// Whether the last configure said maximized.
     maximized: bool,
     pub(crate) needs_redraw: bool,
@@ -1579,46 +1573,15 @@ impl WindowHandler for Overlay {
             }
         }
 
-        // Whose size is it? While floating and not being resized by the user,
-        // xdg-shell makes the configure size a suggestion the client may
-        // decline, and this one does: it keeps the size the user left it at.
-        // GNOME's suggestions there were wrong twice on the owner's machine,
-        // 1024x522 after un-maximizing and a stale 1092x614 on activation
-        // (docs/learning.md section 23). Maximized, fullscreen, tiled or
-        // mid-resize, the compositor's size is binding and is followed.
-        let floating = !configure.is_maximized()
-            && !configure.is_fullscreen()
-            && !configure.is_tiled()
-            && self.restore_size.is_none();
-        let suggested = configure
+        // The compositor's size is followed. For a while the adapter declined
+        // GNOME's floating suggestions to keep a remembered size; that is gone
+        // with the design that needed it, and it would have refused the Shell
+        // extension sizing the window to the monitor (docs/learning.md 23).
+        let size = configure
             .new_size
             .0
             .zip(configure.new_size.1)
             .map(|(w, h)| (w.get(), h.get()));
-        let size = match (floating, configure.is_resizing(), suggested, self.desired) {
-            // The user dragging the corner or the grip: theirs, and remembered.
-            (true, true, Some(size), _) => {
-                self.desired = Some(size);
-                Some(size)
-            }
-            // A suggestion while floating: declined in favour of the user's.
-            (true, false, _, Some(desired)) => {
-                if suggested.is_some_and(|size| size != desired) {
-                    eprintln!(
-                        "[output] kept {}x{}; GNOME suggested {:?}",
-                        desired.0, desired.1, suggested
-                    );
-                }
-                Some(desired)
-            }
-            (true, false, Some(size), None) => {
-                self.desired = Some(size);
-                Some(size)
-            }
-            // Maximized, fullscreen, tiled, or parked: the compositor decides.
-            (false, _, Some(size), _) => Some(size),
-            (_, _, None, _) => None,
-        };
         if let Some((width, height)) = size {
             self.width = width;
             self.height = height;

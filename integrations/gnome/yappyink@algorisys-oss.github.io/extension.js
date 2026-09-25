@@ -93,22 +93,34 @@ export default class YappyinkOverlaySupport extends Extension {
     }
 
     _adopt(window) {
-        if (!this._isOverlay(window) || this._managed.has(window))
+        if (!window || this._managed.has(window) || this._pending.has(window))
+            return;
+        if (window.get_window_type() !== Meta.WindowType.NORMAL)
             return;
 
-        // Acting before the window has its first frame produces a window that
-        // flickers into place. Waiting for it costs nothing.
-        if (window.get_compositor_private()) {
+        // A window that has already said who it is and is not the overlay is
+        // left alone at once.
+        const identified = !!window.get_wm_class();
+        if (identified && !this._isOverlay(window))
+            return;
+
+        if (identified && window.get_compositor_private()) {
             this._apply(window);
             return;
         }
-        if (this._pending.has(window))
-            return;
 
+        // Otherwise wait until it is shown, and decide then. For a Wayland
+        // client `window-created` fires when the toplevel is created, before
+        // its app id and title requests are processed, so both are empty at
+        // that instant. The first version decided there and then, saw an
+        // anonymous window, and never looked again: in hours of being enabled
+        // on the E001 machine it never took charge of a single overlay.
+        // Waiting for 'shown' also avoids a window that flickers into place.
         const id = window.connect('shown', () => {
             window.disconnect(id);
             this._pending.delete(window);
-            this._apply(window);
+            if (this._isOverlay(window))
+                this._apply(window);
         });
         this._pending.set(window, id);
     }
