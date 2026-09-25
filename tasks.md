@@ -120,6 +120,8 @@ The same reading found three defects the first run would have hit: the overlay s
 
 **First launch, reported 2026-09-25 (E009).** A user ran the 0.6.0 binary on an Apple Silicon Mac. It found the screen (1440×900 points, backing scale 2), found no font, and then appeared to freeze. That fits the three defects above: an overlay that started Hidden but still took clicks, a keyboard that never reached it, and no chord to escape. 0.7.0 fixes all three, adds macOS system font paths, and makes `doctor` report the native backend, which it previously never mentioned on macOS. Second-hand and without screenshots, so no capability moves off `unknown`; it does mean there is now someone who can run it.
 
+**Drawing, 2026-09-25 (E011).** The same user ran 0.7.x and sent a screenshot: the overlay over Finder and the desktop, the toolbar and swatch picker, and a rectangle, ellipse and arrow drawn over what had been transparent canvas, sharp at backing scale 2. The system font was found and both Carbon chords registered. `live_overlay` and `draw_pointer_capture` are now `available`, citing E011; everything else stays `unknown`. Status stays `in_progress`: pass-through, the chords firing, and Spaces and fullscreen are the rest of the exit criterion.
+
 ## T005 [M0]: Prove the composited X11 path
 
 Status: not_started. Dependencies: T001.

@@ -26,7 +26,7 @@ the specification documents. Same project.
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
 | Windows | **drawing works**, seen on one machine: the overlay stays above other windows and every tool draws ([E010](docs/evidence/E010-first-windows-run.md)). Pass-through, the chords and the rest are not yet confirmed |
-| macOS | a complete backend that links and passes its unit tests. Launched once, by a user, on 0.6.0: it found the screen and then appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). Nothing is claimed |
+| macOS | **drawing works**, seen on one Retina Mac: the overlay stays above other apps and the shape tools draw ([E011](docs/evidence/E011-first-macos-drawing.md)). The first launch, on 0.6.0, appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). Pass-through and the chords are not yet confirmed |
 
 `yappyink draw` starts the overlay on all three. CI builds and links the Windows
 and macOS binaries on real runners and runs the unit tests there, which keeps
@@ -111,8 +111,9 @@ record.
 ### The macOS backend
 
 [crates/ink-platform-macos](crates/ink-platform-macos/) is T004, **in
-progress, and launched exactly once** — by a user on 0.6.0, and it went badly
-([E009](docs/evidence/E009-first-macos-launch.md)). A borderless `NSWindow` with a clear background at
+progress, and drawing works on the one Mac it has been run on**
+([E011](docs/evidence/E011-first-macos-drawing.md)). Its first launch, on
+0.6.0, appeared to freeze ([E009](docs/evidence/E009-first-macos-launch.md)). A borderless `NSWindow` with a clear background at
 window level 1000 (`kCGScreenSaverWindowLevel`), holding a custom `NSView`.
 Pass-through is `setIgnoresMouseEvents:`, which is AppKit's own hit-test
 routing, so nothing is forwarded. It draws with the same toolbar and the same
@@ -134,8 +135,8 @@ accepts a key press has to become key, and that takes focus from the
 application being annotated.
 
 **This is the least verified code in the repository.** Nobody on this project
-has a Mac. CI builds and links it on a macOS runner, and one user's launch
-showed it finding the screen, finding no font, and appearing to freeze. If nobody ever runs it, the honest outcome is to declare macOS
+has a Mac. CI builds and links it on a macOS runner, and one user's Mac has
+shown it drawing; nothing beyond that is confirmed. If nobody ever runs it, the honest outcome is to declare macOS
 unsupported rather than ship it quietly, and
 [ADR-006](docs/adr/ADR-006-macos-bindings.md) says so.
 
@@ -366,7 +367,7 @@ crates/ink-render            software rasteriser, pixel-tested headlessly
 crates/ink-platform          typed capability and error contracts
 crates/ink-platform-wayland  the Wayland surface and event loop
 crates/ink-platform-windows  the Win32 layered window (draws; E010)
-crates/ink-platform-macos    the AppKit window (launched once; E009)
+crates/ink-platform-macos    the AppKit window (draws; E011)
 crates/ink-ui                the toolbar and chrome every backend draws
 apps/yappyink                the binary: doctor, draw, control commands
 experiments/                 throwaway probes; delete when their ADR closes

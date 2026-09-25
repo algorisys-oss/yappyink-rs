@@ -19,7 +19,7 @@
       "tests": [
         "crates/ink-ui/tests/chrome.rs"
       ],
-      "note": "Headless: a capturing frame has no alpha-zero pixel. Native: on one Windows machine clicks on empty canvas drew rather than falling through (E010). Not observed on macOS or on other Windows configurations, so the scenario is not passed."
+      "note": "Headless: a capturing frame has no alpha-zero pixel. Native: on one Windows machine (E010) and one Mac (E011), clicks on empty canvas drew rather than falling through. Other configurations are unobserved, so the scenario is not passed."
     },
     {
       "id": "AC-FR-003",

@@ -500,8 +500,22 @@ pub fn paint_toolbar(
                 draw(&[(0.38, 0.2), (0.42, 0.05), (0.58, 0.05), (0.62, 0.2)]);
                 draw(&[(0.2, 0.2), (0.28, 1.0), (0.72, 1.0), (0.8, 0.2)]);
             }
-            // A nib: a stroke with a tail.
-            Icon::Pen => draw(&[(0.0, 1.0), (0.35, 0.55), (1.0, 0.0)]),
+            // A pencil lying on the diagonal: the body, the sharpened tip at
+            // the lower left, the edge where the wood is cut, and a band near
+            // the far end. It used to be a single bent line, which at toolbar
+            // size could not be told from the Line tool beside it.
+            Icon::Pen => {
+                draw(&[
+                    (0.0, 1.0),
+                    (0.44, 0.86),
+                    (1.0, 0.30),
+                    (0.70, 0.0),
+                    (0.14, 0.56),
+                    (0.0, 1.0),
+                ]);
+                draw(&[(0.44, 0.86), (0.14, 0.56)]);
+                draw(&[(0.88, 0.42), (0.58, 0.12)]);
+            }
             // The same line, deliberately blunter.
             Icon::Highlighter => {
                 let points: Vec<(f64, f64)> = [(0.0, 1.0), (1.0, 0.0)]

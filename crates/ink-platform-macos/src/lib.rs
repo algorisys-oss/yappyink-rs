@@ -18,8 +18,8 @@
 //! window, an event loop and a bitmap handed to Core Graphics, and that is
 //! genuinely unverifiable without the hardware.
 //!
-//! **Nothing here has been run.** Every capability this crate reports is
-//! `unknown`, and `docs/adr/ADR-006-macos-bindings.md` records that if that
+//! **Two capabilities have been seen working on one Mac (E011).** Every other
+//! capability this crate reports is `unknown`, and `docs/adr/ADR-006-macos-bindings.md` records that if that
 //! never changes the honest outcome is to declare macOS unsupported rather
 //! than ship it quietly.
 
@@ -44,17 +44,25 @@ pub const BACKEND: &str = "macos-appkit";
 /// `Available` would be inventing a measurement.
 pub fn capabilities() -> CapabilityReport {
     let mut report = CapabilityReport::new();
+    // Observed on one Apple Silicon Mac at backing scale 2: shapes drawn over
+    // a Finder window and the desktop, in areas that had been fully
+    // transparent. See docs/evidence/E011.
+    report.record(CapabilityFinding::new(
+        Capability::LiveOverlay,
+        CapabilityState::available(
+            "E011: ink stayed visible above Finder and the desktop from a screen-saver-level \
+             window, on one Retina Mac",
+        ),
+        BACKEND,
+    ));
+    report.record(CapabilityFinding::new(
+        Capability::DrawPointerCapture,
+        CapabilityState::available(
+            "E011: clicks on empty canvas drew shapes rather than reaching Finder underneath",
+        ),
+        BACKEND,
+    ));
     let unproven = [
-        (
-            Capability::LiveOverlay,
-            "a borderless NSWindow at screen-saver level with a clear background should \
-             composite above other applications; nobody has watched it",
-        ),
-        (
-            Capability::DrawPointerCapture,
-            "with ignoresMouseEvents off, the view should receive clicks on transparent \
-             pixels; nobody has watched it",
-        ),
         (
             Capability::VisiblePassthrough,
             "setIgnoresMouseEvents: should let AppKit route clicks underneath with nothing \
@@ -113,20 +121,25 @@ mod tests {
 
     /// The honesty rule, enforced rather than trusted.
     ///
-    /// The temptation once a Mac appears will be to mark these `Available`
-    /// from the documentation rather than from what was seen. This fails if
-    /// anyone does, which makes them delete it deliberately and, ideally,
-    /// attach an evidence file.
+    /// Exactly the capabilities an evidence file supports may be `Available`,
+    /// and each must cite it. Everything else stays `Unknown`. Adding to the
+    /// list below means adding the evidence first.
     #[test]
     fn nothing_is_claimed_before_it_is_measured() {
+        let observed = [Capability::LiveOverlay, Capability::DrawPointerCapture];
         for finding in capabilities().findings() {
-            assert!(
-                matches!(finding.state, CapabilityState::Unknown { .. }),
-                "{:?} claims {:?}, but no Mac has run this code. If that has changed, \
-                 cite the evidence file when you change this test.",
-                finding.capability,
-                finding.state
-            );
+            match &finding.state {
+                CapabilityState::Available { evidence } => {
+                    assert!(
+                        observed.contains(&finding.capability),
+                        "{:?} claims availability with no evidence file",
+                        finding.capability
+                    );
+                    assert!(evidence.starts_with("E011"), "{evidence}");
+                }
+                CapabilityState::Unknown { .. } => {}
+                other => panic!("{:?} claims {other:?} without evidence", finding.capability),
+            }
         }
     }
 

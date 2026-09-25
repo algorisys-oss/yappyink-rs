@@ -274,8 +274,7 @@ fn native_section(
 
 /// On macOS the adapter is linked and reports what it would offer.
 ///
-/// Every state is `Unknown`. One person has launched it (E009), which showed a
-/// screen being found and nothing else that a capability could rest on.
+/// Two states are `Available` from one Mac (E011); the rest are `Unknown`.
 #[cfg(target_os = "macos")]
 fn native_section(
     out: &mut String,
@@ -284,13 +283,15 @@ fn native_section(
 ) {
     let _ = writeln!(
         *out,
-        "  the macos-appkit backend is compiled in, and none of its capabilities has been confirmed"
+        "  the macos-appkit backend is compiled in; live overlay and draw capture were seen \
+         working on one Mac (E011), and nothing else has been confirmed"
     );
     for finding in ink_platform_macos::capabilities().findings() {
         capabilities.record(finding.clone());
     }
     not_probed.push(
-        "every macos capability: launched once (E009), but nothing on screen was recorded"
+        "pass-through, keyboard release, the global chords, screens, fullscreen and Spaces \
+         on macos: nobody has recorded them yet"
             .to_owned(),
     );
 }
