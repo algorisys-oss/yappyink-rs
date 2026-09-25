@@ -488,18 +488,28 @@ the gap.
 asks the shared keymap what it means, as the others do. A test replays every
 key the old table bound, so the move is checked to have lost nothing.
 
-## 23. Two plausible designs, both wrong, found in two runs
+## 23. Four plausible designs for one window size
 
 Remembering the window size looked simple. The first version opened at the
 remembered 1366x697 and relied on asking GNOME to un-maximize: GNOME
 maximized it, and when asked to float, chose 1024x522 by itself, which was
 then saved as the size to remember. The second grew the window on the first
 configure after its first frame: GNOME sent no such configure, so it never
-grew. The version that works grows right after the first frame is committed.
+grew. The third grew right after the first frame was committed, which passed
+here and failed on the owner's screen: once the window had focus GNOME sent a
+configure still carrying the old 1092x614, the adapter obeyed it, shrank, and
+saved the small size. The fourth pinned the first size (minimum = maximum) so
+it could not be maximized; GNOME 46 maximized it anyway.
 
-Neither mistake was visible in the code or the unit tests, which were right
-about the arithmetic. Each took one live run to find. That is the argument for
-running the thing before calling it done, made twice in ten minutes.
+What works is the rule underneath all four: xdg-shell makes a floating
+window's configure size a suggestion the client may decline. The adapter now
+keeps the size the user left it at while floating, and follows the compositor
+only when maximized, fullscreen, tiled, or mid-resize.
+
+None of these mistakes was visible in the code or the unit tests, which were
+right about the arithmetic. Each took a live run to find, and one only showed
+on the owner's session, where the window had focus and mine did not. A run on
+the development machine is necessary and not sufficient.
 
 ## What has held up well
 
