@@ -123,7 +123,7 @@ jobs:
           | Download | What it does |
           |---|---|
           | `yappyink-x86_64-linux` | the overlay, on GNOME Wayland. Used and tested by hand |
-          | `yappyink-x86_64-windows.exe` | the overlay. **Drawing seen working on one machine**; pass-through not yet confirmed |
+          | `yappyink-x86_64-windows.exe` | the overlay. **Drawing and pass-through seen working on one machine** |
           | `yappyink-aarch64-macos` | the overlay. **Drawing seen working on one Mac**; pass-through not yet confirmed |
 
           **Windows and macOS are barely tested.** On each, one user has seen

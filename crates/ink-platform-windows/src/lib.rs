@@ -22,8 +22,9 @@
 //! pixels to the window manager — and that genuinely cannot be checked without
 //! Windows.
 //!
-//! **That split is a mitigation, not a substitute.** Two capabilities have been
-//! seen working on one machine (E010); every other one is still `unknown`.
+//! **That split is a mitigation, not a substitute.** Three capabilities have
+//! been seen working on one machine (E010, E012); every other one is still
+//! `unknown`.
 
 pub mod keys;
 pub mod surface;
@@ -67,12 +68,15 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
-    let unproven = [
-        (
-            Capability::VisiblePassthrough,
-            "WS_EX_TRANSPARENT should let the window manager route clicks underneath \
-             with nothing forwarded by us; nobody has watched it",
+    report.record(CapabilityFinding::new(
+        Capability::VisiblePassthrough,
+        CapabilityState::available(
+            "E012: with WS_EX_TRANSPARENT set, ink stayed visible and clicks reached the \
+             application underneath, as reported by the owner",
         ),
+        BACKEND,
+    ));
+    let unproven = [
         (
             Capability::KeyboardRelease,
             "dropping the foreground window should return the keyboard; nobody has \
@@ -132,16 +136,25 @@ mod tests {
     /// list below means adding the evidence first.
     #[test]
     fn nothing_is_claimed_before_it_is_measured() {
-        let observed = [Capability::LiveOverlay, Capability::DrawPointerCapture];
+        let observed = [
+            (Capability::LiveOverlay, "E010"),
+            (Capability::DrawPointerCapture, "E010"),
+            (Capability::VisiblePassthrough, "E012"),
+        ];
         for finding in capabilities().findings() {
             match &finding.state {
                 CapabilityState::Available { evidence } => {
-                    assert!(
-                        observed.contains(&finding.capability),
-                        "{:?} claims availability with no evidence file",
-                        finding.capability
-                    );
-                    assert!(evidence.starts_with("E010"), "{evidence}");
+                    let cited = observed
+                        .iter()
+                        .find(|(capability, _)| *capability == finding.capability)
+                        .map(|(_, file)| *file);
+                    let Some(file) = cited else {
+                        panic!(
+                            "{:?} claims availability with no evidence file",
+                            finding.capability
+                        );
+                    };
+                    assert!(evidence.starts_with(file), "{evidence}");
                 }
                 CapabilityState::Unknown { .. } => {}
                 other => panic!("{:?} claims {other:?} without evidence", finding.capability),

@@ -25,7 +25,7 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | **drawing works**, seen on one machine: the overlay stays above other windows and every tool draws ([E010](docs/evidence/E010-first-windows-run.md)). Pass-through, the chords and the rest are not yet confirmed |
+| Windows | **drawing and pass-through work**, seen on one machine: the overlay stays above other windows, every tool draws ([E010](docs/evidence/E010-first-windows-run.md)), and in pass-through clicks reach the application underneath ([E012](docs/evidence/E012-windows-pass-through.md)). The chords and the rest are not yet confirmed |
 | macOS | **drawing works**, seen on one Retina Mac: the overlay stays above other apps and the shape tools draw ([E011](docs/evidence/E011-first-macos-drawing.md)). The first launch, on 0.6.0, appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). Pass-through and the chords are not yet confirmed |
 
 `yappyink draw` starts the overlay on all three. CI builds and links the Windows
@@ -62,7 +62,8 @@ loaded by a running Shell, so it is not part of the instructions below.
 progress, and drawing works on the one machine it has been run on**
 ([E010](docs/evidence/E010-first-windows-run.md)): the overlay stays above
 other windows, clicks on empty canvas draw, and every tool shown worked.
-Pass-through and the chords have not been confirmed yet. It is one layered window, and each style bit buys
+Pass-through works too ([E012](docs/evidence/E012-windows-pass-through.md)).
+The chords have not been confirmed yet. It is one layered window, and each style bit buys
 one thing the specification asks for:
 
 | Flag | What it gives us |

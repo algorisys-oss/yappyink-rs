@@ -84,6 +84,8 @@ Four defects came out of the reading, each of which would have shown up on the f
 
 **First run, 2026-09-25 (E010).** A user ran the 0.7.0 binary on a two-monitor Windows machine and sent a screenshot: the overlay over a terminal, the toolbar, and a pen stroke, rectangle, highlighter, arrow and "Hello" in text, all drawn over what had been transparent canvas. `live_overlay` and `draw_pointer_capture` are now `available`, citing E010; everything else stays `unknown`. The run also found that **save was broken on Windows**: the session path knew only `XDG_DATA_HOME` and `HOME`, neither of which Windows sets. 0.7.1 saves to `%APPDATA%\yappyink\session.json`, with the resolution tested on Linux. Status stays `in_progress`: pass-through, withdrawal and the chords are the rest of this task's exit criterion, and none has been recorded.
 
+**Pass-through, 2026-09-25 (E012).** The owner reports pass-through working on the same machine: ink visible, clicks reaching the application underneath. A verbal report without a log, recorded as such. `visible_passthrough` is now `available`, citing E012. The exit criterion's remaining items are no click leakage in Draw beyond what E010 showed, and withdrawal; whether `Ctrl+Alt+D` fired is not yet stated, so `global_shortcut` stays `unknown`.
+
 ## T004 [M0]: Prove the macOS overlay path
 
 Status: in_progress since 2026-09-24. Dependencies: T001.

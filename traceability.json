@@ -27,7 +27,8 @@
         "FR-003"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "note": "Native: on one Windows machine, pass-through kept ink visible and let clicks reach the application underneath, through WS_EX_TRANSPARENT with nothing forwarded (E012, a verbal report). Not yet observed on macOS, so the scenario is not passed."
     },
     {
       "id": "AC-FR-004",

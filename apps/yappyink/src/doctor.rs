@@ -259,15 +259,15 @@ fn native_section(
 ) {
     let _ = writeln!(
         *out,
-        "  the windows-layered backend is compiled in; live overlay and draw capture were seen \
-         working on one machine (E010), and nothing else has been confirmed"
+        "  the windows-layered backend is compiled in; live overlay, draw capture and pass-through \
+         were seen working on one machine (E010, E012), and nothing else has been confirmed"
     );
     for finding in ink_platform_windows::capabilities().findings() {
         capabilities.record(finding.clone());
     }
     not_probed.push(
-        "pass-through, keyboard release, the global chords, monitors, fullscreen and virtual \
-         desktops on windows: nobody has recorded them yet"
+        "keyboard release, the global chords, monitors, fullscreen and virtual desktops on \
+         windows: nobody has recorded them yet"
             .to_owned(),
     );
 }
