@@ -168,6 +168,8 @@ Measure standalone xdg-shell behavior, then prototype the minimum companion only
 
 **Probe:** `experiments/gnome-xdg-shell/` implements the standalone xdg-shell probe: a transparent fullscreen surface with a fixed diagonal, a timed switch to an empty `wl_surface` input region for pass-through, and self-withdrawal. A windowed smoke test on 2026-09-23 confirmed it maps, configures, switches the input region, and withdraws with no protocol error. **It has not been observed on screen**, so nothing is yet known about stacking, transparency, or pass-through on Mutter. The observation checklist is `docs/evidence/E002-gnome-xdg-shell-experiment.md`.
 
+
+**Opening floating, 2026-09-25.** On a 1366x768 screen GNOME auto-maximized the overlay every launch (`org.gnome.mutter auto-maximize`): the 1280x720 request was 97% of the work area, and a maximized window has Always on Top and resizing disabled (E002 finding 3), so the owner had to restore, pin and resize each time. The adapter now reads the outputs before the first frame and asks for at most 80% of each side of the smallest (`sizing.rs`, 1092x614 here), and asks once to un-maximize if GNOME maximizes it anyway. Observed on the E001 machine: first configure 1092x614, not maximized. Always on Top is still one step per launch; only the Shell extension removes it.
 ## T008 [M0]: Ratify architecture and support intent
 
 Status: not_started. Dependencies: T003, T004, T005, T006, T007.

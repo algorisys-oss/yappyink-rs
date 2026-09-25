@@ -14,6 +14,7 @@ pub mod ime;
 pub mod keys;
 pub mod magnifier;
 pub mod overlay;
+pub mod sizing;
 
 use ink_platform::{
     Capability, CapabilityFinding, CapabilityReport, CapabilityState, OutputInfo, PlatformError,

@@ -198,7 +198,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     let conn = Connection::connect_to_env().map_err(|e| {
         PlatformError::disconnected(format!("could not connect to the compositor: {e}"))
     })?;
-    let (globals, queue) = registry_queue_init::<Overlay>(&conn)
+    let (globals, mut queue) = registry_queue_init::<Overlay>(&conn)
         .map_err(|e| PlatformError::disconnected(format!("the registry could not be read: {e}")))?;
     let qh = queue.handle();
 
@@ -265,6 +265,8 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         height,
         scale: Scale::ONE,
         configured: false,
+        first_configure: false,
+        framed: false,
         needs_redraw: false,
         controller: Controller::new(),
         session: Session::new(output, config.size),
@@ -310,6 +312,34 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     // FR-004: startup is Hidden. Launching with the intent to draw is itself
     // the activation, so the first thing the run does is ask for Draw. Until
     // T012 there is no global shortcut that could ask for it later.
+    // One round trip so every output has described itself, then a first size
+    // GNOME will not auto-maximize (see `sizing`). It has to be decided before
+    // the first frame: that is when the window appears and Mutter decides.
+    queue.roundtrip(&mut overlay).ok();
+    let outputs: Vec<(u32, u32)> = overlay
+        .output_state
+        .outputs()
+        .filter_map(|output| overlay.output_state.info(&output))
+        .filter_map(|info| {
+            let (w, h) = info.logical_size.or_else(|| {
+                let mode = info.modes.iter().find(|mode| mode.current)?;
+                let scale = info.scale_factor.max(1);
+                Some((mode.dimensions.0 / scale, mode.dimensions.1 / scale))
+            })?;
+            Some((u32::try_from(w).ok()?, u32::try_from(h).ok()?))
+        })
+        .collect();
+    let (width, height) = crate::sizing::floating_size((overlay.width, overlay.height), &outputs);
+    if (width, height) != (overlay.width, overlay.height) {
+        eprintln!(
+            "[output] asking for {width}x{height} rather than {}x{}: GNOME would maximize the \
+             larger one on this screen, and a maximized window cannot be kept on top or resized",
+            overlay.width, overlay.height
+        );
+        overlay.width = width;
+        overlay.height = height;
+    }
+
     let start = overlay.controller_act(Action::EnterDraw);
     overlay.apply(start);
 
@@ -485,6 +515,14 @@ pub struct Overlay {
     height: u32,
     scale: Scale,
     configured: bool,
+    /// Set when a window is created and cleared by its first configure. If
+    /// that configure maximizes a window we never asked to maximize, it is
+    /// GNOME's auto-maximize, and one request to undo it is made. A maximize
+    /// the user asks for later is theirs, and left alone.
+    first_configure: bool,
+    /// Whether this window has shown a frame yet. GNOME's auto-maximize
+    /// arrives in the configure after the first frame, not the first one.
+    framed: bool,
     pub(crate) needs_redraw: bool,
     pub(crate) controller: Controller,
     session: Session,
@@ -818,6 +856,8 @@ impl Overlay {
         window.set_app_id("dev.yappyink.Overlay");
         window.commit();
         self.configured = false;
+        self.first_configure = true;
+        self.framed = false;
         self.window = Some(window);
     }
 
@@ -928,6 +968,7 @@ impl Overlay {
             return;
         }
         window.commit();
+        self.framed = true;
     }
 
     /// Asks the compositor to raise and focus the surface.
@@ -1467,6 +1508,26 @@ impl WindowHandler for Overlay {
         _serial: u32,
     ) {
         let previous = (self.width, self.height);
+
+        // GNOME's auto-maximize, undone once (see `sizing`). The first size is
+        // chosen to avoid it, so this is the fallback for a screen or setting
+        // that still triggers it. Only until the window has settled after its
+        // first frame, so a maximize the user asks for later is left alone.
+        if self.first_configure {
+            if configure.is_maximized() {
+                self.first_configure = false;
+                if let Some(window) = &self.window {
+                    window.unset_maximized();
+                }
+                eprintln!(
+                    "[output] GNOME maximized the new window, which disables Always on Top \
+                     and resizing; asked it to float instead"
+                );
+            } else if self.framed {
+                self.first_configure = false;
+            }
+        }
+
         if let (Some(width), Some(height)) = configure.new_size {
             self.width = width.get();
             self.height = height.get();
