@@ -35,9 +35,97 @@ pub fn floating_size(requested: (u32, u32), outputs: &[(u32, u32)]) -> (u32, u32
     (requested.0.min(cap(width)), requested.1.min(cap(height)))
 }
 
+/// The first size when the user chose one last time: theirs, only capped to
+/// the smallest output so it cannot open larger than a screen.
+///
+/// Not shrunk by [`FLOATING_SHARE`]: someone who dragged the overlay out to
+/// the whole work area wants it back that size. If GNOME auto-maximizes it,
+/// the adapter asks once for it to float, which keeps the size.
+pub fn remembered_size(saved: (u32, u32), outputs: &[(u32, u32)]) -> (u32, u32) {
+    let smallest = outputs
+        .iter()
+        .filter(|(w, h)| *w > 0 && *h > 0)
+        .min_by_key(|(w, h)| u64::from(*w) * u64::from(*h));
+    match smallest {
+        Some(&(w, h)) => (saved.0.min(w).max(1), saved.1.min(h).max(1)),
+        None => saved,
+    }
+}
+
+/// The remembered size, as the file holds it: `WIDTHxHEIGHT`.
+pub fn encode(size: (u32, u32)) -> String {
+    format!("{}x{}\n", size.0, size.1)
+}
+
+/// Refuses anything implausible, so a damaged file falls back to the default
+/// rather than opening a window of no size or of thousands of screens.
+pub fn decode(text: &str) -> Option<(u32, u32)> {
+    let (w, h) = text.trim().split_once('x')?;
+    let (w, h): (u32, u32) = (w.parse().ok()?, h.parse().ok()?);
+    ((200..=16_384).contains(&w) && (120..=16_384).contains(&h)).then_some((w, h))
+}
+
+fn path() -> Option<std::path::PathBuf> {
+    let session = ink_storage::default_session_path().ok()?;
+    Some(session.with_file_name("window-size"))
+}
+
+/// The size the user left the overlay at last time, if there is one.
+pub fn load() -> Option<(u32, u32)> {
+    decode(&std::fs::read_to_string(path()?).ok()?)
+}
+
+/// Remembers the size for next time. A failure is reported and otherwise
+/// ignored: the next launch simply opens at the default.
+pub fn save(size: (u32, u32)) {
+    let Some(path) = path() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    if let Err(error) = std::fs::write(&path, encode(size)) {
+        eprintln!("[output] could not remember the window size: {error}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The case this exists for: the owner dragged the overlay out to the
+    /// whole work area and wants it back that size.
+    #[test]
+    fn a_remembered_size_is_kept_as_the_user_left_it() {
+        assert_eq!(remembered_size((1366, 697), &[(1366, 768)]), (1366, 697));
+    }
+
+    /// A size remembered on a bigger monitor must not open larger than the
+    /// screen it lands on now.
+    #[test]
+    fn a_remembered_size_is_capped_to_the_screen() {
+        assert_eq!(remembered_size((1900, 1000), &[(1366, 768)]), (1366, 768));
+        assert_eq!(remembered_size((1900, 1000), &[]), (1900, 1000));
+    }
+
+    #[test]
+    fn the_size_file_round_trips() {
+        assert_eq!(decode(&encode((1366, 697))), Some((1366, 697)));
+    }
+
+    #[test]
+    fn a_damaged_size_file_is_refused() {
+        for text in [
+            "",
+            "1366",
+            "x697",
+            "0x0",
+            "10x10",
+            "1366x697x2",
+            "wide x tall",
+            "99999x697",
+        ] {
+            assert_eq!(decode(text), None, "{text:?} was accepted");
+        }
+    }
 
     /// The owner's screen, where the old default opened maximized.
     #[test]

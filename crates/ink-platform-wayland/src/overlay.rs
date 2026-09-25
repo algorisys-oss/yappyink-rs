@@ -267,6 +267,9 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         configured: false,
         first_configure: false,
         framed: false,
+        floating: None,
+        grow_to: None,
+        maximized: false,
         needs_redraw: false,
         controller: Controller::new(),
         session: Session::new(output, config.size),
@@ -329,16 +332,28 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             Some((u32::try_from(w).ok()?, u32::try_from(h).ok()?))
         })
         .collect();
+    // Always opens at a size GNOME will not auto-maximize, then grows to the
+    // remembered size once it is on screen and floating. Opening at the
+    // remembered size directly was tried: GNOME maximized it, and asked to
+    // float it chose 1024x522 on its own, smaller than either.
     let (width, height) = crate::sizing::floating_size((overlay.width, overlay.height), &outputs);
+    overlay.grow_to = crate::sizing::load().map(|saved| {
+        let size = crate::sizing::remembered_size(saved, &outputs);
+        eprintln!(
+            "[output] will grow to {}x{}, the size it was left at last time, once it is floating",
+            size.0, size.1
+        );
+        size
+    });
     if (width, height) != (overlay.width, overlay.height) {
         eprintln!(
             "[output] asking for {width}x{height} rather than {}x{}: GNOME would maximize the \
              larger one on this screen, and a maximized window cannot be kept on top or resized",
             overlay.width, overlay.height
         );
-        overlay.width = width;
-        overlay.height = height;
     }
+    overlay.width = width;
+    overlay.height = height;
 
     let start = overlay.controller_act(Action::EnterDraw);
     overlay.apply(start);
@@ -415,6 +430,10 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
             overlay.draw();
             conn.flush().ok();
         }
+    }
+
+    if let Some(size) = overlay.floating {
+        crate::sizing::save(size);
     }
 
     // Withdrawal on the way out, not as a side effect of the process dying.
@@ -523,6 +542,15 @@ pub struct Overlay {
     /// Whether this window has shown a frame yet. GNOME's auto-maximize
     /// arrives in the configure after the first frame, not the first one.
     framed: bool,
+    /// The last size GNOME confirmed while floating and not parked, written
+    /// out on exit so the next launch opens the same size.
+    floating: Option<(u32, u32)>,
+    /// The remembered size to grow to once the window is on screen and
+    /// floating. Growing by drawing at a new size is allowed for a floating
+    /// xdg_toplevel, and auto-maximize only applies when a window first maps.
+    grow_to: Option<(u32, u32)>,
+    /// Whether the last configure said maximized.
+    maximized: bool,
     pub(crate) needs_redraw: bool,
     pub(crate) controller: Controller,
     session: Session,
@@ -969,6 +997,30 @@ impl Overlay {
         }
         window.commit();
         self.framed = true;
+
+        // What to remember for next time: the size of a frame actually shown
+        // while floating and not parked. Recorded here rather than from
+        // configures, because GNOME may never send a size for a window whose
+        // client chose its own.
+        let floating = !self.maximized && self.restore_size.is_none();
+        if floating {
+            self.floating = Some((self.width, self.height));
+        }
+
+        // Once the first frame is on screen and floating, grow to the
+        // remembered size. Auto-maximize applies only when a window first
+        // appears, and a floating xdg_toplevel may change its own size by
+        // drawing at it. Waiting for a later configure does not work: GNOME
+        // may not send one.
+        if floating && let Some((width, height)) = self.grow_to.take() {
+            self.width = width;
+            self.height = height;
+            if let Some(size) = LogicalSize::new(f64::from(width), f64::from(height)) {
+                self.controller.set_surface_size(size);
+            }
+            self.needs_redraw = true;
+            eprintln!("[output] grown to {width}x{height}, the size it was left at last time");
+        }
     }
 
     /// Asks the compositor to raise and focus the surface.
@@ -1508,6 +1560,7 @@ impl WindowHandler for Overlay {
         _serial: u32,
     ) {
         let previous = (self.width, self.height);
+        self.maximized = configure.is_maximized();
 
         // GNOME's auto-maximize, undone once (see `sizing`). The first size is
         // chosen to avoid it, so this is the fallback for a screen or setting
@@ -1531,6 +1584,11 @@ impl WindowHandler for Overlay {
         if let (Some(width), Some(height)) = configure.new_size {
             self.width = width.get();
             self.height = height.get();
+            // Remembered only while floating and full size: a maximized size is
+            // GNOME's, and a parked one is the toolbar's.
+            if !configure.is_maximized() && self.restore_size.is_none() {
+                self.floating = Some((width.get(), height.get()));
+            }
             // The controller offers the resize corner only once it knows the
             // surface's size. Nothing told it until 0.8.1, so on GNOME the
             // corner never appeared and the 1280x720 window could not be
