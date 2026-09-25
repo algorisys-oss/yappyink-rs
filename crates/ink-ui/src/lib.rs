@@ -621,13 +621,24 @@ pub fn paint_toolbar(
                 draw(&[(0.44, 0.86), (0.14, 0.56)]);
                 draw(&[(0.88, 0.42), (0.58, 0.12)]);
             }
-            // The same line, deliberately blunter.
+            // A marker: a wide body on the diagonal, a chisel tip cut flat,
+            // and the broad stripe it leaves underneath. It used to be a thick
+            // bar, which read as a heavy line rather than as a highlighter,
+            // and the chisel keeps it distinct from the pencil's point.
             Icon::Highlighter => {
-                let points: Vec<(f64, f64)> = [(0.0, 1.0), (1.0, 0.0)]
+                draw(&[
+                    (0.30, 0.44),
+                    (0.56, 0.70),
+                    (1.0, 0.26),
+                    (0.74, 0.0),
+                    (0.30, 0.44),
+                ]);
+                draw(&[(0.30, 0.44), (0.14, 0.62), (0.34, 0.82), (0.56, 0.70)]);
+                let stripe: Vec<(f64, f64)> = [(0.0, 0.97), (0.52, 0.97)]
                     .iter()
                     .map(|(u, v)| place(*u, *v))
                     .collect();
-                canvas.stroke_path(&points, thickness * 2.6, ink);
+                canvas.stroke_path(&stripe, thickness * 2.2, ink);
             }
             Icon::Line => draw(&[(0.0, 1.0), (1.0, 0.0)]),
             Icon::Arrow => {
