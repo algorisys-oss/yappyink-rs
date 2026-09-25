@@ -25,8 +25,8 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | **drawing, pass-through and the chord work**, seen on one machine: the overlay stays above other windows, every tool draws ([E010](docs/evidence/E010-first-windows-run.md)), in pass-through clicks reach the application underneath, and Ctrl+Alt+D brings it back ([E012](docs/evidence/E012-windows-pass-through.md)). Other monitors, fullscreen and virtual desktops are not yet confirmed |
-| macOS | **drawing, pass-through and the chord work**, seen on one Retina Mac: the overlay stays above other apps and the shape tools draw ([E011](docs/evidence/E011-first-macos-drawing.md)), and Control+Option+D brings it back from pass-through ([E013](docs/evidence/E013-macos-global-chord.md)). The first launch, on 0.6.0, appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). In pass-through the apps underneath can be used. Spaces and fullscreen are not yet confirmed |
+| Windows | **drawing, pass-through and the chord work**, seen on one machine: the overlay stays above other windows, every tool draws ([E010](docs/evidence/E010-first-windows-run.md)), in pass-through clicks reach the application underneath, and Ctrl+Alt+D brings it back ([E012](docs/evidence/E012-windows-pass-through.md)). `Ctrl+Alt+H` hides and restores it, and it works over a fullscreen application ([E014](docs/evidence/E014-hide-and-fullscreen.md)). T003 is done. Other monitors and virtual desktops are not yet confirmed |
+| macOS | **drawing, pass-through and the chord work**, seen on one Retina Mac: the overlay stays above other apps and the shape tools draw ([E011](docs/evidence/E011-first-macos-drawing.md)), and Control+Option+D brings it back from pass-through ([E013](docs/evidence/E013-macos-global-chord.md)). The first launch, on 0.6.0, appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). In pass-through the apps underneath can be used; hide and fullscreen work too ([E014](docs/evidence/E014-hide-and-fullscreen.md)). Spaces are not yet confirmed |
 
 `yappyink draw` starts the overlay on all three. CI builds and links the Windows
 and macOS binaries on real runners and runs the unit tests there, which keeps
@@ -58,8 +58,8 @@ loaded by a running Shell, so it is not part of the instructions below.
 
 ### The Windows backend
 
-[crates/ink-platform-windows](crates/ink-platform-windows/) is T003, **in
-progress, and drawing works on the one machine it has been run on**
+[crates/ink-platform-windows](crates/ink-platform-windows/) is T003, **done
+on native evidence** from the one machine it has been run on. Drawing works
 ([E010](docs/evidence/E010-first-windows-run.md)): the overlay stays above
 other windows, clicks on empty canvas draw, and every tool shown worked.
 Pass-through works too, and `Ctrl+Alt+D` brings it back

@@ -37,7 +37,7 @@
     {
       "id": "T003",
       "phase": "M0",
-      "status": "in_progress",
+      "status": "implemented",
       "depends_on": [
         "T001"
       ],

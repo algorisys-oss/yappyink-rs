@@ -22,8 +22,8 @@
 //! pixels to the window manager — and that genuinely cannot be checked without
 //! Windows.
 //!
-//! **That split is a mitigation, not a substitute.** Four capabilities have
-//! been seen working on one machine (E010, E012); every other one is still
+//! **That split is a mitigation, not a substitute.** Five capabilities have
+//! been seen working on one machine (E010, E012, E014); every other one is still
 //! `unknown`.
 
 pub mod keys;
@@ -84,6 +84,14 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
+    report.record(CapabilityFinding::new(
+        Capability::FullscreenOverlay,
+        CapabilityState::available(
+            "E014: after an application went fullscreen the overlay could still be toggled and \
+             drawn on; which kind of fullscreen was not stated, so exclusive DirectX is untested",
+        ),
+        BACKEND,
+    ));
     let unproven = [
         (
             Capability::KeyboardRelease,
@@ -99,11 +107,6 @@ pub fn capabilities() -> CapabilityReport {
             Capability::SimultaneousOutputs,
             "one window per monitor should be possible, but no second window has been \
              created",
-        ),
-        (
-            Capability::FullscreenOverlay,
-            "a top-most window is expected to lose to an exclusive-fullscreen \
-             application; entirely unmeasured and the most likely to disappoint",
         ),
         (
             Capability::WorkspaceOverlay,
@@ -144,6 +147,7 @@ mod tests {
             (Capability::DrawPointerCapture, "E010"),
             (Capability::VisiblePassthrough, "E012"),
             (Capability::GlobalShortcut, "E012"),
+            (Capability::FullscreenOverlay, "E014"),
         ];
         for finding in capabilities().findings() {
             match &finding.state {

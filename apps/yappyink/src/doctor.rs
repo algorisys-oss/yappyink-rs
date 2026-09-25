@@ -259,23 +259,23 @@ fn native_section(
 ) {
     let _ = writeln!(
         *out,
-        "  the windows-layered backend is compiled in; live overlay, draw capture, pass-through \
-         and the global chord were seen working on one machine (E010, E012), and nothing else \
-         has been confirmed"
+        "  the windows-layered backend is compiled in; live overlay, draw capture, pass-through, \
+         the global chord and fullscreen were seen working on one machine (E010, E012, E014), \
+         and nothing else has been confirmed"
     );
     for finding in ink_platform_windows::capabilities().findings() {
         capabilities.record(finding.clone());
     }
     not_probed.push(
-        "keyboard release, monitors, fullscreen and virtual desktops on windows: nobody has \
-         recorded them yet"
+        "keyboard release, monitors, exclusive fullscreen and virtual desktops on windows: \
+         nobody has recorded them yet"
             .to_owned(),
     );
 }
 
 /// On macOS the adapter is linked and reports what it would offer.
 ///
-/// Four states are `Available` from one Mac (E011, E013); the rest are `Unknown`.
+/// Five states are `Available` from one Mac (E011, E013, E014); the rest are `Unknown`.
 #[cfg(target_os = "macos")]
 fn native_section(
     out: &mut String,
@@ -284,17 +284,15 @@ fn native_section(
 ) {
     let _ = writeln!(
         *out,
-        "  the macos-appkit backend is compiled in; live overlay, draw capture, pass-through \
-         and the global chord were seen working on one Mac (E011, E013), and nothing else has \
-         been confirmed"
+        "  the macos-appkit backend is compiled in; live overlay, draw capture, pass-through, \
+         the global chord and fullscreen were seen working on one Mac (E011, E013, E014), and \
+         nothing else has been confirmed"
     );
     for finding in ink_platform_macos::capabilities().findings() {
         capabilities.record(finding.clone());
     }
     not_probed.push(
-        "keyboard release, screens, fullscreen and Spaces on macos: nobody has recorded them \
-         yet"
-        .to_owned(),
+        "keyboard release, screens and Spaces on macos: nobody has recorded them yet".to_owned(),
     );
 }
 

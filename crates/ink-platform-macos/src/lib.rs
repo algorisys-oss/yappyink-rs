@@ -18,7 +18,7 @@
 //! window, an event loop and a bitmap handed to Core Graphics, and that is
 //! genuinely unverifiable without the hardware.
 //!
-//! **Four capabilities have been seen working on one Mac (E011, E013).** Every other
+//! **Five capabilities have been seen working on one Mac (E011, E013, E014).** Every other
 //! capability this crate reports is `unknown`, and `docs/adr/ADR-006-macos-bindings.md` records that if that
 //! never changes the honest outcome is to declare macOS unsupported rather
 //! than ship it quietly.
@@ -78,6 +78,14 @@ pub fn capabilities() -> CapabilityReport {
         ),
         BACKEND,
     ));
+    report.record(CapabilityFinding::new(
+        Capability::FullscreenOverlay,
+        CapabilityState::available(
+            "E014: after an application went fullscreen the screen-saver-level overlay could \
+             still be toggled and drawn on",
+        ),
+        BACKEND,
+    ));
     let unproven = [
         (
             Capability::KeyboardRelease,
@@ -91,12 +99,6 @@ pub fn capabilities() -> CapabilityReport {
         (
             Capability::SimultaneousOutputs,
             "one window per screen should be possible; no second window has been created",
-        ),
-        (
-            Capability::FullscreenOverlay,
-            "NSWindowCollectionBehavior is set to join all Spaces and act as a fullscreen \
-             auxiliary, which is the documented route; whether it is honoured at this window \
-             level is the single most uncertain thing in this backend",
         ),
         (
             Capability::WorkspaceOverlay,
@@ -137,6 +139,7 @@ mod tests {
             (Capability::DrawPointerCapture, "E011"),
             (Capability::GlobalShortcut, "E013"),
             (Capability::VisiblePassthrough, "E013"),
+            (Capability::FullscreenOverlay, "E014"),
         ];
         for finding in capabilities().findings() {
             match &finding.state {

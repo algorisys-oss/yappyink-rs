@@ -7,7 +7,8 @@
         "FR-001"
       ],
       "file": "tests/acceptance/overlay.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "note": "Native, from single machines: the overlay stays live above other applications on Windows (E010) and macOS (E011), including over a fullscreen application (E014). Verbal reports and screenshots, not a run of the scenario, so it is not passed."
     },
     {
       "id": "AC-FR-002",
@@ -40,7 +41,7 @@
       "tests": [
         "crates/ink-app/tests/reducer.rs"
       ],
-      "note": "Headless reducer tests. No native overlay exercises these yet (T011, T023)."
+      "note": "Headless reducer tests. Native: the hide chord withdraws the ink and restores it unchanged on one Windows machine and one Mac (E014, a verbal report)."
     },
     {
       "id": "AC-FR-005",

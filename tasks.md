@@ -32,7 +32,7 @@ Add diagnostic probing for active session, outputs, available protocols, shortcu
 
 ## T003 [M0]: Prove the Windows overlay path
 
-Status: in_progress since 2026-09-24. Dependencies: T001.
+Status: implemented on 2026-09-25, on the evidence of E010, E012 and E014 (in progress from 2026-09-24). Dependencies: T001.
 
 Requirements: FR-001, FR-002, FR-003, FR-005, FR-018.
 
@@ -86,6 +86,8 @@ Four defects came out of the reading, each of which would have shown up on the f
 
 **Pass-through, 2026-09-25 (E012).** The owner reports pass-through working on the same machine: ink visible, clicks reaching the application underneath. A verbal report without a log, recorded as such. `visible_passthrough` is now `available`, citing E012. The exit criterion's remaining items are no click leakage in Draw beyond what E010 showed, and withdrawal; whether `Ctrl+Alt+D` fired was not stated at first. Asked, the owner confirmed `Ctrl+Alt+D` is how pass-through was left, so `global_shortcut` is `available` too, citing E012. What remains of the exit criterion is withdrawal (`Ctrl+Alt+H`).
 
+**Closed, 2026-09-25 (E014).** `Ctrl+Alt+H` hides the ink and brings it back, and the overlay still toggles and draws after an application goes fullscreen. With E010 (live overlay, no click leakage) and E012 (visible pass-through, the chord), every item in the exit criterion now has native evidence, so this task is `implemented`. That is a statement about one machine at 96 dpi from verbal reports and one screenshot; it is not a support claim, which is T025's job. Not yet seen: `--monitor 2`, save and load in 0.7.1, `yappyink toggle-draw`, IME, a scaled display, exclusive fullscreen, virtual desktops.
+
 ## T004 [M0]: Prove the macOS overlay path
 
 Status: in_progress since 2026-09-24. Dependencies: T001.
@@ -125,6 +127,8 @@ The same reading found three defects the first run would have hit: the overlay s
 **Drawing, 2026-09-25 (E011).** The same user ran 0.7.x and sent a screenshot: the overlay over Finder and the desktop, the toolbar and swatch picker, and a rectangle, ellipse and arrow drawn over what had been transparent canvas, sharp at backing scale 2. The system font was found and both Carbon chords registered. `live_overlay` and `draw_pointer_capture` are now `available`, citing E011; everything else stays `unknown`. Status stays `in_progress`: pass-through, the chords firing, and Spaces and fullscreen are the rest of the exit criterion.
 
 **The chord, 2026-09-25 (E013).** The owner reports that Control+Option+D brought the overlay back from pass-through to Draw on the same Mac. That is ADR-007's Carbon route working in an `Accessory` application with no permission grant, and the first global shortcut confirmed on any platform. `global_shortcut` is now `available`, citing E013. Asked, the owner confirmed the application underneath could be used during pass-through, so `visible_passthrough` is `available` too, citing E013. Spaces and fullscreen, the most doubtful part of this task, are what remain.
+
+**Hide and fullscreen, 2026-09-25 (E014).** `Control+Option+H` hides and restores the ink, and after an application went fullscreen the overlay could still be toggled and drawn on, which answers the question ADR-006 marked most likely to fail. `fullscreen_overlay` is `available`, citing E014. The exit criterion's last item is **Spaces**: switching desktops with the overlay running. Until that is recorded the status stays `in_progress`.
 
 ## T005 [M0]: Prove the composited X11 path
 

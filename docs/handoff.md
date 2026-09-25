@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-25, release 0.7.2. Three backends exist. Windows draws, passes clicks through, and Ctrl+Alt+D brings it back, seen on one machine (E010, E012), and 0.7.1 fixes saving there; macOS draws, passes clicks through, and its Control+Option+D chord brings it back, seen on one Mac (E011, E013), after a first launch that appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
+**Last updated:** 2026-09-25, release 0.7.2. T003 (Windows) is implemented on native evidence (E010, E012, E014); T004 (macOS) waits only on Spaces. Three backends exist. Windows draws, passes clicks through, and Ctrl+Alt+D brings it back, seen on one machine (E010, E012), and 0.7.1 fixes saving there; macOS draws, passes clicks through, and its Control+Option+D chord brings it back, seen on one Mac (E011, E013), after a first launch that appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
 
 ## What this is
 
@@ -64,10 +64,11 @@ portal, no bound chord, no conflict feedback).
 
 **Not started:** 21 tasks, including output and DPI correctness (T018), the
 capability and settings UX (T019), text and IME (T028), and X11 and
-layer-shell Wayland, which have no backend at all. (T003 Windows and T004 macOS
-are `in_progress`: backends written, nothing confirmed on screen.)
+layer-shell Wayland, which have no backend at all. (T003 Windows is
+`implemented` on native evidence; T004 macOS is `in_progress`, waiting only on
+Spaces.)
 
-330 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
+336 tests. `cargo fmt`, `cargo clippy -D warnings` and `python tools/check_specs.py`
 all clean.
 
 ## Build and run
