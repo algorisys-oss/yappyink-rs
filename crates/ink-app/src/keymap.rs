@@ -77,6 +77,8 @@ pub fn command(key: Key) -> Option<Action> {
         'h' => Some(Action::ToggleVisibility),
         'g' => Some(Action::TogglePark),
         'z' => Some(Action::CycleZoom),
+        // Zoom to nothing: one key back to normal from any level.
+        '0' => Some(Action::ZoomOff),
         'w' => Some(Action::Save),
         'o' => Some(Action::Load),
         'u' => Some(Action::Undo),
@@ -182,7 +184,7 @@ mod tests {
 
     #[test]
     fn an_unbound_key_does_nothing() {
-        for c in "0abfijklmnvy".chars() {
+        for c in "abfijklmnvy".chars() {
             assert_eq!(command(Key::Char(c)), None, "{c:?} is bound unexpectedly");
         }
     }

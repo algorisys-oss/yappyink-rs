@@ -11,6 +11,7 @@
 #![forbid(unsafe_code)]
 
 pub mod ime;
+pub mod keys;
 pub mod magnifier;
 pub mod overlay;
 

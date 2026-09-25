@@ -471,6 +471,23 @@ asks for a redraw after every event and does not have the bug.
 **What changed.** Every pointer event repaints on Windows too. The cached ink
 layer (§19) is what makes that cheap enough not to be clever about.
 
+## 22. "One place" that was three places, minus one
+
+**What happened.** Zoom was bound to `z` in `ink_app::keymap`, tested there,
+and did nothing on Linux, the only platform where zoom works. The Wayland
+adapter matched keysyms against its own hand-written table of actions. The
+commit that "put the key bindings in one place" (785613c) moved Windows and
+macOS onto the shared keymap and left Wayland on its copy, and nothing
+noticed because every key that existed then was in both.
+
+**Why.** A refactor described as complete, and tests that checked the shared
+table rather than whether each adapter consulted it. The first new key exposed
+the gap.
+
+**What changed.** The Wayland adapter now names the key (`keys::key_for`) and
+asks the shared keymap what it means, as the others do. A test replays every
+key the old table bound, so the move is checked to have lost nothing.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

@@ -121,3 +121,10 @@ fn zoom_does_not_depend_on_the_mode() {
 fn z_is_the_zoom_key() {
     assert_eq!(keymap::command(Key::Char('z')), Some(Action::CycleZoom));
 }
+
+/// One key back to normal, whatever the level: stepping round with `z` takes
+/// up to three presses.
+#[test]
+fn zero_resets_zoom_in_one_press() {
+    assert_eq!(keymap::command(Key::Char('0')), Some(Action::ZoomOff));
+}

@@ -300,7 +300,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
     if overlay.magnifier.is_some() {
         overlay.controller.offer_zoom();
         eprintln!(
-            "[zoom] the GNOME magnifier is available: z steps 2x, 3x, 4x and off. \
+            "[zoom] the GNOME magnifier is available: z steps 2x, 3x, 4x and off, 0 resets. \
              If yappyink is ever killed while zoomed, Alt+Super+8 turns it off."
         );
     } else {
@@ -408,7 +408,7 @@ fn print_controls() {
          \x20 p      pass through: ink stays, input goes to what is underneath\n\
          \x20 h      hide the ink, keeping it in memory\n\
          \x20 g      shrink to just the toolbar, and back\n\
-         \x20 z      zoom 2x, 3x, 4x, off (the GNOME magnifier)\n\
+         \x20 z / 0  zoom 2x, 3x, 4x / zoom off (the GNOME magnifier)\n\
          \x20 1 / 2  pen / highlighter\n\
          \x20 3 - 6  line / arrow / rectangle / ellipse\n\
          \x20 7 or e eraser: removes whole objects its sweep touches\n\
@@ -1251,42 +1251,15 @@ impl KeyboardHandler for Overlay {
             return;
         }
 
-        let action = match event.keysym {
-            Keysym::d | Keysym::D => Some(Action::EnterDraw),
-            Keysym::p | Keysym::P => Some(Action::ToggleDraw),
-            Keysym::h | Keysym::H => Some(Action::ToggleVisibility),
-            Keysym::Escape => Some(Action::Escape),
-            Keysym::_1 => Some(Action::SelectTool(Tool::Pen)),
-            Keysym::_2 => Some(Action::SelectTool(Tool::Highlighter)),
-            Keysym::_3 => Some(Action::SelectTool(Tool::Line)),
-            Keysym::_4 => Some(Action::SelectTool(Tool::Arrow)),
-            Keysym::_5 => Some(Action::SelectTool(Tool::Rectangle)),
-            Keysym::_6 => Some(Action::SelectTool(Tool::Ellipse)),
-            Keysym::_7 | Keysym::e | Keysym::E => Some(Action::SelectTool(Tool::Eraser)),
-            // Single keys rather than Ctrl chords, because modifier tracking
-            // is not wired up yet. Local editing shortcuts with the platform's
-            // proper modifier belong with the toolbar (T013).
-            Keysym::g | Keysym::G => Some(Action::TogglePark),
-            Keysym::w | Keysym::W => Some(Action::Save),
-            Keysym::o | Keysym::O => Some(Action::Load),
-            Keysym::t | Keysym::T => Some(Action::ShowWindowMenu),
-            Keysym::_8 | Keysym::s | Keysym::S => Some(Action::SelectTool(Tool::Select)),
-            Keysym::_9 => Some(Action::SelectTool(Tool::Text)),
-            Keysym::Delete | Keysym::BackSpace => Some(Action::DeleteSelection),
-            Keysym::u | Keysym::U => Some(Action::Undo),
-            Keysym::r | Keysym::R => Some(Action::Redo),
-            Keysym::x | Keysym::X => Some(Action::Clear),
-            Keysym::c | Keysym::C => Some(Action::CycleColor),
-            Keysym::bracketleft => Some(Action::AdjustWidth(-1)),
-            Keysym::bracketright => Some(Action::AdjustWidth(1)),
-            Keysym::minus => Some(Action::AdjustOpacity(-1)),
-            Keysym::equal | Keysym::plus => Some(Action::AdjustOpacity(1)),
-            Keysym::q | Keysym::Q => {
-                self.quit = true;
-                None
-            }
-            _ => None,
+        // What the key means is the shared keymap's decision (see `keys`).
+        let Some(key) = crate::keys::key_for(event.keysym, event.utf8.as_deref()) else {
+            return;
         };
+        if ink_app::keymap::quits(key) {
+            self.quit = true;
+            return;
+        }
+        let action = ink_app::keymap::command(key);
         if let Some(action) = action {
             let effects = self.controller.act(action);
             self.apply(effects);

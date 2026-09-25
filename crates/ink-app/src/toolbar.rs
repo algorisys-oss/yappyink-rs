@@ -107,7 +107,7 @@ impl Button {
             Icon::Park => "SHRINK TO TOOLBAR (G)",
             Icon::Hide => "HIDE (H)",
             Icon::Quit => "SAVE AND QUIT (Q)",
-            Icon::Zoom => "ZOOM 2X 3X 4X OFF (Z)",
+            Icon::Zoom => "ZOOM 2X 3X 4X (Z), OFF (0)",
         }
     }
 
