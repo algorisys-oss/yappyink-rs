@@ -22,8 +22,8 @@
 //! pixels to the window manager — and that genuinely cannot be checked without
 //! Windows.
 //!
-//! **That split is a mitigation, not a substitute.** Nothing here has been seen
-//! working. Every capability this crate reports is `unknown`.
+//! **That split is a mitigation, not a substitute.** Two capabilities have been
+//! seen working on one machine (E010); every other one is still `unknown`.
 
 pub mod keys;
 pub mod surface;
@@ -48,17 +48,26 @@ pub const BACKEND: &str = "windows-layered";
 /// evidence files land.
 pub fn capabilities() -> CapabilityReport {
     let mut report = CapabilityReport::new();
+    // Observed on one machine, 0.7.0, Windows with two monitors at 96 dpi:
+    // strokes, shapes, a highlighter and text drawn over a terminal, in areas
+    // that had been fully transparent. See docs/evidence/E010.
+    report.record(CapabilityFinding::new(
+        Capability::LiveOverlay,
+        CapabilityState::available(
+            "E010: ink drawn with UpdateLayeredWindow stayed visible above a terminal \
+             window, on one machine at 96 dpi",
+        ),
+        BACKEND,
+    ));
+    report.record(CapabilityFinding::new(
+        Capability::DrawPointerCapture,
+        CapabilityState::available(
+            "E010: clicks on empty canvas drew strokes rather than reaching the terminal \
+             underneath, which is the alpha-1 floor doing its job",
+        ),
+        BACKEND,
+    ));
     let unproven = [
-        (
-            Capability::LiveOverlay,
-            "a WS_EX_LAYERED window painted with UpdateLayeredWindow should composite \
-             per-pixel alpha above other applications; nobody has watched it",
-        ),
-        (
-            Capability::DrawPointerCapture,
-            "without WS_EX_TRANSPARENT the window should receive clicks on transparent \
-             pixels; nobody has watched it",
-        ),
         (
             Capability::VisiblePassthrough,
             "WS_EX_TRANSPARENT should let the window manager route clicks underneath \
@@ -118,20 +127,25 @@ mod tests {
 
     /// The honesty rule, enforced rather than trusted.
     ///
-    /// It would be very easy, once the probe comes back positive, to mark these
-    /// `Available` from the documentation instead of from evidence. This test
-    /// fails the moment anyone does, which forces them to delete it
-    /// deliberately and, ideally, to attach an evidence file when they do.
+    /// Exactly the capabilities an evidence file supports may be `Available`,
+    /// and each must cite it. Everything else stays `Unknown`. Adding to the
+    /// list below means adding the evidence first.
     #[test]
     fn nothing_is_claimed_before_it_is_measured() {
+        let observed = [Capability::LiveOverlay, Capability::DrawPointerCapture];
         for finding in capabilities().findings() {
-            assert!(
-                matches!(finding.state, CapabilityState::Unknown { .. }),
-                "{:?} claims {:?}, but no Windows machine has run this code. \
-                 If that has changed, cite the evidence file when you change this test.",
-                finding.capability,
-                finding.state
-            );
+            match &finding.state {
+                CapabilityState::Available { evidence } => {
+                    assert!(
+                        observed.contains(&finding.capability),
+                        "{:?} claims availability with no evidence file",
+                        finding.capability
+                    );
+                    assert!(evidence.starts_with("E010"), "{evidence}");
+                }
+                CapabilityState::Unknown { .. } => {}
+                other => panic!("{:?} claims {other:?} without evidence", finding.capability),
+            }
         }
     }
 

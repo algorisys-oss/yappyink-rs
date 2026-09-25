@@ -19,7 +19,7 @@
       "tests": [
         "crates/ink-ui/tests/chrome.rs"
       ],
-      "note": "Only a precondition is tested, headlessly: a capturing frame has no alpha-zero pixel, which Win32 layered windows and clear AppKit windows would let clicks through. No capture has been observed on Windows or macOS."
+      "note": "Headless: a capturing frame has no alpha-zero pixel. Native: on one Windows machine clicks on empty canvas drew rather than falling through (E010). Not observed on macOS or on other Windows configurations, so the scenario is not passed."
     },
     {
       "id": "AC-FR-003",
@@ -174,7 +174,7 @@
       "tests": [
         "crates/ink-storage/tests/roundtrip.rs"
       ],
-      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; the Windows backend has never been run."
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; saving on Windows was broken until 0.7.1 (E010) and the fixed path has not been exercised there."
     },
     {
       "id": "AC-FR-016",
@@ -194,7 +194,7 @@
       "tests": [
         "crates/ink-storage/tests/roundtrip.rs"
       ],
-      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; the Windows backend has never been run."
+      "note": "Headless round trip and failure paths pass. Windows replacement semantics are untested; saving on Windows was broken until 0.7.1 (E010) and the fixed path has not been exercised there."
     },
     {
       "id": "AC-FR-018",

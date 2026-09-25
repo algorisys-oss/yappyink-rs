@@ -58,19 +58,48 @@ pub struct LoadedDocument {
 
 /// Where a session is kept when no path is given.
 ///
-/// `XDG_DATA_HOME`, or `~/.local/share`, which is where a user's own data
-/// belongs. Returns an error rather than guessing when neither is available.
+/// On Windows, `%APPDATA%\yappyink\session.json`, the per-user roaming data
+/// folder. Elsewhere, `XDG_DATA_HOME`, or `~/.local/share`, which is where a
+/// user's own data belongs. Returns an error rather than guessing when none of
+/// them is available.
 pub fn default_session_path() -> Result<PathBuf, StorageError> {
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .filter(|path| !path.as_os_str().is_empty())
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
-        .ok_or_else(|| {
-            StorageError::invalid(
-                "the session path",
-                "neither XDG_DATA_HOME nor HOME is set, so there is nowhere to put it",
-            )
-        })?;
+    session_path_for(std::env::consts::OS, |name| std::env::var_os(name))
+}
+
+/// The resolution itself, with the platform and environment passed in so every
+/// branch is tested on any machine.
+///
+/// Until 0.7.1 there was no Windows branch. Windows sets neither
+/// `XDG_DATA_HOME` nor `HOME`, so the first person to run the Windows build
+/// drew, pressed save, and was told there was nowhere to put it (E010).
+fn session_path_for(
+    os: &str,
+    var: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> Result<PathBuf, StorageError> {
+    let set = |name: &str| {
+        var(name)
+            .map(PathBuf::from)
+            .filter(|path| !path.as_os_str().is_empty())
+    };
+    let base = if os == "windows" {
+        set("APPDATA")
+            .or_else(|| set("LOCALAPPDATA"))
+            .ok_or_else(|| {
+                StorageError::invalid(
+                    "the session path",
+                    "neither APPDATA nor LOCALAPPDATA is set, so there is nowhere to put it",
+                )
+            })?
+    } else {
+        set("XDG_DATA_HOME")
+            .or_else(|| set("HOME").map(|home| home.join(".local/share")))
+            .ok_or_else(|| {
+                StorageError::invalid(
+                    "the session path",
+                    "neither XDG_DATA_HOME nor HOME is set, so there is nowhere to put it",
+                )
+            })?
+    };
     Ok(base.join("yappyink").join("session.json"))
 }
 
@@ -346,4 +375,55 @@ fn write_atomically(path: &Path, bytes: &[u8]) -> Result<(), StorageError> {
             source,
         }
     })
+}
+
+#[cfg(test)]
+mod session_path_tests {
+    use super::*;
+    use std::ffi::OsString;
+
+    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<OsString> {
+        move |name| {
+            pairs
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, value)| OsString::from(value))
+        }
+    }
+
+    /// The E010 bug, as a test: a Windows environment, which has APPDATA and
+    /// no HOME, must still have somewhere to save.
+    #[test]
+    fn windows_saves_under_appdata() {
+        let path =
+            session_path_for("windows", env(&[("APPDATA", "C:/Users/v/AppData/Roaming")])).unwrap();
+        assert_eq!(
+            path,
+            PathBuf::from("C:/Users/v/AppData/Roaming")
+                .join("yappyink")
+                .join("session.json")
+        );
+    }
+
+    #[test]
+    fn windows_falls_back_to_local_appdata_and_then_refuses() {
+        let path = session_path_for("windows", env(&[("LOCALAPPDATA", "C:/L")])).unwrap();
+        assert!(path.starts_with("C:/L"));
+        assert!(session_path_for("windows", env(&[])).is_err());
+        // HOME alone is not a Windows answer; it is usually unset there, and
+        // when a shell sets it, it is not where Windows keeps app data.
+        assert!(session_path_for("windows", env(&[("HOME", "/h")])).is_err());
+    }
+
+    #[test]
+    fn unix_prefers_xdg_then_home() {
+        let xdg = session_path_for("linux", env(&[("XDG_DATA_HOME", "/x"), ("HOME", "/h")]));
+        assert_eq!(xdg.unwrap(), PathBuf::from("/x/yappyink/session.json"));
+        let home = session_path_for("macos", env(&[("HOME", "/h")]));
+        assert_eq!(
+            home.unwrap(),
+            PathBuf::from("/h/.local/share/yappyink/session.json")
+        );
+        assert!(session_path_for("linux", env(&[("XDG_DATA_HOME", "")])).is_err());
+    }
 }

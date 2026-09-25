@@ -397,6 +397,13 @@ and a keyboard that never reached the window explain it, and a fourth problem
 turned up that reading had missed: the only macOS font path was one a stock Mac
 does not have. One user's run found in minutes what the compiler never will.
 
+The first Windows run (E010) then added another of the same kind: drawing
+worked, and saving failed, because the session path knew only `XDG_DATA_HOME`
+and `HOME`. It was written on Linux, tested on Linux, and nothing about it
+looked platform-specific until a platform without `HOME` ran it. Its
+resolution now takes the platform and environment as parameters, so the
+Windows branch is tested here.
+
 And one on Wayland, found while comparing: nothing ever calls
 `Controller::set_surface_size`, so the resize corner the controller offers can
 never appear there. `surface::scale_for_dpi` in 0.5.0 was the same shape of bug

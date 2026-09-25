@@ -104,8 +104,8 @@ jobs:
           cargo run -q -p yappyink -- version
           report=$(cargo run -q -p yappyink -- doctor)
           echo "$report"
-          if ! grep -q "backend is compiled in, and none of its capabilities has been confirmed" <<<"$report"; then
-            echo "doctor no longer says the backend is unconfirmed; if something has been"
-            echo "confirmed, record the evidence and change this check with it"
+          if ! grep -q "backend is compiled in" <<<"$report" || ! grep -q "unknown" <<<"$report"; then
+            echo "doctor no longer reports the backend, or claims every capability; if something"
+            echo "has been confirmed, record the evidence and change this check with it"
             exit 1
           fi

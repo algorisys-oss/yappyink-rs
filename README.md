@@ -25,7 +25,7 @@ the specification documents. Same project.
 | Linux, GNOME Wayland (Mutter) | drawing, pass-through, hide and show, control socket — with the limitations below |
 | Linux, wlroots compositors (layer-shell) | not implemented |
 | Linux, X11 | not implemented |
-| Windows | a complete backend that links and passes its unit tests. **Nobody has run it**, so nothing is claimed |
+| Windows | **drawing works**, seen on one machine: the overlay stays above other windows and every tool draws ([E010](docs/evidence/E010-first-windows-run.md)). Pass-through, the chords and the rest are not yet confirmed |
 | macOS | a complete backend that links and passes its unit tests. Launched once, by a user, on 0.6.0: it found the screen and then appeared to freeze, for reasons since fixed ([E009](docs/evidence/E009-first-macos-launch.md)). Nothing is claimed |
 
 `yappyink draw` starts the overlay on all three. CI builds and links the Windows
@@ -33,8 +33,8 @@ and macOS binaries on real runners and runs the unit tests there, which keeps
 the code honest as far as a compiler can. **It does not mean the overlay works
 on either.** A runner has no one watching a screen, and every question that
 matters — does a window appear, do clicks land, does pass-through let them
-through — is about what a person sees. `yappyink doctor` reports every Windows
-and macOS capability as `unknown` for that reason.
+through — is about what a person sees. `yappyink doctor` reports every capability
+nobody has seen as `unknown` for that reason.
 
 On GNOME specifically, measured rather than assumed
 ([evidence](docs/evidence/)):
@@ -59,7 +59,10 @@ loaded by a running Shell, so it is not part of the instructions below.
 ### The Windows backend
 
 [crates/ink-platform-windows](crates/ink-platform-windows/) is T003, **in
-progress, and never run**. It is one layered window, and each style bit buys
+progress, and drawing works on the one machine it has been run on**
+([E010](docs/evidence/E010-first-windows-run.md)): the overlay stays above
+other windows, clicks on empty canvas draw, and every tool shown worked.
+Pass-through and the chords have not been confirmed yet. It is one layered window, and each style bit buys
 one thing the specification asks for:
 
 | Flag | What it gives us |
@@ -100,7 +103,7 @@ and the remote message numbering, with 25 tests in the ordinary suite. Only the
 window itself needs Win32. [ADR-005](docs/adr/ADR-005-windows-bindings.md)
 explains the binding choice.
 
-**None of it has been run.** A throwaway probe,
+**Beyond E010, nothing has been confirmed.** A throwaway probe,
 [experiments/windows-layered](experiments/windows-layered/), exists to answer
 the basic questions first, and `docs/handoff.md` says how to run it and what to
 record.
@@ -362,7 +365,7 @@ crates/ink-app               modes, transitions, gesture rules — no platform
 crates/ink-render            software rasteriser, pixel-tested headlessly
 crates/ink-platform          typed capability and error contracts
 crates/ink-platform-wayland  the Wayland surface and event loop
-crates/ink-platform-windows  the Win32 layered window (never run)
+crates/ink-platform-windows  the Win32 layered window (draws; E010)
 crates/ink-platform-macos    the AppKit window (launched once; E009)
 crates/ink-ui                the toolbar and chrome every backend draws
 apps/yappyink                the binary: doctor, draw, control commands

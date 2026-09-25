@@ -259,13 +259,16 @@ fn native_section(
 ) {
     let _ = writeln!(
         *out,
-        "  the windows-layered backend is compiled in, and none of its capabilities has been confirmed"
+        "  the windows-layered backend is compiled in; live overlay and draw capture were seen \
+         working on one machine (E010), and nothing else has been confirmed"
     );
     for finding in ink_platform_windows::capabilities().findings() {
         capabilities.record(finding.clone());
     }
     not_probed.push(
-        "every windows capability: the backend compiles but nobody has watched it".to_owned(),
+        "pass-through, keyboard release, the global chords, monitors, fullscreen and virtual \
+         desktops on windows: nobody has recorded them yet"
+            .to_owned(),
     );
 }
 

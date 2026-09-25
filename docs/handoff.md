@@ -2,7 +2,7 @@
 
 Everything needed to pick this up cold. Updated after each successful commit.
 
-**Last updated:** 2026-09-25, release 0.7.0. Three backends exist. Windows has never run; macOS has been launched once, by a user, and appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
+**Last updated:** 2026-09-25, release 0.7.0. Three backends exist. Windows draws, seen on one machine (E010), and 0.7.1 fixes saving there; macOS has been launched once, by a user, and appeared to freeze (E009). Both are now complete enough that running them is the only thing left to learn from.
 
 ## What this is
 

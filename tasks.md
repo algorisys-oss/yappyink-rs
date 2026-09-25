@@ -82,6 +82,8 @@ Four defects came out of the reading, each of which would have shown up on the f
 
 **Verified: compiles and lints for `x86_64-pc-windows-gnu` (`cargo clippy -D warnings`), and the unit tests pass on Linux.** A local link was not possible (no MinGW toolchain on the development machine); the Windows CI runner links it. Nothing has been run, every capability is still `unknown`, and the status stays `in_progress`.
 
+**First run, 2026-09-25 (E010).** A user ran the 0.7.0 binary on a two-monitor Windows machine and sent a screenshot: the overlay over a terminal, the toolbar, and a pen stroke, rectangle, highlighter, arrow and "Hello" in text, all drawn over what had been transparent canvas. `live_overlay` and `draw_pointer_capture` are now `available`, citing E010; everything else stays `unknown`. The run also found that **save was broken on Windows**: the session path knew only `XDG_DATA_HOME` and `HOME`, neither of which Windows sets. 0.7.1 saves to `%APPDATA%\yappyink\session.json`, with the resolution tested on Linux. Status stays `in_progress`: pass-through, withdrawal and the chords are the rest of this task's exit criterion, and none has been recorded.
+
 ## T004 [M0]: Prove the macOS overlay path
 
 Status: in_progress since 2026-09-24. Dependencies: T001.

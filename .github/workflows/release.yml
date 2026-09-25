@@ -123,19 +123,21 @@ jobs:
           | Download | What it does |
           |---|---|
           | `yappyink-x86_64-linux` | the overlay, on GNOME Wayland. Used and tested by hand |
-          | `yappyink-x86_64-windows.exe` | the overlay. **Never run by anyone** |
+          | `yappyink-x86_64-windows.exe` | the overlay. **Drawing seen working on one machine**; pass-through not yet confirmed |
           | `yappyink-aarch64-macos` | the overlay. **Launched once by a user; nothing confirmed on screen** |
 
-          **Windows and macOS are untested.** Both backends are complete enough
-          to try: drawing, every tool, the toolbar, undo, save and load, and a
+          **Windows and macOS are barely tested.** On Windows, one user has
+          seen the overlay stay above other windows and every tool draw
+          (`docs/evidence/E010-first-windows-run.md`); nothing else is
+          confirmed. Both backends are complete enough to try: drawing, every tool, the toolbar, undo, save and load, and a
           global chord to get back from pass-through (Ctrl+Alt+D on Windows,
           Control+Option+D on macOS). They compile, pass their unit tests, and
           link on real Windows and macOS CI runners. None of that shows an
           overlay on a screen. The one macOS launch so far, on 0.6.0, found
           the screen and then appeared to freeze, for reasons fixed since
-          (`docs/evidence/E009-first-macos-launch.md`). Every capability `yappyink doctor` reports for
-          them is `unknown`, and stays that way until someone runs them and
-          records what they saw. If you try one, that report is the most
+          (`docs/evidence/E009-first-macos-launch.md`). Every capability
+          `yappyink doctor` reports as `unknown` stays that way until someone
+          runs it and records what they saw. If you try one, that report is the most
           useful thing you can send.
 
           On Linux this is a **limited preview on GNOME**. It cannot choose
