@@ -500,7 +500,7 @@ Write a focused spec for each chosen board/laser/spotlight/pressure feature befo
 
 ## T037 [M3]: Live zoom on GNOME through the Shell magnifier
 
-Status: not_started. Dependencies: T011.
+Status: in_progress since 2026-09-25. Dependencies: T011.
 
 Requirements: FR-029, NFR-003.
 
@@ -509,6 +509,8 @@ Probe, then implement: switch the Shell magnifier on and set its factor through 
 **Exit criterion:** On the E001 machine, a playing video stays live while magnified, a stroke drawn while zoomed lands under the pointer and stays on its content after zooming out, and quitting while zoomed restores the user's magnifier settings.
 
 **Specified 2026-09-25.** ADR-008 and `specs/004-live-zoom`. The mechanism was probed read-only (E016): Shell 46 has every magnifier setting, and the `org.gnome.Magnifier` D-Bus service is not available, so settings are the route.
+
+**The mechanism works, 2026-09-25 (E017).** Four runs of `experiments/gnome-magnifier/probe.sh` on this machine: the Shell magnifier at 2× magnifies the overlay with everything else, 27 strokes were drawn while zoomed, the owner confirmed they stay on their content once zoom is off, and the user's settings were restored every time, with no faults. No pixels reached yappyink and nothing asked for permission. ADR-008 holds on GNOME. Still to build: the toolbar button, the chord, zoom steps, restore on exit, and the capability report. Still to observe: a video staying live while magnified.
 
 ## T038 [M3]: Live zoom on Windows through the Magnification API
 

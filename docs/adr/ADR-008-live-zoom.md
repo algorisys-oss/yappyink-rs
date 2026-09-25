@@ -1,6 +1,6 @@
 # ADR-008: live zoom through the compositor's own magnifier
 
-Status: proposed, 2026-09-25. Adds FR-029. No dependency is added by this ADR;
+Status: accepted, 2026-09-25, on the evidence of E017 for GNOME; Windows and macOS still to be probed. Adds FR-029. No dependency is added by this ADR;
 each platform's task decides its mechanism against the constraints below.
 
 ## Context
