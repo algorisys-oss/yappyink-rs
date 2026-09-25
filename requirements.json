@@ -218,6 +218,12 @@
       "phase": "V1",
       "title": "Dependency and release hygiene",
       "contract": "Pin a compatible Rust toolchain/dependency set during implementation, commit Cargo.lock, review unsafe FFI, audit licenses/dependencies, and record platform signing/package checks. No guessed version compatibility."
+    },
+    {
+      "id": "FR-029",
+      "phase": "V1",
+      "title": "Live zoom",
+      "contract": "Zoom a live, continuously updating view of the screen that follows the pointer, in steps, from a toolbar button and a chord, in any mode. Use the platform compositor's magnifier where one exists so no desktop pixels reach the app and no capture permission is needed; ink is magnified with the content it marks. Restore any user setting changed to drive a system magnifier. See ADR-008 and specs/004-live-zoom."
     }
   ]
 }

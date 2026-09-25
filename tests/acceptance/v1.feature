@@ -25,3 +25,9 @@ Feature: ScreenInk v1 contract
     Given a vector scene and capture permission denied
     When I export ink-only PNG and SVG
     Then the exports contain the expected objects and transparency without desktop pixels, app controls, or a screen-capture prompt
+
+  @AC-FR-029 @FR-029 @specified_not_implemented
+  Scenario: [AC-FR-029] Live zoom
+    Given a video is playing under the overlay and the platform has a compositor magnifier
+    When I zoom in, draw a stroke while zoomed, and zoom out again
+    Then the magnified view keeps updating, the stroke lands under the pointer and stays on the content it marks, no desktop pixels reach the application, and the user's magnifier settings are restored when zoom is turned off or the application quits

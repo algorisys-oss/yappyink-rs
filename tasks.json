@@ -651,6 +651,53 @@
       "title": "Add presenter enhancements one spec at a time",
       "work": "Write a focused spec for each chosen board/laser/spotlight/pressure feature before implementation. Separate passive global input monitoring from Draw-mode effects.",
       "exit_criterion": "Each new feature has its own capability/privacy contract and native tests; no universal pressure/global tracking claim is assumed."
+    },
+    {
+      "id": "T037",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T011"
+      ],
+      "requirements": [
+        "FR-029",
+        "NFR-003"
+      ],
+      "title": "Live zoom on GNOME through the Shell magnifier",
+      "work": "Probe, then implement: switch the Shell magnifier on and set its factor through gsettings off the GUI thread, record and restore the user's values, add the toolbar button and chord, and report the capability.",
+      "exit_criterion": "On the E001 machine, a playing video stays live while magnified, a stroke drawn while zoomed lands under the pointer and stays on its content after zooming out, and quitting while zoomed restores the user's magnifier settings."
+    },
+    {
+      "id": "T038",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T003",
+        "T037"
+      ],
+      "requirements": [
+        "FR-029",
+        "NFR-003"
+      ],
+      "title": "Live zoom on Windows through the Magnification API",
+      "work": "Probe MagSetFullscreenTransform: whether it needs UIAccess, how mouse input maps while magnified, and following the pointer by updating the offset. Then implement behind the same toolbar button and chord.",
+      "exit_criterion": "The same observations as T037 on a Windows machine, with the UIAccess and input-mapping answers recorded."
+    },
+    {
+      "id": "T039",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T004",
+        "T038"
+      ],
+      "requirements": [
+        "FR-029",
+        "FR-026"
+      ],
+      "title": "Decide live zoom on macOS",
+      "work": "No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Recording permission, pixels in process, the FR-026 contract) and deferring to macOS's own Zoom, and amend ADR-008 before any capture code.",
+      "exit_criterion": "ADR-008 records the macOS decision; if capture is chosen, it has its own permission and privacy contract before implementation."
     }
   ]
 }

@@ -372,6 +372,14 @@
       ],
       "file": "tests/acceptance/release.feature",
       "status": "specified_not_implemented"
+    },
+    {
+      "id": "AC-FR-029",
+      "requirements": [
+        "FR-029"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
     }
   ],
   "requirements": [
@@ -767,7 +775,8 @@
       "requirement": "FR-026",
       "phase": "Later",
       "tasks": [
-        "T033"
+        "T033",
+        "T039"
       ],
       "scenarios": [
         "AC-FR-026"
@@ -836,7 +845,9 @@
         "T020",
         "T024",
         "T025",
-        "T033"
+        "T033",
+        "T037",
+        "T038"
       ],
       "scenarios": [
         "AC-NFR-003"
@@ -917,6 +928,21 @@
       ],
       "implementation_status": "not_started",
       "verification_status": "not_tested"
+    },
+    {
+      "requirement": "FR-029",
+      "phase": "V1",
+      "tasks": [
+        "T037",
+        "T038",
+        "T039"
+      ],
+      "scenarios": [
+        "AC-FR-029"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested",
+      "notes": "ADR-008: the compositor's magnifier on GNOME and Windows, so no pixels reach the app; macOS undecided. Mechanism probed read-only on GNOME 46 (E016)."
     }
   ]
 }

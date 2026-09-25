@@ -52,6 +52,14 @@ budget. Fallback fonts load on first use: startup 125 ms, 32 MB. Before quoting 
 still takes one slow frame per commit, which incremental layer updates would
 fix.
 
+**Live zoom is specified, not started (FR-029, ADR-008, specs/004-live-zoom).**
+The compositor's own magnifier where one exists, so no desktop pixels reach the
+app: the GNOME Shell magnifier through its settings first (T037, on this
+machine), then Windows' Magnification API (T038), then a macOS decision
+(T039), which has no public API and would need capture. The next step is
+T037's probe: switch the magnifier on with the overlay running and check that
+drawing while zoomed lands under the pointer.
+
 **Known and not fixed:** the Wayland adapter never calls
 `Controller::set_surface_size`, so its resize corner never appears. It is
 testable on this machine and deserves its own change.

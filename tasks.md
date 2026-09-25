@@ -497,3 +497,35 @@ Requirements: FR-028.
 Write a focused spec for each chosen board/laser/spotlight/pressure feature before implementation. Separate passive global input monitoring from Draw-mode effects.
 
 **Exit criterion:** Each new feature has its own capability/privacy contract and native tests; no universal pressure/global tracking claim is assumed.
+
+## T037 [M3]: Live zoom on GNOME through the Shell magnifier
+
+Status: not_started. Dependencies: T011.
+
+Requirements: FR-029, NFR-003.
+
+Probe, then implement: switch the Shell magnifier on and set its factor through gsettings off the GUI thread, record and restore the user's values, add the toolbar button and chord, and report the capability.
+
+**Exit criterion:** On the E001 machine, a playing video stays live while magnified, a stroke drawn while zoomed lands under the pointer and stays on its content after zooming out, and quitting while zoomed restores the user's magnifier settings.
+
+**Specified 2026-09-25.** ADR-008 and `specs/004-live-zoom`. The mechanism was probed read-only (E016): Shell 46 has every magnifier setting, and the `org.gnome.Magnifier` D-Bus service is not available, so settings are the route.
+
+## T038 [M3]: Live zoom on Windows through the Magnification API
+
+Status: not_started. Dependencies: T003, T037.
+
+Requirements: FR-029, NFR-003.
+
+Probe MagSetFullscreenTransform: whether it needs UIAccess, how mouse input maps while magnified, and following the pointer by updating the offset. Then implement behind the same toolbar button and chord.
+
+**Exit criterion:** The same observations as T037 on a Windows machine, with the UIAccess and input-mapping answers recorded.
+
+## T039 [M3]: Decide live zoom on macOS
+
+Status: not_started. Dependencies: T004, T038.
+
+Requirements: FR-029, FR-026.
+
+No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Recording permission, pixels in process, the FR-026 contract) and deferring to macOS's own Zoom, and amend ADR-008 before any capture code.
+
+**Exit criterion:** ADR-008 records the macOS decision; if capture is chosen, it has its own permission and privacy contract before implementation.
