@@ -95,8 +95,8 @@ pub fn capabilities() -> CapabilityReport {
     let unproven = [
         (
             Capability::LiveZoom,
-            "the Magnification API's full-screen transform should zoom without capture \
-             (ADR-008); not implemented, T038",
+            "implemented with the Magnification API's full-screen transform, which zooms \
+             without capture (ADR-008, T038); nobody has watched it",
         ),
         (
             Capability::KeyboardRelease,

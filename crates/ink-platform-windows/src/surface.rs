@@ -196,6 +196,23 @@ pub const fn cursor_resource(cursor: ink_app::Cursor) -> u16 {
     }
 }
 
+/// Where the magnified view starts, for a zoom that follows the pointer
+/// (FR-029, T038).
+///
+/// `MagSetFullscreenTransform` takes the top-left corner of the part of the
+/// desktop to magnify, in unmagnified screen pixels. The view is centred on
+/// the pointer and kept inside the monitor, so near an edge the pointer moves
+/// towards the edge of the view instead of the view showing off-screen space.
+pub fn zoom_offset(monitor: PixelRect, level: f64, cursor: (i32, i32)) -> (i32, i32) {
+    let level = level.max(1.0);
+    let view_w = (f64::from(monitor.width()) / level).round() as i32;
+    let view_h = (f64::from(monitor.height()) / level).round() as i32;
+    (
+        (cursor.0 - view_w / 2).clamp(monitor.left, monitor.right - view_w),
+        (cursor.1 - view_h / 2).clamp(monitor.top, monitor.bottom - view_h),
+    )
+}
+
 /// `WM_APP`, the first message number an application may define for itself.
 const WM_APP: u32 = 0x8000;
 
@@ -409,5 +426,50 @@ mod tests {
         // Ordinary window messages are not mistaken for ours.
         assert_eq!(remote_index(0x0201), None);
         assert_eq!(remote_index(0x8000 + MAX_REMOTE), None);
+    }
+
+    fn laptop() -> PixelRect {
+        PixelRect {
+            left: 0,
+            top: 0,
+            right: 1366,
+            bottom: 768,
+        }
+    }
+
+    #[test]
+    fn the_zoomed_view_is_centred_on_the_pointer() {
+        // At 2x the view is 683x384, so centred on (683, 384) it starts at
+        // (342, 192) (rounding the half view down).
+        assert_eq!(zoom_offset(laptop(), 2.0, (683, 384)), (342, 192));
+    }
+
+    /// Near an edge the view stops at the edge rather than showing space
+    /// beyond the monitor.
+    #[test]
+    fn the_zoomed_view_stays_on_the_monitor() {
+        assert_eq!(zoom_offset(laptop(), 2.0, (0, 0)), (0, 0));
+        assert_eq!(zoom_offset(laptop(), 2.0, (1366, 768)), (683, 384));
+        assert_eq!(zoom_offset(laptop(), 4.0, (1366, 0)), (1366 - 342, 0));
+    }
+
+    /// A second monitor at negative coordinates, as E010's was.
+    #[test]
+    fn a_monitor_away_from_the_origin_is_respected() {
+        let above = PixelRect {
+            left: -290,
+            top: -1080,
+            right: 1630,
+            bottom: 0,
+        };
+        let (x, y) = zoom_offset(above, 2.0, (-290, -1080));
+        assert_eq!((x, y), (-290, -1080));
+        let (x, y) = zoom_offset(above, 2.0, (1630, 0));
+        assert_eq!((x, y), (1630 - 960, -540));
+    }
+
+    #[test]
+    fn a_level_below_one_is_treated_as_no_zoom() {
+        assert_eq!(zoom_offset(laptop(), 0.5, (700, 400)), (0, 0));
     }
 }

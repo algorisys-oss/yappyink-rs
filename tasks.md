@@ -520,13 +520,15 @@ Probe, then implement: switch the Shell magnifier on and set its factor through 
 
 ## T038 [M3]: Live zoom on Windows through the Magnification API
 
-Status: not_started. Dependencies: T003, T037.
+Status: in_progress since 2026-09-25. Dependencies: T003, T037.
 
 Requirements: FR-029, NFR-003.
 
 Probe MagSetFullscreenTransform: whether it needs UIAccess, how mouse input maps while magnified, and following the pointer by updating the offset. Then implement behind the same toolbar button and chord.
 
 **Exit criterion:** The same observations as T037 on a Windows machine, with the UIAccess and input-mapping answers recorded.
+
+**Built, not yet run, 2026-09-25.** `MagInitialize`, then `MagSetFullscreenTransform(level, x, y)` with the view centred on the pointer and kept on the overlay's monitor (`surface::zoom_offset`, tested). A 16 ms timer moves it with the pointer, running only while zoomed, because in pass-through the window hears no mouse moves. Zoom is offered only if `MagInitialize` succeeds; `z`, `0`, the toolbar button, Ctrl+Alt+Z and Ctrl+Alt+0 drive it, and quitting resets the transform. Compiles and lints for `x86_64-pc-windows-gnu`. The two open questions are still open and are what the first run must answer: whether any of this needs UIAccess, and whether a stroke drawn while zoomed lands under the pointer. Also unknown: whether Windows resets the transform if the process is killed while zoomed.
 
 ## T039 [M3]: Decide live zoom on macOS
 
@@ -537,3 +539,5 @@ Requirements: FR-029, FR-026.
 No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Recording permission, pixels in process, the FR-026 contract) and deferring to macOS's own Zoom, and amend ADR-008 before any capture code.
 
 **Exit criterion:** ADR-008 records the macOS decision; if capture is chosen, it has its own permission and privacy contract before implementation.
+
+**Deferred by the owner, 2026-09-25.** Offered the choice between a capture-based magnifier (Screen Recording permission) and deferring to macOS's own Zoom, the owner chose to ship Windows first and decide macOS after the Windows test.

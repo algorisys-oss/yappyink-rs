@@ -79,16 +79,19 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     MOD_ALT, MOD_CONTROL, MOD_NOREPEAT, RegisterHotKey, ReleaseCapture, SetCapture,
     UnregisterHotKey,
 };
+use windows_sys::Win32::UI::Magnification::{
+    MagInitialize, MagSetFullscreenTransform, MagUninitialize,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, FindWindowW, GWL_EXSTYLE,
-    GetCursorPos, GetMessageW, GetWindowLongPtrW, HTCLIENT, IDC_ARROW, LoadCursorW,
+    GetCursorPos, GetMessageW, GetWindowLongPtrW, HTCLIENT, IDC_ARROW, KillTimer, LoadCursorW,
     MONITORINFOF_PRIMARY, MSG, PostMessageW, PostQuitMessage, RegisterClassW, SW_HIDE, SW_SHOW,
-    SWP_NOACTIVATE, SWP_NOZORDER, SetCursor, SetWindowLongPtrW, SetWindowPos, ShowWindow,
+    SWP_NOACTIVATE, SWP_NOZORDER, SetCursor, SetTimer, SetWindowLongPtrW, SetWindowPos, ShowWindow,
     TranslateMessage, ULW_ALPHA, UpdateLayeredWindow, WM_CAPTURECHANGED, WM_CHAR, WM_DESTROY,
     WM_DISPLAYCHANGE, WM_DPICHANGED, WM_HOTKEY, WM_IME_COMPOSITION, WM_IME_ENDCOMPOSITION,
     WM_IME_STARTCOMPOSITION, WM_KEYDOWN, WM_KILLFOCUS, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MOUSEMOVE,
-    WM_SETCURSOR, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
-    WS_POPUP, WindowFromPoint,
+    WM_SETCURSOR, WM_TIMER, WNDCLASSW, WS_EX_LAYERED, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    WS_EX_TRANSPARENT, WS_POPUP, WindowFromPoint,
 };
 
 use crate::keys;
@@ -100,6 +103,16 @@ pub const CLASS_NAME: &str = "YappyinkOverlay";
 
 const HOTKEY_TOGGLE_DRAW: i32 = 1;
 const HOTKEY_HIDE: i32 = 2;
+const HOTKEY_ZOOM: i32 = 3;
+const HOTKEY_ZOOM_OFF: i32 = 4;
+
+/// The timer that moves the magnified view with the pointer while zoomed.
+/// A timer rather than mouse messages, because in pass-through the pointer
+/// is over other applications and this window hears nothing from it.
+const ZOOM_TIMER: usize = 1;
+/// About sixty times a second: smooth enough to follow a pointer, and only
+/// running while zoomed, so idle cost is unchanged (NFR-002).
+const ZOOM_TICK_MS: u32 = 16;
 
 /// What a remote verb asks the overlay to do.
 ///
@@ -141,6 +154,7 @@ enum Input {
     CompositionStarted,
     Composing(String),
     Composed(String),
+    ZoomTick,
 }
 
 #[derive(Clone, Copy)]
@@ -201,6 +215,12 @@ struct Overlay {
     /// both depend on it and have to be recomputed when the *tool* changes as
     /// well as when the pointer moves (docs/learning.md §12).
     last_pointer: Option<LogicalPoint>,
+    /// The monitor the overlay was put on, which the zoom stays within.
+    monitor_bounds: PixelRect,
+    /// Whether `MagInitialize` succeeded, which is what offering zoom means.
+    magnifier: bool,
+    /// The zoom level, and the offset last applied, while zoomed.
+    zoom: Option<(f64, (i32, i32))>,
 }
 
 thread_local! {
@@ -321,7 +341,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
         rect.top
     );
 
-    create(index, rect, requested, config.remote)?;
+    create(index, all[index].bounds, rect, requested, config.remote)?;
     print_orientation();
 
     // The same first step as the Wayland adapter. The controller starts
@@ -337,6 +357,7 @@ pub fn run(config: OverlayConfig) -> Result<Session, PlatformError> {
 
 fn create(
     monitor: usize,
+    bounds: PixelRect,
     rect: PixelRect,
     requested: Option<(f64, f64)>,
     remote: fn(u32) -> Option<Remote>,
@@ -433,6 +454,20 @@ fn create(
     // no corner; this one does, and keeps it current after every resize.
     controller.set_surface_size(size);
 
+    // FR-029 through the Magnification API (ADR-008, T038). Windows does the
+    // magnifying, so no pixels reach this process. Offered only when it
+    // initialises, so a system without it shows no zoom button.
+    let magnifier = unsafe { MagInitialize() } != 0;
+    if magnifier {
+        controller.offer_zoom();
+        eprintln!("[zoom] the Magnification API is available: z or Ctrl+Alt+Z steps 2x, 3x, 4x");
+    } else {
+        eprintln!(
+            "[zoom] MagInitialize failed ({}); zoom is not offered",
+            std::io::Error::last_os_error()
+        );
+    }
+
     OVERLAY.with(|slot| {
         *slot.borrow_mut() = Some(Overlay {
             hwnd,
@@ -457,6 +492,9 @@ fn create(
             cursor: None,
             ime_enabled: true,
             last_pointer: None,
+            monitor_bounds: bounds,
+            magnifier,
+            zoom: None,
         });
     });
 
@@ -517,6 +555,8 @@ fn register_hotkeys(hwnd: HWND) {
     for (id, key, name) in [
         (HOTKEY_TOGGLE_DRAW, keys::vk::D, "Ctrl+Alt+D"),
         (HOTKEY_HIDE, keys::vk::H, "Ctrl+Alt+H"),
+        (HOTKEY_ZOOM, keys::vk::Z, "Ctrl+Alt+Z"),
+        (HOTKEY_ZOOM_OFF, keys::vk::KEY_0, "Ctrl+Alt+0"),
     ] {
         if unsafe { RegisterHotKey(hwnd, id, modifiers, key) } == 0 {
             eprintln!(
@@ -548,6 +588,13 @@ fn finish() -> Result<Session, PlatformError> {
             PlatformError::unsupported("close the overlay", "it was never created")
         })?;
         unsafe {
+            // Never leave the desktop magnified after quitting.
+            if overlay.zoom.is_some() {
+                MagSetFullscreenTransform(1.0, 0, 0);
+            }
+            if overlay.magnifier {
+                MagUninitialize();
+            }
             DeleteDC(overlay.memory_dc);
             DeleteObject(overlay.bitmap as _);
         }
@@ -638,6 +685,7 @@ unsafe extern "system" fn window_proc(
             Input::DpiChanged((wparam & 0xFFFF) as u32, pixel_rect(suggested))
         }
         WM_DISPLAYCHANGE => Input::DisplayChanged,
+        WM_TIMER if wparam == ZOOM_TIMER => Input::ZoomTick,
         // Not passed on: the default would open the input method's own
         // composition window, and the composition is drawn inline instead.
         WM_IME_STARTCOMPOSITION => Input::CompositionStarted,
@@ -664,6 +712,9 @@ unsafe extern "system" fn window_proc(
             unsafe {
                 UnregisterHotKey(hwnd, HOTKEY_TOGGLE_DRAW);
                 UnregisterHotKey(hwnd, HOTKEY_HIDE);
+                UnregisterHotKey(hwnd, HOTKEY_ZOOM);
+                UnregisterHotKey(hwnd, HOTKEY_ZOOM_OFF);
+                KillTimer(hwnd, ZOOM_TIMER);
                 PostQuitMessage(0);
             }
             return 0;
@@ -719,6 +770,8 @@ fn handle(input: Input) {
         Input::Hotkey(id) => match id {
             HOTKEY_TOGGLE_DRAW => act(Action::ToggleDraw),
             HOTKEY_HIDE => act(Action::ToggleVisibility),
+            HOTKEY_ZOOM => act(Action::CycleZoom),
+            HOTKEY_ZOOM_OFF => act(Action::ZoomOff),
             _ => {}
         },
         Input::Remote(index) => {
@@ -737,6 +790,9 @@ fn handle(input: Input) {
             place_candidate_window();
         }
         Input::Composed(text) => dispatch(PlatformEvent::CommitPreedit(text)),
+        Input::ZoomTick => {
+            with_overlay(follow_pointer);
+        }
     }
 }
 
@@ -855,6 +911,47 @@ fn on_dpi_changed(dpi: u32, suggested: PixelRect) {
 ///
 /// Fitted again to whichever monitor the window is now nearest, because the
 /// one it was on may be gone.
+/// Zooms to a level, or back to normal with `None`.
+fn set_zoom(overlay: &mut Overlay, factor: Option<f64>) {
+    match factor {
+        Some(level) => {
+            let offset = surface::zoom_offset(overlay.monitor_bounds, level, screen_cursor());
+            if unsafe { MagSetFullscreenTransform(level as f32, offset.0, offset.1) } == 0 {
+                eprintln!(
+                    "[zoom] MagSetFullscreenTransform failed: {}",
+                    std::io::Error::last_os_error()
+                );
+                return;
+            }
+            if overlay.zoom.is_none() {
+                unsafe { SetTimer(overlay.hwnd, ZOOM_TIMER, ZOOM_TICK_MS, None) };
+            }
+            overlay.zoom = Some((level, offset));
+            eprintln!("[zoom] {level:.0}x");
+        }
+        None => {
+            unsafe {
+                KillTimer(overlay.hwnd, ZOOM_TIMER);
+                MagSetFullscreenTransform(1.0, 0, 0);
+            }
+            overlay.zoom = None;
+            eprintln!("[zoom] off");
+        }
+    }
+}
+
+/// Moves the magnified view with the pointer, if it has moved.
+fn follow_pointer(overlay: &mut Overlay) {
+    let Some((level, last)) = overlay.zoom else {
+        return;
+    };
+    let offset = surface::zoom_offset(overlay.monitor_bounds, level, screen_cursor());
+    if offset != last && unsafe { MagSetFullscreenTransform(level as f32, offset.0, offset.1) } != 0
+    {
+        overlay.zoom = Some((level, offset));
+    }
+}
+
 fn on_display_changed() {
     with_overlay(|overlay| {
         let handle = unsafe { MonitorFromWindow(overlay.hwnd, MONITOR_DEFAULTTONEAREST) };
@@ -1220,10 +1317,9 @@ fn apply(effects: Vec<Effect>) {
             Effect::Faulted { error } => {
                 eprintln!("[failed {}] {error}", error.class());
             }
-            // Zoom is not offered here yet, so only the refusal can arrive.
-            // The Magnification API is T038 (ADR-008).
-            Effect::Zoom { .. } | Effect::ZoomUnavailable => {
-                eprintln!("[zoom] not on Windows yet: the Magnification API route is T038");
+            Effect::Zoom { factor } => set_zoom(overlay, factor),
+            Effect::ZoomUnavailable => {
+                eprintln!("[zoom] not available: MagInitialize failed at startup");
             }
             Effect::Quit => unreachable!("handled before borrowing"),
         });
@@ -1472,6 +1568,7 @@ fn print_orientation() {
     eprintln!();
     eprintln!("  Ctrl+Alt+D   draw or pass through, from anywhere");
     eprintln!("  Ctrl+Alt+H   hide the ink, from anywhere");
+    eprintln!("  Ctrl+Alt+Z   zoom 2x, 3x, 4x, from anywhere; Ctrl+Alt+0 back to normal");
     eprintln!("  yappyink toggle-draw, hide, save, quit, ...   the same, from a terminal");
     eprintln!();
     eprintln!("With the overlay focused: d/p/h modes, g park, 1-9 tools, u/r undo and");
