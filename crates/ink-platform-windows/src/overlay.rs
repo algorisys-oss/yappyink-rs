@@ -952,12 +952,24 @@ fn dispatch(event: PlatformEvent) {
         if let PlatformEvent::PointerDown { at }
         | PlatformEvent::PointerMoved { at }
         | PlatformEvent::PointerUp { at } = event
-            && overlay.last_pointer != Some(at)
         {
             overlay.last_pointer = Some(at);
-            if overlay.controller.tool() == ink_app::Tool::Text {
-                overlay.needs_redraw = true;
-            }
+        }
+        // Every pointer event repaints. Until 0.8.4 only the text tool did,
+        // so a stroke being dragged was not drawn until release, and a
+        // tooltip never appeared on hover: both change controller state and
+        // produce no effect, and nothing else asked for a frame. Predicting
+        // which events change the screen is the mistake docs/learning.md §12
+        // records; since the committed ink is cached, a frame is cheap enough
+        // not to try.
+        if matches!(
+            event,
+            PlatformEvent::PointerDown { .. }
+                | PlatformEvent::PointerMoved { .. }
+                | PlatformEvent::PointerUp { .. }
+                | PlatformEvent::PointerCancelled
+        ) {
+            overlay.needs_redraw = true;
         }
         let preedit_changed = matches!(
             event,

@@ -455,6 +455,22 @@ rule for any live run from now on: grep the log for `fault` and `failed`
 before quoting a number from it. A figure from a run that faulted is a figure
 about something else.
 
+## 21. The Windows adapter decided when to repaint, and decided wrong
+
+**What happened.** Asked whether tooltips show on hover, reading the Windows
+adapter showed that a pointer move repainted only when the text tool was
+selected. A hovered button changes controller state and produces no effect, so
+no tooltip ever appeared; and a stroke being dragged produces no effect either,
+so **it was not drawn until the button came up**. E010's screenshot shows
+finished shapes, which is exactly what this bug still allows.
+
+**Why.** The same mistake as §12, made again in a new adapter: a hand-written
+list of the events that might change the screen, which was incomplete. macOS
+asks for a redraw after every event and does not have the bug.
+
+**What changed.** Every pointer event repaints on Windows too. The cached ink
+layer (§19) is what makes that cheap enough not to be clever about.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.
