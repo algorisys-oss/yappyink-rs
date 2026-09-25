@@ -9,14 +9,101 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early (0.6.0). One backend, partly working, on one desktop
-environment.** Nothing here is finished, and the table below is the whole truth
-about what has been demonstrated. Versions are explained in
-[docs/ship-it.md](docs/ship-it.md); the leading zero is about the platform
-matrix, not about polish.
+**Status: early (0.9).** Three backends. Drawing, pass-through and the global
+shortcuts have been seen working on one Ubuntu machine, one Windows machine and
+one Mac; much else has not, and the tables below say which. Versions are
+explained in [docs/ship-it.md](docs/ship-it.md); the leading zero is about the
+platform matrix, not about polish.
 
 Formerly specified under the name *ScreenInk*, which still appears throughout
 the specification documents. Same project.
+
+## Screenshots
+
+**Ubuntu (GNOME)**: the toolbar at the top, ink drawn across an editor and a
+terminal, with the GNOME extension making the overlay cover the whole monitor.
+
+![yappyink on Ubuntu GNOME](docs/images/linux.png)
+
+| Windows | macOS |
+|---|---|
+| ![yappyink on Windows](docs/images/windows.png) | ![yappyink on macOS](docs/images/macos.png) |
+| Shapes, a highlighter stroke and text over a terminal. | Shapes over Finder, with the colour swatches open. |
+
+Personal details in the Windows and Ubuntu shots are blurred, and the macOS
+shot is cropped for the same reason.
+
+## Quick start
+
+Download from the [latest release](https://github.com/algorisys-oss/yappyink-rs/releases/latest).
+With no command, or on a double-click, it opens the overlay and toolbar.
+
+| | Ubuntu / GNOME | Windows | macOS (Apple Silicon) |
+|---|---|---|---|
+| Download | `yappyink-x86_64-linux` | `yappyink-x86_64-windows.exe` | `yappyink-aarch64-macos` |
+| Needs | Ubuntu 22.04 or newer (built for it; seen on 24.04), GNOME on Wayland (the default) | 64-bit Windows (seen on one Windows machine; versions not yet recorded) | an Apple Silicon Mac (seen on one; version not yet recorded) |
+| Start | `chmod +x`, then run or double-click | double-click; SmartScreen warns once (unsigned) | `chmod +x`; right-click, **Open** the first time (unsigned) |
+| Window | floating, 1280×720 or 80% of a small screen; drag the corner to enlarge. **With the GNOME extension: the whole monitor** | the whole primary monitor; `yappyink draw --monitor 2` for another | 1280×720 on the main screen |
+| Stays above other windows | press `t` (or the pin button) and choose *Always on Top*, once per launch. **With the extension: automatic** | automatic | automatic |
+| Back from pass-through, from anywhere | `yappyink toggle-draw`, bound to a key in GNOME's keyboard settings | **Ctrl+Alt+D** | **Control+Option+D** |
+| Hide or show the ink, from anywhere | `yappyink hide`, bound to a key | **Ctrl+Alt+H** | **Control+Option+H** |
+| Live zoom | `z` steps 2×, 3×, 4×; `0` resets (GNOME's magnifier) | not yet: planned through the Magnification API (T038) | not yet: macOS has no public API for its Zoom, a decision is pending (T039) |
+| Seen working | drawing, pass-through, zoom, the extension | drawing, pass-through, both chords, fullscreen apps | drawing, pass-through, both chords, fullscreen apps |
+
+**The GNOME extension** is attached to every release as
+`yappyink-gnome-extension.zip`. It keeps the overlay above other windows, on
+every workspace, and across the whole monitor, and stays transparent
+([E007](docs/evidence/E007-gnome-shell-extension.md)). Verified on GNOME Shell
+46, which Ubuntu 24.04 ships:
+
+```sh
+gnome-extensions install yappyink-gnome-extension.zip
+# log out and back in, then:
+gnome-extensions enable yappyink@algorisys-oss.github.io
+```
+
+## The toolbar
+
+![The yappyink toolbar](docs/images/toolbar.png)
+
+The dotted handle at the left end moves the overlay, and the small triangle in
+its bottom-right corner resizes it. Hovering a button shows its name and key.
+Keys work while the overlay has keyboard focus; when it does not, use the
+global shortcuts above.
+
+| Button | Name | Key | What it does | Differences by OS |
+|---|---|---|---|---|
+| <img src="docs/images/toolbar/select.png" width="34" alt="Select"> | Select | `s` or `8` | Click an object to select it; drag to move, drag a corner handle to resize, `Del` to delete | |
+| <img src="docs/images/toolbar/pen.png" width="34" alt="Pen"> | Pen | `1` | Freehand ink | |
+| <img src="docs/images/toolbar/highlighter.png" width="34" alt="Highlighter"> | Highlighter | `2` | Wide translucent ink; overlapping parts of one stroke do not darken | |
+| <img src="docs/images/toolbar/line.png" width="34" alt="Line"> | Line | `3` | Straight line | |
+| <img src="docs/images/toolbar/arrow.png" width="34" alt="Arrow"> | Arrow | `4` | Line with a head where the drag ends | |
+| <img src="docs/images/toolbar/rectangle.png" width="34" alt="Rectangle"> | Rectangle | `5` | Drag from corner to corner | |
+| <img src="docs/images/toolbar/ellipse.png" width="34" alt="Ellipse"> | Ellipse | `6` | Drag out its bounding box | |
+| <img src="docs/images/toolbar/text.png" width="34" alt="Text"> | Text | `9` | Click to place a caret and type; `Enter` for a new line, `Esc` discards | Input-method composition on Ubuntu and Windows; Latin only on macOS |
+| <img src="docs/images/toolbar/eraser.png" width="34" alt="Eraser"> | Eraser | `e` or `7` | Removes whole objects its sweep touches, as one undoable step | |
+| <img src="docs/images/toolbar/color.png" width="34" alt="Colour"> | Colour | `c` cycles | Opens the row of colour swatches; the button shows the current colour | |
+| <img src="docs/images/toolbar/delete.png" width="34" alt="Delete selected"> | Delete selected | `Del` | Deletes what the select tool picked | |
+| <img src="docs/images/toolbar/undo.png" width="34" alt="Undo"> | Undo | `u` | Undo the last change | |
+| <img src="docs/images/toolbar/redo.png" width="34" alt="Redo"> | Redo | `r` | Redo it | |
+| <img src="docs/images/toolbar/clear.png" width="34" alt="Clear all"> | Clear all | `x` | Removes everything; undo brings it back | |
+| <img src="docs/images/toolbar/windowmenu.png" width="34" alt="Always on top"> | Always on top | `t` | Opens GNOME's window menu, where *Always on Top* is | **Ubuntu only.** Not needed with the extension. On Windows and macOS the overlay is already on top and the button says so |
+| <img src="docs/images/toolbar/zoom.png" width="34" alt="Zoom"> | Zoom | `z`, `0` off | Live zoom 2×, 3×, 4×, off, through GNOME's magnifier; your magnifier settings are restored afterwards | **Ubuntu only**, and only shown when the magnifier is found. Not yet on Windows or macOS |
+| <img src="docs/images/toolbar/passthrough.png" width="34" alt="Pass through"> | Pass through | `p` | The ink stays; clicks and keys go to the applications underneath | On Ubuntu the toolbar stays clickable. On Windows and macOS the whole overlay lets clicks through, so come back with the shortcut |
+| <img src="docs/images/toolbar/park.png" width="34" alt="Shrink to toolbar"> | Shrink to toolbar | `g` | Hides the ink and shrinks the overlay to just the toolbar; again to come back | On macOS the window does not shrink yet |
+| <img src="docs/images/toolbar/hide.png" width="34" alt="Hide"> | Hide | `h` | Hides everything, keeping the ink in memory | The overlay has no keyboard while hidden: use the shortcut or `yappyink toggle-draw` |
+| <img src="docs/images/toolbar/quit.png" width="34" alt="Save and quit"> | Save and quit | | Saves the session, then quits | The `q` key quits **without** saving; `w` saves |
+
+Keys with no button:
+
+| Key | What it does |
+|---|---|
+| `d` | Back to drawing |
+| `w` / `o` | Save the session / open it again |
+| `[` / `]` | Thinner / thicker |
+| `-` / `=` | Less / more opaque |
+| `Esc` | Cancel a stroke in progress, or leave draw mode |
+| `q` | Quit without saving |
 
 ## What actually works today
 
