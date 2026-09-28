@@ -545,3 +545,25 @@ No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Re
 **Deferred by the owner, 2026-09-25.** Offered the choice between a capture-based magnifier (Screen Recording permission) and deferring to macOS's own Zoom, the owner chose to ship Windows first and decide macOS after the Windows test.
 
 **Decided and built, not yet run, 2026-09-25.** After the Windows test the owner chose the ScreenCaptureKit magnifier, and ADR-008 is amended accordingly before the code: permission, pixel handling, the two limits (ink not magnified; pass-through clicks go to real positions), the dependencies and the one `Send` assertion. `crates/ink-platform-macos/src/magnifier.rs` captures a pointer-centred rectangle scaled to the display and shows it in a click-through window below the overlay; `z`, `0`, the toolbar button, Control+Option+Z and Control+Option+0 drive it. The rectangle arithmetic and the AppKit-to-capture y flip are pure and tested. A refused permission resets zoom and says where to grant it. Type-checks for `aarch64-apple-darwin`; nobody has run it.
+
+## T040 [M3]: Colour the pass-through and shrink buttons by mode
+
+Status: not_started. Dependencies: T013.
+
+Requirements: FR-030, NFR-006.
+
+Write the failing pixel tests first, then pass the effective mode to ink_ui::paint_toolbar and draw the active mode button with its colour and a non-colour mark, and an 'ON' tooltip. Add a controller test that every route into and out of PassThrough and Parked repaints the toolbar. Generate PNGs of the toolbar in each mode for review.
+
+**Exit criterion:** The ink-ui pixel tests pass in CI on the Linux, Windows and macOS runners, and the owner has approved the colours from the rendered images. This does not verify any platform.
+
+**Specified 2026-09-28.** `specs/005-mode-buttons`. All three backends already paint the toolbar through `ink_ui::paint_toolbar`, which today is not given the mode, so the change is made once.
+
+## T041 [M3]: See the mode buttons on each platform
+
+Status: not_started. Dependencies: T040.
+
+Requirements: FR-030.
+
+Run the release binary on GNOME, Windows and macOS, switch modes through every route each platform offers, and screenshot the toolbar after each switch. One evidence file per platform.
+
+**Exit criterion:** AC-FR-030 observed on each platform, with evidence recorded; a platform nobody has run stays not_tested.

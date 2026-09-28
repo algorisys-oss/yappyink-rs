@@ -34,3 +34,9 @@ Feature: ScreenInk v1 contract
     And where the compositor magnifies, the stroke stays on the content it marks and no desktop pixels reach the application
     And where yappyink captures instead, permission was asked once, refusing it left the overlay working, and no frame outlives the screen
     And quitting while zoomed leaves the screen, and any setting of the user's, as it was
+
+  @AC-FR-030 @FR-030 @specified_not_implemented
+  Scenario: [AC-FR-030] Mode shown on the toolbar
+    Given the overlay is showing ink and its toolbar
+    When I switch Draw, pass-through, Draw, shrink to toolbar, Draw through every route the platform offers
+    Then after each switch the Pass through button is coloured and marked only in pass-through, the Shrink to toolbar button is coloured and marked only while shrunk, neither is in Draw, the selected tool stays highlighted, and the toolbar never shows the previous mode

@@ -224,6 +224,12 @@
       "phase": "V1",
       "title": "Live zoom",
       "contract": "Zoom a live, continuously updating view of the screen that follows the pointer, in steps, from a toolbar button and a chord, in any mode. Use the platform compositor's magnifier where one exists, so no desktop pixels reach the app, no capture permission is needed, and ink is magnified with the content it marks. Where none exists (macOS), a capture-based magnifier behind an explicit permission, holding no pixels beyond the frames on screen, with its differences declared: the ink is not magnified, and pass-through clicks are not remapped. Restore any user setting changed to drive a system magnifier. See ADR-008 and specs/004-live-zoom."
+    },
+    {
+      "id": "FR-030",
+      "phase": "V1",
+      "title": "Mode shown on the toolbar",
+      "contract": "Show on the toolbar which mode is in effect. The Pass through button is drawn active in its own colour in PassThrough, and the Shrink to toolbar button in another colour in Parked, each with a mark that does not rely on colour, and neither in Draw. It follows the effective mode and repaints on every route into or out of a mode. Verified by headless pixel tests on every OS's build and by native observation on each platform. See specs/005-mode-buttons."
     }
   ]
 }

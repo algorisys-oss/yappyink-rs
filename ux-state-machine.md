@@ -53,6 +53,6 @@ Move | Pen | Highlighter | Line | Arrow | Rectangle | Ellipse | Eraser
 Color | Width | Opacity | Undo | Redo | Clear | Interact | Hide | Settings
 ```
 
-Group secondary actions in a menu on small displays. Use tooltips and selected-tool text, not only color. A toolbar drag must not draw on the canvas. Keep controls inside the selected output's usable bounds after resizing/hotplug.
+Group secondary actions in a menu on small displays. Use tooltips and selected-tool text, not only color. The Pass through and Shrink to toolbar buttons are drawn active, each in its own colour and with a non-colour mark, while their mode is in effect (FR-030, specs/005-mode-buttons). A toolbar drag must not draw on the canvas. Keep controls inside the selected output's usable bounds after resizing/hotplug.
 
 Do not hard-code globally conflict-prone defaults without registration feedback. Use platform-appropriate Ctrl versus Command for local editing shortcuts. Final default global chords are chosen during the spike against each desktop's reserved bindings.

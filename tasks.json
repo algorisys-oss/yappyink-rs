@@ -698,6 +698,35 @@
       "title": "Decide live zoom on macOS",
       "work": "No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Recording permission, pixels in process, the FR-026 contract) and deferring to macOS's own Zoom, and amend ADR-008 before any capture code.",
       "exit_criterion": "ADR-008 records the macOS decision; if capture is chosen, it has its own permission and privacy contract before implementation."
+    },
+    {
+      "id": "T040",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T013"
+      ],
+      "requirements": [
+        "FR-030",
+        "NFR-006"
+      ],
+      "title": "Colour the pass-through and shrink buttons by mode",
+      "work": "Write the failing pixel tests first, then pass the effective mode to ink_ui::paint_toolbar and draw the active mode button with its colour and a non-colour mark, and an 'ON' tooltip. Add a controller test that every route into and out of PassThrough and Parked repaints the toolbar. Generate PNGs of the toolbar in each mode for review.",
+      "exit_criterion": "The ink-ui pixel tests pass in CI on the Linux, Windows and macOS runners, and the owner has approved the colours from the rendered images. This does not verify any platform."
+    },
+    {
+      "id": "T041",
+      "phase": "M3",
+      "status": "not_started",
+      "depends_on": [
+        "T040"
+      ],
+      "requirements": [
+        "FR-030"
+      ],
+      "title": "See the mode buttons on each platform",
+      "work": "Run the release binary on GNOME, Windows and macOS, switch modes through every route each platform offers, and screenshot the toolbar after each switch. One evidence file per platform.",
+      "exit_criterion": "AC-FR-030 observed on each platform, with evidence recorded; a platform nobody has run stays not_tested."
     }
   ]
 }

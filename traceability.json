@@ -388,6 +388,14 @@
         "crates/ink-platform-macos/src/chords.rs"
       ],
       "note": "GNOME: zoom, drawing while zoomed, restore on off, exit and after kill -9 observed (E017). Windows: working as expected from the unsigned release, no UIAccess needed (E018). macOS: built with ScreenCaptureKit, not yet run. A video staying live is not yet observed anywhere."
+    },
+    {
+      "id": "AC-FR-030",
+      "requirements": [
+        "FR-030"
+      ],
+      "file": "tests/acceptance/v1.feature",
+      "status": "specified_not_implemented"
     }
   ],
   "requirements": [
@@ -900,7 +908,8 @@
       "requirement": "NFR-006",
       "phase": "V1",
       "tasks": [
-        "T030"
+        "T030",
+        "T040"
       ],
       "scenarios": [
         "AC-NFR-006"
@@ -951,6 +960,20 @@
       "implementation_status": "in_progress",
       "verification_status": "not_tested",
       "notes": "ADR-008, amended for macOS. GNOME (E017) and Windows (E018) observed; macOS built with ScreenCaptureKit and not yet run."
+    },
+    {
+      "requirement": "FR-030",
+      "phase": "V1",
+      "tasks": [
+        "T040",
+        "T041"
+      ],
+      "scenarios": [
+        "AC-FR-030"
+      ],
+      "implementation_status": "not_started",
+      "verification_status": "not_tested",
+      "notes": "All three backends paint the toolbar through ink_ui::paint_toolbar, so the change is made once. Headless pixel tests prove the painter, not the display; each platform needs its own native observation."
     }
   ]
 }
