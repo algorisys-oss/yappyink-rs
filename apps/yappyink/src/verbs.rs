@@ -35,6 +35,9 @@ pub enum ControlCommand {
     Zoom,
     /// Turn the magnifier off, restoring the user's own settings.
     ZoomOff,
+    /// Shrink to the toolbar, or come back from it: the `g` key, for a
+    /// desktop where that key cannot reach an unfocused overlay.
+    Park,
 }
 
 impl ControlCommand {
@@ -51,6 +54,7 @@ impl ControlCommand {
             "quit" => Some(Self::Quit),
             "zoom" => Some(Self::Zoom),
             "zoom-off" => Some(Self::ZoomOff),
+            "park" => Some(Self::Park),
             _ => None,
         }
     }
@@ -67,6 +71,7 @@ impl ControlCommand {
             Self::Quit => "quit",
             Self::Zoom => "zoom",
             Self::ZoomOff => "zoom-off",
+            Self::Park => "park",
         }
     }
 
@@ -83,11 +88,15 @@ impl ControlCommand {
             Self::Quit => None,
             Self::Zoom => Some(Action::CycleZoom),
             Self::ZoomOff => Some(Action::ZoomOff),
+            Self::Park => Some(Action::TogglePark),
         }
     }
 
     /// Every verb. Used for help text and to keep the tests exhaustive.
-    pub const fn all() -> [Self; 10] {
+    ///
+    /// New verbs go at the end: a Windows message carries a verb's position,
+    /// so reordering would change what an existing number means.
+    pub const fn all() -> [Self; 11] {
         [
             Self::ToggleDraw,
             Self::Draw,
@@ -99,6 +108,7 @@ impl ControlCommand {
             Self::Quit,
             Self::Zoom,
             Self::ZoomOff,
+            Self::Park,
         ]
     }
 }

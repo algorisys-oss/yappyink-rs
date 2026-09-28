@@ -56,10 +56,11 @@ fix.
 Pass through button is amber and Shrink to toolbar violet, each outlined,
 while its mode is in effect; painted once in `ink_ui::paint_toolbar`. Seen on
 GNOME. Windows and macOS are the owner's offline runs, which close T041.
-**Open bug found on the way:** with the extension, Shrink and back (and hide
-and show) can move the overlay to the other monitor, because the extension
-fits it to whichever monitor it is on each time it is shown (E019). The fix
-belongs in the extension: remember the monitor.
+**Open bug found on the way (E019):** the owner saw Shrink and back move the
+overlay to the other monitor. Not reproduced by command (`yappyink park`,
+seven cycles, no movement), cause unknown. Hide and show changing monitor is
+explained separately: a new toplevel each time, fitted by the extension to
+wherever Mutter put it.
 
 **Live zoom works on GNOME (FR-029, ADR-008, E017):** `z`, a toolbar button,
 `yappyink zoom` / `zoom-off`, with the user's magnifier settings restored on

@@ -46,12 +46,25 @@ not screenshotted, and the individual checks were reported as a whole.
 
 ## Found along the way, not fixed here
 
-**The overlay can change monitor when it is shown again.** The owner saw
-Shrink to toolbar and back move yappyink to the other monitor. The extension's
-log shows the same thing after the agent's hide and show: at 15:51 it sized
-the overlay to monitor 1 (1920x1080+1366+0), and at 15:56, after the owner's
-shrink and restore, to monitor 0 (1366x768+0+193). The extension fits the
-window to `window.get_monitor()` each time it is shown, and does not remember
-the monitor it was on before. A Wayland client cannot choose where it goes,
-so the fix belongs in the extension. This did not come from this change: the
-toolbar colours do not touch the window's placement.
+**The owner saw Shrink to toolbar and back move yappyink to the other
+monitor.** The cause is not yet known. What is known:
+
+- **Hide and show can change monitor, and that one is explained.** Hiding
+  destroys the Wayland toplevel and showing creates a new one; the extension
+  adopts each new window and fits it to `window.get_monitor()`, whatever
+  monitor Mutter chose for it. After the agent's hide and show at 15:51 the
+  extension sized the overlay to monitor 1 (1920x1080+1366+0).
+- **Shrink and restore does not create a new window,** so the extension is
+  not involved. An earlier version of this record said it was, reading a
+  15:56 "took charge" line as the owner's shrink. The agent's overlay never
+  logged a shrink at all: the owner was using another yappyink, and 15:56 was
+  that window being created.
+- **Not reproduced by command.** With `yappyink park` (added for this),
+  seven shrink-and-restore cycles from Draw and from pass-through left the
+  toolbar at exactly the same screen position every time. What differs in the
+  owner's run (the button or `g` rather than the socket, where the pointer
+  was, which build) is the open question.
+- **The extension's fit did not take on one launch.** At 16:05 it logged
+  "sized to monitor 0 at 1366x768+0+193" (the laptop panel), yet screenshots
+  put the window's top-left at about (1366, 193), on the HDMI monitor at the
+  panel's height. The window was 1366x768 as asked; its position was not.
