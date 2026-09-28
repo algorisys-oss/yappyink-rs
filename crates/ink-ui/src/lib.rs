@@ -475,6 +475,17 @@ pub fn paint_selection(
     }
 }
 
+/// The fill behind the selected tool.
+pub const SELECTED_TOOL: Rgb = Rgb::new(0x20, 0x70, 0x80);
+
+/// The Pass through button while pass-through is in effect (FR-030). The amber
+/// of the pass-through frame, darkened until the icon on it reaches 3:1 (3.6:1).
+pub const PASS_THROUGH_ACTIVE: Rgb = Rgb::new(0xB0, 0x70, 0x00);
+
+/// The Shrink to toolbar button while the overlay is parked (FR-030). Violet:
+/// far from both the amber and the selected tool's teal.
+pub const PARKED_ACTIVE: Rgb = Rgb::new(0x98, 0x40, 0xC0);
+
 /// Draws the toolbar and its icons.
 ///
 /// Chrome, not document content: it is painted after the scene, never stored,
@@ -489,13 +500,14 @@ pub fn paint_toolbar(
     toolbar: &Toolbar,
     tool: Tool,
     colour: Rgb,
+    mode: Mode,
     scale: Scale,
 ) {
     // Premultiplied, memory order B, G, R, A.
     let panel = [0x1E, 0x1A, 0x18, 0xD8];
     let edge = [0x50, 0x48, 0x44, 0xE0];
     let ink = [0xF0, 0xF0, 0xF0, 0xFF];
-    let selected_fill = [0x80, 0x70, 0x20, 0xE0];
+    let selected_fill = [SELECTED_TOOL.b, SELECTED_TOOL.g, SELECTED_TOOL.r, 0xE0];
 
     let to_px = |value: f64| (value * scale.get()).round() as i64;
     let bounds = toolbar.bounds();
@@ -530,6 +542,22 @@ pub fn paint_toolbar(
             // carried by colour alone, which also matters on a background
             // that happens to be the same colour.
             canvas.fill_rect(bx, by + size - 2, size, 2, ink);
+        }
+
+        // The mode in effect (FR-030), on its own button. Filled in the
+        // mode's colour and outlined, where a selected tool is underlined, so
+        // the two are not mistaken for each other even without the colour.
+        if button.is_active(mode) {
+            let fill = if button.icon == Icon::Park {
+                PARKED_ACTIVE
+            } else {
+                PASS_THROUGH_ACTIVE
+            };
+            canvas.fill_rect(bx, by, size, size, [fill.b, fill.g, fill.r, 0xFF]);
+            canvas.fill_rect(bx, by, size, 2, ink);
+            canvas.fill_rect(bx, by + size - 2, size, 2, ink);
+            canvas.fill_rect(bx, by, 2, size, ink);
+            canvas.fill_rect(bx + size - 2, by, 2, size, ink);
         }
 
         // Icons are described in a unit square with a margin, so they never
@@ -848,12 +876,18 @@ pub fn paint_swatches(canvas: &mut Canvas, controller: &Controller, scale: Scale
 /// Chrome. The label font is a 5x7 bitmap with no lowercase, which is why the
 /// text is capitals: it exists so the toolbar can have words without a font
 /// stack, and the real one arrives with the text tool.
-pub fn paint_tooltip(canvas: &mut Canvas, button: &Button, toolbar: LogicalRect, scale: Scale) {
+pub fn paint_tooltip(
+    canvas: &mut Canvas,
+    button: &Button,
+    toolbar: LogicalRect,
+    mode: Mode,
+    scale: Scale,
+) {
     let background = [0x14, 0x10, 0x0E, 0xE8];
     let border = [0x50, 0x48, 0x44, 0xE0];
     let text = [0xF0, 0xF0, 0xF0, 0xFF];
 
-    let label = button.label();
+    let label = button.label_in(mode);
     let pixel = ((scale.get() * 1.0).round() as usize).max(1);
     let padding = (6.0 * scale.get()).round() as i64;
     let text_width = ink_render::font::text_width(label, pixel) as i64;

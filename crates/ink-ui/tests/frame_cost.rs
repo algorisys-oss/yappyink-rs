@@ -93,7 +93,14 @@ fn frame(
     ink_ui::paint_preview(canvas, c, s.document().output(), painter, scale);
     ink_ui::paint_chrome(canvas, c.mode(), c.style(), c.tool());
     ink_ui::paint_selection(canvas, c, s.document(), painter, scale);
-    ink_ui::paint_toolbar(canvas, c.toolbar(), c.tool(), c.style().color, scale);
+    ink_ui::paint_toolbar(
+        canvas,
+        c.toolbar(),
+        c.tool(),
+        c.style().color,
+        c.mode(),
+        scale,
+    );
 }
 
 #[test]
@@ -208,6 +215,7 @@ fn breakdown() {
             ctl.toolbar(),
             ctl.tool(),
             ctl.style().color,
+            ctl.mode(),
             scale,
         )
     });

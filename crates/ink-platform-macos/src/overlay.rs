@@ -720,6 +720,7 @@ fn paint(view: &OverlayView) {
                 overlay.controller.toolbar(),
                 overlay.controller.tool(),
                 overlay.controller.style().color,
+                overlay.controller.mode(),
                 scale,
             );
             if let Some(corner) = overlay.controller.resize_corner() {
@@ -731,6 +732,7 @@ fn paint(view: &OverlayView) {
                     &mut canvas,
                     button,
                     overlay.controller.toolbar().bounds(),
+                    overlay.controller.mode(),
                     scale,
                 );
             }

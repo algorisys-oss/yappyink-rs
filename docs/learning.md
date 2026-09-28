@@ -519,6 +519,30 @@ right about the arithmetic. Each took a live run to find, and one only showed
 on the owner's session, where the window had focus and mine did not. A run on
 the development machine is necessary and not sufficient.
 
+## 24. A command that is also a launcher, and a pixel that was blended
+
+Three small mistakes while building and checking FR-030, all caught the same
+day.
+
+- **`yappyink draw` is not a command to a running overlay.** It starts one.
+  The usage text lists `draw` among the socket commands, and I read it as the
+  way to put a running overlay into Draw. A second overlay opened on the
+  owner's desktop, mid live stream, lost the control socket, and had to be
+  killed. `toggle-draw` and `pass-through` are the commands; `draw` in that
+  list is ambiguous and deserves its own fix.
+- **A test compared a painted pixel to the colour constant.** The
+  selected-tool fill is translucent and blended over the panel, so the pixel
+  is never the constant. The test failed, correctly, and the test was wrong,
+  not the code. The fix compares against what Draw paints. The new mode fills
+  are opaque, so their tests can compare exactly, and they do.
+- **Contrast figures written from mental arithmetic.** The spec first said
+  4.1:1 and 6.1:1; computed against the real icon colour they are 3.6:1 and
+  4.8:1. Both still pass 3:1. A number in a spec gets computed, not estimated.
+
+Also: the new tests could not compile before the change, so they never
+failed for the right reason. Switching the painting off afterwards made five
+of them fail, which is the evidence that they test it.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

@@ -134,6 +134,7 @@ fn the_selected_tool_is_visible_on_the_toolbar() {
             controller.toolbar(),
             controller.tool(),
             controller.style().color,
+            controller.mode(),
             Scale::ONE,
         );
     }
@@ -160,6 +161,7 @@ fn the_colour_button_follows_the_colour() {
             controller.toolbar(),
             controller.tool(),
             first,
+            controller.mode(),
             Scale::ONE,
         );
     }
@@ -174,6 +176,7 @@ fn the_colour_button_follows_the_colour() {
             controller.toolbar(),
             controller.tool(),
             second,
+            controller.mode(),
             Scale::ONE,
         );
     }
@@ -235,6 +238,7 @@ fn a_surface_smaller_than_its_chrome_does_not_panic() {
             controller.toolbar(),
             controller.tool(),
             controller.style().color,
+            controller.mode(),
             Scale::ONE,
         );
         ink_ui::paint_swatches(&mut canvas, &controller, Scale::ONE);
@@ -256,6 +260,7 @@ fn a_scaled_surface_does_not_panic() {
             controller.toolbar(),
             controller.tool(),
             controller.style().color,
+            controller.mode(),
             scale,
         );
         ink_ui::paint_swatches(&mut canvas, &controller, scale);

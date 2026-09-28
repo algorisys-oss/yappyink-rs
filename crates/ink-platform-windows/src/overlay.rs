@@ -1503,6 +1503,7 @@ fn repaint() {
                 overlay.controller.toolbar(),
                 overlay.controller.tool(),
                 overlay.controller.style().color,
+                overlay.controller.mode(),
                 scale,
             );
             // Not while Parked: the window is the toolbar and nothing else,
@@ -1518,6 +1519,7 @@ fn repaint() {
                     &mut canvas,
                     button,
                     overlay.controller.toolbar().bounds(),
+                    overlay.controller.mode(),
                     scale,
                 );
             }

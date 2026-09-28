@@ -118,6 +118,27 @@ impl Button {
     pub fn is_selected(&self, tool: Tool) -> bool {
         matches!(self.action, Action::SelectTool(selected) if selected == tool)
     }
+
+    /// Whether this button's mode is the one in effect (FR-030).
+    ///
+    /// Given the effective mode, never the desired one, so the toolbar does
+    /// not claim a mode the platform has not confirmed.
+    pub fn is_active(&self, mode: Mode) -> bool {
+        matches!(
+            (self.icon, mode),
+            (Icon::PassThrough, Mode::PassThrough) | (Icon::Park, Mode::Parked)
+        )
+    }
+
+    /// The tooltip in a given mode: the plain label, or one saying the mode
+    /// is on.
+    pub fn label_in(&self, mode: Mode) -> &'static str {
+        match self.icon {
+            Icon::PassThrough if self.is_active(mode) => "PASS THROUGH: ON (P)",
+            Icon::Park if self.is_active(mode) => "SHRINK TO TOOLBAR: ON (G)",
+            _ => self.label(),
+        }
+    }
 }
 
 /// The toolbar's buttons and where they are.

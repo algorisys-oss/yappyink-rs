@@ -395,7 +395,11 @@
         "FR-030"
       ],
       "file": "tests/acceptance/v1.feature",
-      "status": "specified_not_implemented"
+      "status": "partially_implemented",
+      "tests": [
+        "crates/ink-ui/tests/mode_buttons.rs"
+      ],
+      "note": "GNOME observed (E019). Windows and macOS not run."
     }
   ],
   "requirements": [
@@ -971,9 +975,9 @@
       "scenarios": [
         "AC-FR-030"
       ],
-      "implementation_status": "not_started",
+      "implementation_status": "in_progress",
       "verification_status": "not_tested",
-      "notes": "All three backends paint the toolbar through ink_ui::paint_toolbar, so the change is made once. Headless pixel tests prove the painter, not the display; each platform needs its own native observation."
+      "notes": "T040 implemented in ink_ui::paint_toolbar, pinned by crates/ink-ui/tests/mode_buttons.rs. Seen on GNOME (E019); Windows and macOS not run, so verification stays not_tested until T041 closes."
     }
   ]
 }

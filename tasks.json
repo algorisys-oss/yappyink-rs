@@ -702,7 +702,7 @@
     {
       "id": "T040",
       "phase": "M3",
-      "status": "not_started",
+      "status": "implemented",
       "depends_on": [
         "T013"
       ],
@@ -717,7 +717,7 @@
     {
       "id": "T041",
       "phase": "M3",
-      "status": "not_started",
+      "status": "in_progress",
       "depends_on": [
         "T040"
       ],

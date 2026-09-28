@@ -1,6 +1,8 @@
 # 005: mode shown on the toolbar
 
-Status: specified, not implemented. Requirement FR-030, with NFR-006.
+Status: implemented in the shared painter (T040). Seen on GNOME for the routes
+in E019; Windows and macOS not yet seen (T041). Requirement FR-030, with
+NFR-006.
 
 ## User story
 
@@ -58,8 +60,15 @@ The button for the mode currently in effect is drawn as active:
 - **One implementation.** The painting lives in the shared `ink-ui` crate,
   which all three backends already call. No backend draws its own version.
 
-Colours are chosen while implementing, within these constraints, and written
-here once chosen.
+As built (`ink_ui`, `crates/ink-ui/tests/mode_buttons.rs`):
+
+| | Fill | Mark | Icon (`#F0F0F0`) contrast |
+|---|---|---|---|
+| Pass through, active | amber `#B07000` | 2 px white outline | 3.6:1 |
+| Shrink to toolbar, active | violet `#9840C0` | 2 px white outline | 4.8:1 |
+| Selected tool (unchanged) | teal `#207080` | 2 px white underline | |
+
+![The toolbar in Draw, pass-through and parked](../../docs/images/toolbar-modes.png)
 
 ## Visual test
 

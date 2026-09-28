@@ -980,6 +980,7 @@ impl Overlay {
                 self.controller.toolbar(),
                 self.controller.tool(),
                 self.controller.style().color,
+                self.controller.mode(),
                 self.scale,
             );
             if let Some(corner) = self.controller.resize_corner() {
@@ -991,6 +992,7 @@ impl Overlay {
                     &mut canvas,
                     button,
                     self.controller.toolbar().bounds(),
+                    self.controller.mode(),
                     self.scale,
                 );
             }

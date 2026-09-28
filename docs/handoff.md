@@ -52,6 +52,15 @@ budget. Fallback fonts load on first use: startup 125 ms, 32 MB. Before quoting 
 still takes one slow frame per commit, which incremental layer updates would
 fix.
 
+**The toolbar shows the mode (FR-030, specs/005-mode-buttons, E019).** The
+Pass through button is amber and Shrink to toolbar violet, each outlined,
+while its mode is in effect; painted once in `ink_ui::paint_toolbar`. Seen on
+GNOME. Windows and macOS are the owner's offline runs, which close T041.
+**Open bug found on the way:** with the extension, Shrink and back (and hide
+and show) can move the overlay to the other monitor, because the extension
+fits it to whichever monitor it is on each time it is shown (E019). The fix
+belongs in the extension: remember the monitor.
+
 **Live zoom works on GNOME (FR-029, ADR-008, E017):** `z`, a toolbar button,
 `yappyink zoom` / `zoom-off`, with the user's magnifier settings restored on
 off, exit, and the next launch after a kill. Windows (T038) and macOS (T039)

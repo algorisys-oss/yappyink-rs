@@ -548,7 +548,7 @@ No public API drives the system Zoom. Choose between ScreenCaptureKit (Screen Re
 
 ## T040 [M3]: Colour the pass-through and shrink buttons by mode
 
-Status: not_started. Dependencies: T013.
+Status: implemented. Dependencies: T013.
 
 Requirements: FR-030, NFR-006.
 
@@ -556,14 +556,18 @@ Write the failing pixel tests first, then pass the effective mode to ink_ui::pai
 
 **Exit criterion:** The ink-ui pixel tests pass in CI on the Linux, Windows and macOS runners, and the owner has approved the colours from the rendered images. This does not verify any platform.
 
+**Built, 2026-09-28.** `paint_toolbar` and `paint_tooltip` take the effective mode; `Button::is_active` and `Button::label_in` decide. Pass through is filled amber `#B07000` and Shrink violet `#9840C0`, each with a 2 px outline, where a selected tool is underlined; icon contrast 3.6:1 and 4.8:1. Eleven tests in `crates/ink-ui/tests/mode_buttons.rs`; five fail with the painting switched off. The owner accepted the result on the real overlay (E019). CI on the three runners is the remaining part of the exit criterion.
+
 **Specified 2026-09-28.** `specs/005-mode-buttons`. All three backends already paint the toolbar through `ink_ui::paint_toolbar`, which today is not given the mode, so the change is made once.
 
 ## T041 [M3]: See the mode buttons on each platform
 
-Status: not_started. Dependencies: T040.
+Status: in_progress since 2026-09-28. Dependencies: T040.
 
 Requirements: FR-030.
 
 Run the release binary on GNOME, Windows and macOS, switch modes through every route each platform offers, and screenshot the toolbar after each switch. One evidence file per platform.
 
 **Exit criterion:** AC-FR-030 observed on each platform, with evidence recorded; a platform nobody has run stays not_tested.
+
+**GNOME seen, 2026-09-28 (E019).** The control-socket routes were screenshotted by the agent and the button and Shrink routes checked by the owner. Found along the way and not caused by this change: the extension re-fits the overlay to whichever monitor it is on each time it is shown again, so Shrink and back can move it to the other monitor. Windows and macOS are the owner's offline runs.
