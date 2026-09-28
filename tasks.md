@@ -556,7 +556,7 @@ Write the failing pixel tests first, then pass the effective mode to ink_ui::pai
 
 **Exit criterion:** The ink-ui pixel tests pass in CI on the Linux, Windows and macOS runners, and the owner has approved the colours from the rendered images. This does not verify any platform.
 
-**Built, 2026-09-28.** `paint_toolbar` and `paint_tooltip` take the effective mode; `Button::is_active` and `Button::label_in` decide. Pass through is filled amber `#B07000` and Shrink violet `#9840C0`, each with a 2 px outline, where a selected tool is underlined; icon contrast 3.6:1 and 4.8:1. Eleven tests in `crates/ink-ui/tests/mode_buttons.rs`; five fail with the painting switched off. The owner accepted the result on the real overlay (E019). CI on the three runners is the remaining part of the exit criterion.
+**Built, 2026-09-28.** `paint_toolbar` and `paint_tooltip` take the effective mode; `Button::is_active` and `Button::label_in` decide. Pass through is filled amber `#B07000` and Shrink violet `#9840C0`, each with a 2 px outline, where a selected tool is underlined; icon contrast 3.6:1 and 4.8:1. Eleven tests in `crates/ink-ui/tests/mode_buttons.rs`; five fail with the painting switched off. The owner accepted the result on the real overlay (E019). CI run 36410101529 ran them on the Linux, macOS and Windows runners and all passed, which meets the exit criterion. That proves the painter on each OS's build, not what any screen shows.
 
 **Specified 2026-09-28.** `specs/005-mode-buttons`. All three backends already paint the toolbar through `ink_ui::paint_toolbar`, which today is not given the mode, so the change is made once.
 
