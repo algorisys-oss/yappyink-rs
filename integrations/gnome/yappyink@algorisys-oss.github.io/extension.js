@@ -139,8 +139,18 @@ export default class YappyinkOverlaySupport extends Extension {
         // measured that a fullscreen surface on Mutter is unredirected and
         // loses its transparency, which is fatal for an overlay. An ordinary
         // window merely sized to the monitor is the thing being tested here.
+        //
+        // With more than one monitor, its work area instead: the monitor less
+        // the top bar. A window the size of the whole primary monitor does not
+        // fit its work area, and on every later move or resize Mutter shifts
+        // it to a monitor where it does fit, so the overlay opened on the
+        // wrong screen and jumped back there after Shrink to toolbar (E019).
+        // With one monitor there is nowhere else to go, and the whole monitor,
+        // top bar included, was observed to stay put (E007).
         const monitor = window.get_monitor();
-        const geometry = global.display.get_monitor_geometry(monitor);
+        const geometry = global.display.get_n_monitors() > 1
+            ? window.get_work_area_for_monitor(monitor)
+            : global.display.get_monitor_geometry(monitor);
         window.move_resize_frame(
             false,
             geometry.x,
