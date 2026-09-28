@@ -9,7 +9,7 @@ typing in that editor while your annotations stay on the screen. The ink belongs
 to the screen, not to the document underneath, so it does not scroll with the
 page.
 
-**Status: early (0.9).** Three backends. Drawing, pass-through and the global
+**Status: early (0.12).** Three backends. Drawing, pass-through and the global
 shortcuts have been seen working on one Ubuntu machine, one Windows machine and
 one Mac; much else has not, and the tables below say which. Versions are
 explained in [docs/ship-it.md](docs/ship-it.md); the leading zero is about the
@@ -43,7 +43,7 @@ With no command, or on a double-click, it opens the overlay and toolbar.
 | Download | `yappyink-x86_64-linux` | `yappyink-x86_64-windows.exe` | `yappyink-aarch64-macos` |
 | Needs | Ubuntu 22.04 or newer (built for it; seen on 24.04), GNOME on Wayland (the default) | 64-bit Windows (seen on one Windows machine; versions not yet recorded) | an Apple Silicon Mac (seen on one; version not yet recorded) |
 | Start | `chmod +x`, then run or double-click | double-click; SmartScreen warns once (unsigned) | `chmod +x`; right-click, **Open** the first time (unsigned) |
-| Window | floating, 1280×720 or 80% of a small screen; drag the corner to enlarge. **With the GNOME extension: the whole monitor** | the whole primary monitor; `yappyink draw --monitor 2` for another | 1280×720 on the main screen |
+| Window | floating, 1280×720 or 80% of a small screen; drag the corner to enlarge. **With the GNOME extension: the whole monitor** (with two monitors, the monitor less the top bar; new in 0.12, not yet seen) | the whole primary monitor; `yappyink draw --monitor 2` for another | 1280×720 on the main screen |
 | Stays above other windows | press `t` (or the pin button) and choose *Always on Top*, once per launch. **With the extension: automatic** | automatic | automatic |
 | Back from pass-through, from anywhere | `yappyink toggle-draw`, bound to a key in GNOME's keyboard settings | **Ctrl+Alt+D** | **Control+Option+D** |
 | Hide or show the ink, from anywhere | `yappyink hide`, bound to a key | **Ctrl+Alt+H** | **Control+Option+H** |
@@ -147,7 +147,8 @@ None of that is worked around by faking anything. See
 
 The **GNOME Shell extension** in [integrations/gnome/](integrations/gnome/)
 lifts the last two limits: with it the overlay stays above other windows, is on
-every workspace, and covers the whole monitor, top bar included, and stays
+every workspace, and covers the whole monitor, top bar included (with more than
+one monitor, everything but the top bar; not yet seen), and stays
 transparent ([E007](docs/evidence/E007-gnome-shell-extension.md)). Verified on
 GNOME Shell 46 only. Install it once with `integrations/gnome/install.sh`, then
 log out and back in.

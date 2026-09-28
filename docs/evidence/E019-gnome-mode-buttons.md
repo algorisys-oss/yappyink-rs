@@ -68,3 +68,19 @@ monitor.** The cause is not yet known. What is known:
   "sized to monitor 0 at 1366x768+0+193" (the laptop panel), yet screenshots
   put the window's top-left at about (1366, 193), on the HDMI monitor at the
   panel's height. The window was 1366x768 as asked; its position was not.
+
+**Later the same day, the owner's log settled the size question.** Running
+`target/debug`, the owner opened the overlay (on HDMI), dragged it to the
+laptop, shrank it and restored it. No configure line appeared at the restore,
+so the size never changed from 1366x768; the surface simply entered HDMI-1
+again. A first fix, capping the restored size to the current monitor, rested
+on the size having changed, did not help, and was reverted.
+
+**Working explanation, not observed:** Mutter's work area. The laptop's
+1366x768 includes GNOME's top bar, so a window that size cannot fit the
+laptop's work area, and on any move or resize Mutter shifts it to a monitor
+where it fits, which is HDMI. The extension's own fit to the laptop landing on
+HDMI (the 16:05 line above) is the same effect. The extension now fits to the
+work area when there is more than one monitor, and keeps the whole monitor,
+top bar included, with one (E007). **Shipped in 0.12.0 without being loaded:**
+it needs a log-out, and the owner parked the test.

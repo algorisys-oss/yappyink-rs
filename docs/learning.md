@@ -543,6 +543,25 @@ Also: the new tests could not compile before the change, so they never
 failed for the right reason. Switching the painting off afterwards made five
 of them fail, which is the evidence that they test it.
 
+## 25. Two confident causes for one monitor jump
+
+The owner saw the overlay move to the other monitor after Shrink to toolbar
+and back. I gave two causes in a row, each written into the evidence file as
+if established, and both were wrong.
+
+- **First: the extension re-fitting a new window.** Based on a "took charge"
+  line at the right minute. It was a different yappyink starting; shrinking
+  never creates a window.
+- **Second: the restored size not fitting the new monitor.** A fix was built
+  and tested only in unit tests. The owner's log showed the size never
+  changed, so the fix could not have mattered, and it was reverted.
+
+What would have saved both: asking for the owner's exact steps and log before
+proposing a mechanism. The step that mattered, dragging the overlay to the
+other monitor first, was the one I had not asked about, and it is the one my
+command-driven reproduction could never perform. The third explanation (the
+work area) is shipped as a hypothesis and labelled as one.
+
 ## What has held up well
 
 Worth recording too, since the point is to learn rather than to flagellate.

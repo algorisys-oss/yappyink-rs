@@ -56,11 +56,14 @@ fix.
 Pass through button is amber and Shrink to toolbar violet, each outlined,
 while its mode is in effect; painted once in `ink_ui::paint_toolbar`. Seen on
 GNOME. Windows and macOS are the owner's offline runs, which close T041.
-**Open bug found on the way (E019):** the owner saw Shrink and back move the
-overlay to the other monitor. Not reproduced by command (`yappyink park`,
-seven cycles, no movement), cause unknown. Hide and show changing monitor is
-explained separately: a new toplevel each time, fitted by the extension to
-wherever Mutter put it.
+**Parked, shipped untested (E019):** with two monitors, dragging the overlay
+to the laptop and then Shrink and back moved it to the HDMI screen. Likely
+cause: a window the size of the whole laptop monitor cannot fit its work area
+(the top bar), so Mutter moves it to a monitor where it fits. The extension
+now fits to the work area when there is more than one monitor. It is in 0.12.0
+and installed here, but GNOME has not loaded it: **the next step is to log
+out, then open, drag to the laptop, shrink and restore**, and check the
+journal line says the work area was used.
 
 **Live zoom works on GNOME (FR-029, ADR-008, E017):** `z`, a toolbar button,
 `yappyink zoom` / `zoom-off`, with the user's magnifier settings restored on
